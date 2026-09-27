@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#fffdf8" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Itinerario" />
+    <meta name="robots" content="noindex" />
+    <link rel="icon" href="./icono.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="./icono-180.png" />
+    <link rel="manifest" href="./manifest.webmanifest" />
+    <title>Itinerario</title>
+  </head>
+  <body>
+    <div id="mapa"></div>
+
+    <header id="barra">
+      <nav id="dias" aria-label="Días del viaje"></nav>
+      <p id="aviso" hidden></p>
+    </header>
+
+    <div id="botones-mapa">
+      <button id="btn-encuadrar" class="btn-redondo" type="button" title="Ver todo el día" aria-label="Ver todo el día">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" /></svg>
+      </button>
+      <button id="btn-offline" class="btn-redondo" type="button" title="Guardar mapas sin conexión" aria-label="Guardar mapas sin conexión">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4v11m0 0-4.5-4.5M12 15l4.5-4.5M5 19h14" /></svg>
+      </button>
+    </div>
+
+    <button id="btn-seguir" type="button" hidden>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.5" /><path d="M12 2v4M12 18v4M2 12h4M18 12h4" /></svg>
+      Seguir recorrido
+    </button>
+
+    <section id="panel" aria-label="Línea de tiempo e itinerario">
+      <button id="asa" type="button" aria-label="Mostrar u ocultar el itinerario"><span></span></button>
+
+      <div id="controles">
+        <button id="btn-anterior" class="btn-control" type="button" aria-label="Parada anterior">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14M19 5 9 12l10 7z" /></svg>
+        </button>
+        <button id="btn-play" class="btn-control principal" type="button" aria-label="Reproducir">
+          <svg class="icono-play" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15L19.5 12z" /></svg>
+          <svg class="icono-pausa" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z" /></svg>
+        </button>
+        <button id="btn-siguiente" class="btn-control" type="button" aria-label="Parada siguiente">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 5v14M5 5l10 7-10 7z" /></svg>
+        </button>
+        <div id="pista">
+          <div id="marcas"></div>
+          <input id="deslizador" type="range" min="0" max="1" step="1" value="0" aria-label="Hora del día" />
+          <div id="extremos"><span id="hora-desde"></span><span id="hora-hasta"></span></div>
+        </div>
+        <button id="btn-velocidad" class="btn-velocidad" type="button" aria-label="Velocidad de reproducción">×1</button>
+      </div>
+
+      <button id="estado" type="button"></button>
+
+      <div id="contenido"></div>
+    </section>
+
+    <div id="taxi" hidden>
+      <button id="taxi-cerrar" type="button" aria-label="Cerrar">✕</button>
+      <p id="taxi-pedir">请带我去这里<small>Lléveme aquí, por favor</small></p>
+      <p id="taxi-texto"></p>
+      <p id="taxi-direccion"></p>
+      <p id="taxi-nombre"></p>
+    </div>
+
+    <div id="toast" role="status" hidden></div>
+
+    <script type="module" src="./src/main.ts"></script>
+  </body>
+</html>
