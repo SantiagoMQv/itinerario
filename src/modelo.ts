@@ -1,6 +1,6 @@
 import { type Arco, type LngLat, crearArco, distanciaKm } from './geo';
 import { aMinutos } from './formato';
-import type { Dia, Itinerario, Parada, Transporte } from './tipos';
+import type { Dia, Itinerario, Parada, Seccion, Transporte } from './tipos';
 
 export interface ParadaC {
   /** Índice global en todo el viaje. */
@@ -48,7 +48,10 @@ export interface DiaC {
 
 export interface Modelo {
   titulo: string;
+  subtitulo?: string;
   ejemplo: boolean;
+  secciones: Seccion[];
+  pendientes: string[];
   dias: DiaC[];
   paradas: ParadaC[];
   tramos: TramoC[];
@@ -196,7 +199,17 @@ export function construirModelo(it: Itinerario): Modelo {
     };
   });
 
-  return { titulo: it.titulo, ejemplo: !!it.ejemplo, dias, paradas, tramos, avisos };
+  return {
+    titulo: it.titulo,
+    subtitulo: it.subtitulo,
+    ejemplo: !!it.ejemplo,
+    secciones: it.secciones ?? [],
+    pendientes: it.pendientes ?? [],
+    dias,
+    paradas,
+    tramos,
+    avisos,
+  };
 }
 
 /** Dónde se está en el instante `t`: en una parada o de camino entre dos. */

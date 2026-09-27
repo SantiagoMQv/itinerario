@@ -539,6 +539,33 @@ li.origen .nombre {
   font-size: 18px;
 }
 
+.opcional {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border: 1px solid var(--borde);
+  border-radius: 8px;
+  color: var(--suave);
+  font-size: 11px;
+  font-style: normal;
+  vertical-align: 2px;
+}
+
+.notas-dia {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--color-dia) 8%, #fff);
+  font-size: 13px;
+  line-height: 1.4;
+}
+.notas-dia p {
+  margin: 0;
+}
+.notas-dia p + p {
+  margin-top: 4px;
+}
+
 .detalle {
   display: none;
   padding: 0 10px 12px 42px;
@@ -578,6 +605,12 @@ li.abierta .detalle {
   color: var(--texto);
   font-size: 13px;
   text-decoration: none;
+}
+.acciones + .acciones {
+  margin-top: 6px;
+}
+.acciones .enlace {
+  border-style: dashed;
 }
 .acciones .btn-taxi {
   border-color: var(--texto);
@@ -630,6 +663,49 @@ li.tramo.actual {
 .lista-dias .nombre b {
   font-size: 14px;
 }
+.resumen-cifras {
+  margin: 10px 0 0;
+  color: var(--suave);
+  font-size: 12px;
+}
+
+.seccion {
+  margin-top: 18px;
+}
+.seccion h3 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+.seccion ul {
+  margin: 0 0 8px;
+  padding-left: 18px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.seccion li + li {
+  margin-top: 4px;
+}
+.pendientes {
+  padding-left: 0 !important;
+  list-style: none;
+}
+.pendientes label {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+}
+.pendientes input {
+  flex: none;
+  width: 18px;
+  height: 18px;
+  margin: 1px 0 0;
+  accent-color: #0c9270;
+}
+.pendientes input:checked + span {
+  color: var(--suave);
+  text-decoration: line-through;
+}
+
 .lista-dias .cifras {
   color: var(--suave);
   font-size: 12px;
@@ -652,6 +728,9 @@ li.tramo.actual {
   font-size: 13px;
   font-weight: 700;
   line-height: 1;
+}
+.marcador.opcional {
+  border-style: dashed;
 }
 .marcador.hecha {
   background: var(--color);

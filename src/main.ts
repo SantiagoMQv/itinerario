@@ -5,6 +5,7 @@ import { distanciaKm } from './geo';
 import { VistaMapa } from './mapa';
 import { type DiaC, type Momento, type ParadaC, type TramoC, construirModelo, hotelDe, momentoEn } from './modelo';
 import { descargaAnterior, descargarMapas, registrarServiceWorker } from './offline';
+import type { Enlace } from './tipos';
 
 const modelo = construirModelo(itinerario);
 for (const a of modelo.avisos) console.warn(a);
@@ -272,6 +273,16 @@ function pintarEstado(m: Momento) {
 
 // ---------- Lista del día ----------
 
+const parrafos = (texto: string, clase: string) =>
+  texto
+    .split('\n')
+    .filter((l) => l.trim())
+    .map((l) => `<p class="${clase}">${esc(l)}</p>`)
+    .join('');
+
+const enlacesHtml = (enlaces: Enlace[] = []) =>
+  enlaces.map((e) => `<a class="enlace" href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.texto)} ↗</a>`).join('');
+
 function enlacesMapas(p: ParadaC): string {
   const [lng, lat] = p.pos;
   const nombre = encodeURIComponent(p.p.local ?? p.p.nombre);
@@ -296,12 +307,13 @@ function filaParada(p: ParadaC, dia: DiaC, esOrigen: boolean): string {
       <button class="fila" type="button">
         <span class="num">${q.categoria === 'hotel' ? ICONO_CATEGORIA.hotel : p.n}</span>
         <span class="horas">${esOrigen ? 'Salida' : hora(p.inicio)}<small>${esOrigen ? hora(p.fin) : ''}</small></span>
-        <span class="nombre">${esc(q.nombre)}${q.local ? `<small>${esc(q.local)}</small>` : ''}</span>
+        <span class="nombre">${esc(q.nombre)}${q.opcional ? ' <em class="opcional">opcional</em>' : ''}${q.local ? `<small>${esc(q.local)}</small>` : ''}</span>
         <span class="cat" aria-hidden="true">${ICONO_CATEGORIA[q.categoria]}</span>
       </button>
       <div class="detalle">
-        ${q.notas ? `<p class="notas">${esc(q.notas)}</p>` : ''}
+        ${q.notas ? parrafos(q.notas, 'notas') : ''}
         ${datos.length ? `<dl>${datos.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''}
+        ${q.enlaces?.length ? `<div class="acciones">${enlacesHtml(q.enlaces)}</div>` : ''}
         <div class="acciones">
           ${q.local ? `<button type="button" class="btn-taxi" data-taxi="${p.id}">🀄 Enseñar al taxista</button>` : ''}
           ${enlacesMapas(p)}
@@ -335,6 +347,7 @@ function pintarLista(dia: DiaC) {
       <h2>Día ${dia.idx + 1} · ${esc(fechaLarga(dia.d.fecha))}</h2>
       <p>${esc(dia.d.titulo)}</p>
       <p class="cifras">${visitas} paradas · ${km(dia.km)} en línea recta</p>
+      ${dia.d.notas ? `<div class="notas-dia">${parrafos(dia.d.notas, '')}</div>` : ''}
     </header>
     <ol class="lista">${filas.join('')}</ol>`;
   estado.claveMomento = '';
@@ -405,9 +418,11 @@ function pintarResumen() {
   const total = modelo.tramos.reduce((s, t) => s + t.km, 0);
   el.estado.innerHTML = `
     <span class="resumen"><b>${esc(modelo.titulo)}</b>
-    <small>${modelo.dias.length} días · ${visitas} paradas · ${km(total)} en línea recta</small></span>
+    <small>${esc(modelo.subtitulo ?? `${modelo.dias.length} días`)}</small></span>
     <svg class="flecha" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>`;
+  const hechos = pendientesHechos();
   el.contenido.innerHTML = `
+    <p class="cifras resumen-cifras">${modelo.dias.length} días · ${visitas} paradas · ${km(total)} en línea recta</p>
     <ol class="lista-dias">
       ${modelo.dias
         .map(
@@ -419,8 +434,54 @@ function pintarResumen() {
         </button></li>`,
         )
         .join('')}
-    </ol>`;
+    </ol>
+    ${
+      modelo.pendientes.length
+        ? `<section class="seccion">
+            <h3>Pendiente de comprobar</h3>
+            <ul class="pendientes">${modelo.pendientes
+              .map(
+                (t) => `<li><label><input type="checkbox" data-pendiente="${esc(t)}"${hechos.has(t) ? ' checked' : ''}>
+                  <span>${esc(t)}</span></label></li>`,
+              )
+              .join('')}</ul>
+          </section>`
+        : ''
+    }
+    ${modelo.secciones
+      .map(
+        (sec) => `<section class="seccion">
+          <h3>${esc(sec.titulo)}</h3>
+          <ul>${sec.puntos.map((pt) => `<li>${esc(pt)}</li>`).join('')}</ul>
+          ${sec.enlaces?.length ? `<div class="acciones">${enlacesHtml(sec.enlaces)}</div>` : ''}
+        </section>`,
+      )
+      .join('')}`;
 }
+
+// Las casillas de pendientes se recuerdan en este móvil (no se comparten con otros).
+const CLAVE_PENDIENTES = 'pendientes-hechos';
+function pendientesHechos(): Set<string> {
+  try {
+    return new Set(JSON.parse(localStorage.getItem(CLAVE_PENDIENTES) ?? '[]'));
+  } catch {
+    return new Set();
+  }
+}
+
+el.contenido.addEventListener('change', (e) => {
+  const casilla = e.target as HTMLInputElement;
+  const texto = casilla.dataset.pendiente;
+  if (texto === undefined) return;
+  const hechos = pendientesHechos();
+  if (casilla.checked) hechos.add(texto);
+  else hechos.delete(texto);
+  try {
+    localStorage.setItem(CLAVE_PENDIENTES, JSON.stringify([...hechos]));
+  } catch {
+    // Sin almacenamiento local: la casilla solo dura hasta recargar.
+  }
+});
 
 // ---------- Panel desplegable ----------
 

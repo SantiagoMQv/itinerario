@@ -178,6 +178,7 @@ export class VistaMapa {
       el.classList.toggle('hotel', !numeros.length);
       el.classList.toggle('varios', numeros.length > 1);
       el.classList.toggle('origen', grupo.every((p) => p === dia.origen));
+      el.classList.toggle('opcional', grupo.every((p) => p.p.opcional));
       el.style.setProperty('--color', dia.color);
       el.setAttribute('aria-label', grupo[0].p.nombre);
       el.innerHTML = numeros.length ? `<span>${numeros.join('·')}</span>` : ICONO_CATEGORIA.hotel;

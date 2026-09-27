@@ -15,6 +15,11 @@ export type Categoria =
 
 export type Transporte = 'a_pie' | 'metro' | 'taxi' | 'bus' | 'tren' | 'maglev' | 'ferry' | 'avion' | 'bici';
 
+export interface Enlace {
+  texto: string;
+  url: string;
+}
+
 export interface Llegada {
   modo: Transporte;
   /** Texto libre, p. ej. "Línea 2 → Nanjing Rd East". */
@@ -42,6 +47,9 @@ export interface Parada {
   /** Dirección en chino. */
   direccionLocal?: string;
   reserva?: string;
+  /** Plan que se hace solo si apetece o si se cumple alguna condición. */
+  opcional?: boolean;
+  enlaces?: Enlace[];
 }
 
 export interface Dia {
@@ -50,12 +58,25 @@ export interface Dia {
   titulo: string;
   /** Ciudad principal del día, solo para mostrar. */
   ciudad?: string;
+  /** Notas generales del día. */
+  notas?: string;
   paradas: Parada[];
+}
+
+/** Bloque de información general del viaje (vuelos, hotel, prioridades…). */
+export interface Seccion {
+  titulo: string;
+  puntos: string[];
+  enlaces?: Enlace[];
 }
 
 export interface Itinerario {
   titulo: string;
+  subtitulo?: string;
   /** Marca los datos como de ejemplo (se avisa en pantalla). */
   ejemplo?: boolean;
   dias: Dia[];
+  secciones?: Seccion[];
+  /** Cosas por comprobar o reservar; se pueden ir marcando en la app. */
+  pendientes?: string[];
 }
