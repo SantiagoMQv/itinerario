@@ -3,41 +3,45 @@ import type { Itinerario, Parada } from '../tipos';
 // Itinerario del viaje. Todas las horas son hora de China.
 // Si un plan acaba pasada la medianoche se escribe como "25:30" (01:30 del día siguiente).
 
-/** Coordenadas WGS-84 [lat, lng] de cada sitio (OpenStreetMap). */
+/**
+ * Coordenadas WGS-84 [lat, lng] de cada sitio (OpenStreetMap). Aproximadas, a falta de
+ * confirmar el número exacto: masaje, Songmont (huaihai), Hush, Dongxin, CUBIC3 e Hinichijou.
+ */
 const C = {
-  pvg: [0, 0],
-  hotel: [0, 0],
-  masaje: [0, 0],
-  suzhouCreek: [0, 0],
-  joyCity: [0, 0],
-  noria: [0, 0],
-  disney: [0, 0],
-  estacionShanghai: [0, 0],
-  estacionNankin: [0, 0],
-  comidaJiming: [0, 0],
-  museo: [0, 0],
-  jiming: [0, 0],
-  txHuaihai: [0, 0],
-  lyceum: [0, 0],
-  huaihai: [0, 0],
-  yuyuan: [0, 0],
-  nanxiang: [0, 0],
-  bund: [0, 0],
-  speakLow: [0, 0],
-  hush: [0, 0],
-  wukang: [0, 0],
-  dongxin: [0, 0],
-  demarzo: [0, 0],
-  cubic3: [0, 0],
-  hinichijou: [0, 0],
-  lujiazui: [0, 0],
-  perla: [0, 0],
+  pvg: [31.151124, 121.798652],
+  hotel: [31.2500138, 121.4467433],
+  masaje: [31.2455627, 121.4650565],
+  suzhouCreek: [31.2420692, 121.4659984],
+  joyCity: [31.2457033, 121.4675727],
+  noria: [31.2461038, 121.4675959],
+  disney: [31.1462523, 121.6562825],
+  estacionShanghai: [31.2504165, 121.4505223],
+  estacionNankin: [32.0890655, 118.7913961],
+  comidaJiming: [32.0597786, 118.7914078],
+  museo: [32.0616702, 118.7901099],
+  jiming: [32.0629615, 118.7899275],
+  txHuaihai: [31.2225113, 121.4642123],
+  lyceum: [31.2235781, 121.4554307],
+  huaihai: [31.2188995, 121.4552697],
+  yuyuan: [31.2273348, 121.4912311],
+  nanxiang: [31.2285341, 121.4871017],
+  bund: [31.24, 121.4903],
+  speakLow: [31.2170628, 121.4605836],
+  hush: [31.2205, 121.465],
+  wukang: [31.2062561, 121.4337292],
+  dongxin: [31.2079627, 121.4345823],
+  demarzo: [31.2151229, 121.4355285],
+  cubic3: [31.2129028, 121.4538854],
+  hinichijou: [31.2129028, 121.4538854],
+  lujiazui: [31.23962, 121.4960369],
+  perla: [31.2419464, 121.4952604],
 } satisfies Record<string, [number, number]>;
 
 const en = ([lat, lng]: [number, number]) => ({ lat, lng });
 
 const HOTEL = {
   nombre: 'Hotel Aqua Suhe NO.1',
+  local: '上海静安苏河1號酒店',
   categoria: 'hotel',
   ...en(C.hotel),
   direccion: '688 Hengfeng Road, Jing’an',
@@ -45,8 +49,8 @@ const HOTEL = {
 } satisfies Omit<Parada, 'hora'>;
 
 const PVG = {
-  nombre: 'Aeropuerto de Pudong (PVG)',
-  local: '浦东国际机场',
+  nombre: 'Aeropuerto de Pudong (PVG), T1',
+  local: '浦东国际机场1号航站楼',
   categoria: 'transporte',
   ...en(C.pvg),
 } satisfies Omit<Parada, 'hora'>;
@@ -69,7 +73,9 @@ export const itinerario: Itinerario = {
           ...PVG,
           hora: '07:00',
           fin: '08:45',
-          notas: 'Llegada desde París. Inmigración, equipaje y traslado al hotel.',
+          notas:
+            'Llegada desde París. Air France y KLM operan en la Terminal 1 (confirmarlo en la tarjeta de embarque).\n' +
+            'Inmigración, equipaje y traslado al hotel.',
         },
         {
           ...HOTEL,
@@ -86,14 +92,16 @@ export const itinerario: Itinerario = {
           hora: '11:45',
           fin: '13:00',
           nombre: 'Masaje en Kangyou Four Seasons',
+          local: '康友四季(静安大悦城店)',
           categoria: 'ocio',
           ...en(C.masaje),
           opcional: true,
-          llegada: { modo: 'a_pie' },
-          direccion: '222 Jinyuan Road (zona Jing’an Joy City)',
+          llegada: { modo: 'taxi', detalle: 'Taxi o metro línea 12 (Hanzhong Rd → Qufu Rd)', min: 15 },
+          direccion: '222 Jinyuan Road (zona Jing’an Joy City), a 260 m de la salida 4 del metro Qufu Road',
+          direccionLocal: '上海市静安区晋元路222号',
           notas:
             'Solo si no nos dan la habitación y hay hueco para dos a un precio final adecuado (objetivo: máximo 230 ¥ por persona).\n' +
-            'Klook anuncia masaje de pies de 70 min, masaje con aceite de 60 min y un combinado, desde 196 ¥ por persona: comprobar cuál entra realmente en el presupuesto antes de pagar.\n' +
+            'Klook anuncia masaje de pies de 70 min, masaje con aceite de 60 min y un combinado, desde 196 ¥ por persona: comprobar cuál entra realmente en el presupuesto antes de pagar. Horario: 11:00–01:00.\n' +
             'Si ninguno entra, no forzarlo: comida tranquila y paseo por Suzhou Creek.',
           enlaces: [
             enlace('Tratamientos y horario (Klook)', 'https://www.klook.cn/zh-CN/activity/223147-hikyou-four-seasons-massage-jing-an-joy-city-store/'),
@@ -103,18 +111,20 @@ export const itinerario: Itinerario = {
           hora: '13:15',
           fin: '13:45',
           nombre: 'Paseo por Suzhou Creek',
-          local: '苏州河',
+          local: '苏州河 · 晋元纪念广场',
           categoria: 'naturaleza',
           ...en(C.suzhouCreek),
           opcional: true,
           llegada: { modo: 'a_pie' },
-          notas: 'Alternativa tranquila si no hay masaje: comer sin prisa y pasear un rato junto al río.',
+          notas:
+            'Alternativa tranquila si no hay masaje: comer sin prisa y pasear un rato junto al río, junto al almacén Sihang.\n' +
+            'Hay otro buen tramo de paseo justo detrás del hotel (zona M50).',
         },
         {
           ...HOTEL,
           hora: '14:00',
           fin: '16:10',
-          llegada: { modo: 'a_pie' },
+          llegada: { modo: 'taxi', min: 10 },
           notas: 'Entrada al hotel y descanso.',
         },
         {
@@ -124,7 +134,8 @@ export const itinerario: Itinerario = {
           local: '静安大悦城',
           categoria: 'compras',
           ...en(C.joyCity),
-          llegada: { modo: 'a_pie' },
+          llegada: { modo: 'metro', detalle: 'Metro línea 12 (Hanzhong Rd → Qufu Rd) o taxi', min: 15 },
+          direccionLocal: '上海市静安区西藏北路166号',
           notas:
             'Comprar la ropa imprescindible para el día siguiente y buscar una maleta resistente: comparar tamaño, peso, ruedas y precio. No dar por hecho que habrá existencias de maletas Xiaomi.\n' +
             'Antes de elegir el tamaño, revisar la franquicia de equipaje de los cuatro vuelos, sobre todo el Barcelona–Málaga de Vueling (según la tarifa, podría hacer falta añadir la maleta).\n' +
@@ -138,12 +149,13 @@ export const itinerario: Itinerario = {
           hora: '19:00',
           fin: '19:45',
           nombre: 'Noria Sky Ring',
-          local: '大悦城摩天轮',
+          local: 'SKY RING摩天轮',
           categoria: 'mirador',
           ...en(C.noria),
           opcional: true,
           llegada: { modo: 'a_pie' },
-          notas: 'Solo si funciona ese día: confirmarlo por separado del horario del centro comercial.',
+          notas:
+            'En el edificio norte, con acceso por la planta 8. Solo si funciona ese día: confirmarlo por separado (el horario publicado, 10:00/11:00–21:30, es antiguo).',
         },
         {
           hora: '19:45',
@@ -152,13 +164,13 @@ export const itinerario: Itinerario = {
           categoria: 'comida',
           ...en(C.joyCity),
           llegada: { modo: 'a_pie' },
-          notas: 'Cena informal dentro de Joy City: puestos asiáticos, bebidas y postres.',
+          notas: 'Cena informal en la planta baja del edificio norte de Joy City: puestos asiáticos, bebidas y postres.',
           enlaces: [enlace('Top Banana Market', 'https://english.shanghai.gov.cn/en-FirstStores/20260211/4976961a80794cf495e4eb67df6371ee.html')],
         },
         {
           ...HOTEL,
           hora: '21:15',
-          llegada: { modo: 'a_pie' },
+          llegada: { modo: 'taxi', min: 10 },
         },
       ],
     },
@@ -179,7 +191,8 @@ export const itinerario: Itinerario = {
           ...en(C.disney),
           llegada: { modo: 'metro', detalle: 'Metro hasta Disney Resort (línea 11) o taxi/DiDi', min: 60 },
           notas:
-            'Comprar la entrada y consultar el horario de apertura y cierre publicado para el 22. La hora de salida de aquí es orientativa.',
+            'Comprar la entrada y consultar el horario de apertura y cierre publicado para el 22. La hora de salida de aquí es orientativa.\n' +
+            'El punto del mapa es el centro del parque, no la puerta de entrada.',
         },
         {
           ...HOTEL,
@@ -204,7 +217,7 @@ export const itinerario: Itinerario = {
           local: '上海站',
           categoria: 'transporte',
           ...en(C.estacionShanghai),
-          llegada: { modo: 'a_pie' },
+          llegada: { modo: 'a_pie', detalle: 'Unos 600 m por Hengfeng Rd y Moling Rd hasta la plaza sur', min: 10 },
           notas:
             'Tren hacia la estación de Nankín sobre las 11:00–11:30, si hay un horario que deje tiempo suficiente. Tren y duración exactos pendientes de reserva. Llevar el pasaporte.',
           enlaces: [
@@ -227,7 +240,8 @@ export const itinerario: Itinerario = {
           ...en(C.comidaJiming),
           llegada: { modo: 'metro', detalle: 'Línea 3 hasta Jiming Temple (鸡鸣寺)', min: 15 },
           notas:
-            'Comida sencilla por la zona, por ejemplo fideos locales con pato. El museo está a unos 200 m de la salida 5 del metro.',
+            'Comida sencilla por la zona, por ejemplo fideos locales con pato. El museo está a unos 200 m de la salida 5 del metro.\n' +
+            'En días de mucha gente la salida 5 es solo de entrada; para salir se usa la 6 (o la 1 y la 4).',
         },
         {
           hora: '14:00',
@@ -240,7 +254,7 @@ export const itinerario: Itinerario = {
           direccion: '39 Beijing East Road',
           direccionLocal: '北京东路39号',
           notas:
-            'Gratuito. Abre de miércoles a domingo de 09:00 a 17:00, último acceso a las 16:00.\n' +
+            'Gratuito. Abre de miércoles a domingo de 09:00 a 17:00, último acceso a las 16:00 (lunes y martes cerrado).\n' +
             'Cada adulto necesita reserva nominal y su propio código en el WeChat oficial del museo.',
           enlaces: [enlace('Guía oficial del museo', 'https://www.nmp.ac.cn/bwggk/cgzn/')],
         },
@@ -253,7 +267,7 @@ export const itinerario: Itinerario = {
           ...en(C.jiming),
           opcional: true,
           llegada: { modo: 'a_pie' },
-          notas: 'Breve, solo si apetece.',
+          notas: 'Breve, solo si apetece. El templo abre de 07:00 a 17:30.',
         },
         {
           hora: '17:35',
@@ -276,7 +290,7 @@ export const itinerario: Itinerario = {
         {
           ...HOTEL,
           hora: '20:00',
-          llegada: { modo: 'a_pie' },
+          llegada: { modo: 'a_pie', min: 10 },
           notas: 'Cena sencilla cerca del hotel.',
         },
       ],
@@ -291,12 +305,14 @@ export const itinerario: Itinerario = {
           hora: '10:30',
           fin: '12:45',
           nombre: 'Middle Huaihai Road: TX Huaihai',
-          local: 'TX淮海',
+          local: 'TX淮海｜年轻力中心',
           categoria: 'compras',
           ...en(C.txHuaihai),
           llegada: { modo: 'metro', detalle: 'Línea 1 hasta South Huangpi Road', min: 20 },
+          direccionLocal: '淮海中路523号',
           notas:
-            'Prioridad a marcas locales: Pane en TX Huaihai, Mason Prince enfrente y otras tiendas que nos gusten al recorrer la calle.',
+            'Prioridad a marcas locales: Pane en TX Huaihai (planta baja, L1-05/06; en festivos ha tenido colas de más de 40 min), Mason Prince enfrente (淮海中路528号) y otras tiendas que nos gusten al recorrer la calle.\n' +
+            'TX Huaihai abre de 11:00 a 22:00.',
           enlaces: [
             enlace('Guía de tiendas de Huaihai', 'https://english.shanghai.gov.cn/en-TrendyStores/20260525/8fc944e699224a4e9e9a609ad33fa0c0.html'),
           ],
@@ -304,14 +320,15 @@ export const itinerario: Itinerario = {
         {
           hora: '13:00',
           fin: '14:00',
-          nombre: 'Lyceum Restaurant',
+          nombre: 'Lanxin (Lyceum Restaurant)',
+          local: '兰心餐厅',
           categoria: 'comida',
           ...en(C.lyceum),
           llegada: { modo: 'a_pie' },
           direccion: '130 Jinxian Road',
           direccionLocal: '进贤路130号',
           notas:
-            'Cocina shanghainesa, según cola y disponibilidad.\n' +
+            'Cocina shanghainesa. No admite reservas. Horario: 11:00–13:30 y 17:00–21:00: al mediodía cierra a las 13:30, así que conviene no llegar más tarde de las 13:00.\n' +
             'Alternativa si preferimos pato pekinés: Quanjude (no imprescindible).',
         },
         {
@@ -322,7 +339,8 @@ export const itinerario: Itinerario = {
           categoria: 'compras',
           ...en(C.huaihai),
           llegada: { modo: 'a_pie' },
-          notas: 'Songmont para mirar bolsos, no como compra obligatoria porque sube de presupuesto.',
+          notas:
+            'Songmont para mirar bolsos, no como compra obligatoria porque sube de presupuesto (su tienda en esta calle está sin confirmar).',
         },
         {
           ...HOTEL,
@@ -354,7 +372,7 @@ export const itinerario: Itinerario = {
           categoria: 'comida',
           ...en(C.nanxiang),
           llegada: { modo: 'a_pie' },
-          notas: 'Cena. Ajustar según la cola y el horario efectivo.',
+          notas: 'Cena, en el bazar de Yuyuan. Ajustar según la cola y el horario efectivo.',
         },
         {
           hora: '20:00',
@@ -370,6 +388,7 @@ export const itinerario: Itinerario = {
           hora: '22:00',
           fin: '23:30',
           nombre: 'Speak Low',
+          local: 'Speak Low',
           categoria: 'ocio',
           ...en(C.speakLow),
           llegada: { modo: 'taxi', min: 20 },
@@ -391,7 +410,8 @@ export const itinerario: Itinerario = {
           direccionLocal: '雁荡路109号',
           notas:
             'Si apetece hip-hop/R&B. Comprobar la sesión y el precio de la entrada de esa noche antes de comprar pases.\n' +
-            'Si llegamos cansados, el bar ya cumple el plan nocturno y la discoteca se puede omitir. Hora de salida orientativa.',
+            'Si llegamos cansados, el bar ya cumple el plan nocturno y la discoteca se puede omitir. Hora de salida orientativa.\n' +
+            'INS Land está en el lado norte del parque Fuxing; el punto del mapa es aproximado.',
           enlaces: [enlace('Hush', 'https://www.smartshanghai.com/venue/28730/smshwxmpqr.jpeg?share=true28730')],
         },
         {
@@ -411,7 +431,7 @@ export const itinerario: Itinerario = {
           hora: '12:00',
           fin: '12:30',
           nombre: 'Wukang Road',
-          local: '武康路',
+          local: '武康大楼 · 武康路',
           categoria: 'barrio',
           ...en(C.wukang),
           llegada: { modo: 'taxi', min: 20 },
@@ -428,7 +448,8 @@ export const itinerario: Itinerario = {
           direccionLocal: '武康路98号',
           notas:
             'Almuerzo recomendado, cocina shanghainesa.\n' +
-            'Si preferimos un brunch occidental: SOMETHING Dining & Bar, en la segunda planta del mismo número.',
+            'Si preferimos un brunch occidental: SOMETHING Dining & Bar, en la segunda planta del mismo número.\n' +
+            'Posición en el mapa aproximada.',
           enlaces: [
             enlace('Restaurantes de Wukang', 'https://english.shanghai.gov.cn/en-Restaurants/20250411/1dfa64b624304bff969afd23b9d2bb24.html'),
             enlace('SOMETHING', 'https://english.shanghai.gov.cn/en-Restaurants/20240416/b3de189a44064a76afd2e677f7e60b37.html'),
@@ -463,7 +484,7 @@ export const itinerario: Itinerario = {
           direccionLocal: '永康路58号',
           notas:
             'El «−86 °C» se refiere a la experiencia del vaso, no a beber líquido a esa temperatura.\n' +
-            'Tramo flexible si la espera en 13DEMARZO se alarga.',
+            'Tramo flexible si la espera en 13DEMARZO se alarga. Posición en el mapa aproximada (Yongkang Road).',
           enlaces: [enlace('CUBIC3 en Amap', 'https://www.amap.com/place/B0LUF51YXH')],
         },
         {
@@ -473,7 +494,8 @@ export const itinerario: Itinerario = {
           categoria: 'comida',
           ...en(C.hinichijou),
           llegada: { modo: 'a_pie' },
-          notas: 'El café servido por una «garra» a través de un hueco en la pared. Muy cerca de CUBIC3.',
+          notas:
+            'El café servido por una «garra» a través de un hueco en la pared. Muy cerca de CUBIC3; posición en el mapa aproximada.',
           enlaces: [enlace('Hinichijou', 'https://english.shanghai.gov.cn/en-Cafes/20240823/f098caef928a48a495162811624512a4.html')],
         },
         {

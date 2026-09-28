@@ -104,6 +104,9 @@ svg {
   color: rgba(255, 255, 255, 0.85);
 }
 
+#aviso[hidden] {
+  display: none;
+}
 #aviso {
   display: inline-block;
   margin: 0 12px;

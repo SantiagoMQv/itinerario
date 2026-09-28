@@ -206,12 +206,24 @@ export class VistaMapa {
     this.ajustarPastillas();
   }
 
-  /** Oculta la distancia de los trayectos que en pantalla son demasiado cortos para que quepa. */
+  /**
+   * Oculta la distancia de los trayectos que en pantalla son demasiado cortos para que quepa
+   * y las que se pisarían con otra (tienen preferencia los trayectos más largos).
+   */
   private ajustarPastillas() {
-    for (const { m, t } of this.pastillas) {
+    const puestas: { x: number; y: number; w: number; h: number }[] = [];
+    const porLongitud = [...this.pastillas].sort((a, b) => b.t.km - a.t.km);
+    for (const { m, t } of porLongitud) {
+      const el = m.getElement();
       const a = this.mapa.project(t.desde.pos);
       const b = this.mapa.project(t.hasta.pos);
-      m.getElement().classList.toggle('oculta', Math.hypot(a.x - b.x, a.y - b.y) < 110);
+      el.classList.remove('oculta');
+      const c = this.mapa.project(puntoEnArco(t.arco, 0.5));
+      const caja = { x: c.x, y: c.y, w: el.offsetWidth + 6, h: el.offsetHeight + 4 };
+      const pisa = puestas.some((o) => Math.abs(o.x - caja.x) * 2 < o.w + caja.w && Math.abs(o.y - caja.y) * 2 < o.h + caja.h);
+      const corto = Math.hypot(a.x - b.x, a.y - b.y) < 110;
+      el.classList.toggle('oculta', corto || pisa);
+      if (!corto && !pisa) puestas.push(caja);
     }
   }
 

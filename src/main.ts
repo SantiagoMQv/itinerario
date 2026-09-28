@@ -311,9 +311,9 @@ function filaParada(p: ParadaC, dia: DiaC, esOrigen: boolean): string {
         <span class="cat" aria-hidden="true">${ICONO_CATEGORIA[q.categoria]}</span>
       </button>
       <div class="detalle">
-        ${q.notas ? parrafos(q.notas, 'notas') : ''}
+        ${q.notas && !esOrigen ? parrafos(q.notas, 'notas') : ''}
         ${datos.length ? `<dl>${datos.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''}
-        ${q.enlaces?.length ? `<div class="acciones">${enlacesHtml(q.enlaces)}</div>` : ''}
+        ${q.enlaces?.length && !esOrigen ? `<div class="acciones">${enlacesHtml(q.enlaces)}</div>` : ''}
         <div class="acciones">
           ${q.local ? `<button type="button" class="btn-taxi" data-taxi="${p.id}">🀄 Enseñar al taxista</button>` : ''}
           ${enlacesMapas(p)}
