@@ -5,13 +5,16 @@ import type { Itinerario, Parada } from '../tipos';
 
 /**
  * Coordenadas WGS-84 [lat, lng] de cada sitio (OpenStreetMap). Aproximadas, a falta de
- * confirmar el número exacto: masaje, Songmont (huaihai), Hush, Dongxin, CUBIC3 e Hinichijou.
+ * confirmar el número exacto: tramo este de Nanjing Road, Songmont (huaihai), Hush, Dongxin, CUBIC3 e
+ * Hinichijou.
  */
 const C = {
   pvg: [31.151124, 121.798652],
   hotel: [31.2500138, 121.4467433],
-  masaje: [31.2455627, 121.4650565],
-  suzhouCreek: [31.2420692, 121.4659984],
+  museoHistoriaNatural: [31.2368655, 121.4577002],
+  huanghe: [31.2366304, 121.4660009],
+  nanjingOeste: [31.2370467, 121.4702684],
+  nanjingEste: [31.2386, 121.4785],
   joyCity: [31.2457033, 121.4675727],
   noria: [31.2461038, 121.4675959],
   disney: [31.1462523, 121.6562825],
@@ -63,16 +66,16 @@ export const itinerario: Itinerario = {
   dias: [
     {
       fecha: '2026-10-21',
-      titulo: 'Llegada, descanso y primeras compras',
+      titulo: 'Llegada, siesta, Nanjing Road y noria',
       ciudad: 'Shanghái',
       notas:
-        'El tiempo de llegada al hotel dependerá de inmigración y del tráfico.\n' +
-        'No construir el día suponiendo que habrá habitación antes de las 14:00.',
+        'Plan: dormir hasta ~14:30 y salir a las 15:00. Comida tardía, tiendas por Nanjing Road, el Bund al encenderse las luces y la noria de noche.\n' +
+        'Entre las 14:00 y las 17:00 muchos restaurantes tradicionales cierran: por eso la comida es en Huanghe Road, que sirve toda la tarde.',
       paradas: [
         {
           ...PVG,
           hora: '07:00',
-          fin: '08:45',
+          fin: '08:50',
           notas:
             'Llegada desde París. Air France y KLM operan en la Terminal 1 (confirmarlo en la tarjeta de embarque).\n' +
             'Inmigración, equipaje y traslado al hotel.',
@@ -80,96 +83,118 @@ export const itinerario: Itinerario = {
         {
           ...HOTEL,
           hora: '10:00',
-          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi desde PVG (según tráfico)', min: 75 },
+          fin: '15:00',
+          llegada: {
+            modo: 'taxi',
+            detalle: 'Taxi o DiDi: ~50 km; 40–45 min sin tráfico, 60–75 min en hora punta. Unos 200 ¥',
+            min: 70,
+          },
           notas:
-            'Entrada indicada después de las 14:00. Preguntar antes del viaje por Trip.com si pueden dar la habitación por la mañana y si tendría coste; volver a preguntarlo al llegar. Si no se puede, dejar el equipaje en consigna.\n' +
-            'Si nos dan la habitación: descansar hasta ~13:30, comer sin prisas y salir hacia las 16:00.\n' +
-            'Si no: brunch ligero y masaje (si encaja) o comida tranquila y paseo corto por Suzhou Creek; vuelta al hotel a las 14:00.',
+            'El hotel nos dejará entrar antes si hay habitaciones disponibles; si no, intentarán resolverlo lo antes posible. Plan: dormir hasta ~14:30.\n' +
+            'Si hay que esperar: dejar las maletas en consigna y dar un paseo corto por Suzhou Creek, justo detrás del hotel (zona M50).',
           reserva: '5 noches, del 21 al 26. Salida antes de las 12:00.',
           enlaces: [enlace('Ficha del hotel', 'https://sg.trip.com/hotels/jing-an-district-hotel-detail-2895314/aqua-suhe-no-1-hotel-shanghai-jingan/')],
         },
         {
-          hora: '11:45',
-          fin: '13:00',
-          nombre: 'Masaje en Kangyou Four Seasons',
-          local: '康友四季(静安大悦城店)',
-          categoria: 'ocio',
-          ...en(C.masaje),
-          opcional: true,
-          llegada: { modo: 'taxi', detalle: 'Taxi o metro línea 12 (Hanzhong Rd → Qufu Rd)', min: 15 },
-          direccion: '222 Jinyuan Road (zona Jing’an Joy City), a 260 m de la salida 4 del metro Qufu Road',
-          direccionLocal: '上海市静安区晋元路222号',
+          hora: '15:15',
+          fin: '16:00',
+          nombre: 'Comida en Huanghe Road: Yang’s Dumpling',
+          local: '小杨生煎（黄河路）',
+          categoria: 'comida',
+          ...en(C.huanghe),
+          llegada: { modo: 'taxi', min: 15 },
+          direccion: '97 Huanghe Road, junto a People’s Square',
+          direccionLocal: '黄河路97号',
           notas:
-            'Solo si no nos dan la habitación y hay hueco para dos a un precio final adecuado (objetivo: máximo 230 ¥ por persona).\n' +
-            'Klook anuncia masaje de pies de 70 min, masaje con aceite de 60 min y un combinado, desde 196 ¥ por persona: comprobar cuál entra realmente en el presupuesto antes de pagar. Horario: 11:00–01:00.\n' +
-            'Si ninguno entra, no forzarlo: comida tranquila y paseo por Suzhou Creek.',
+            'Shengjian (bollos fritos de sopa), distintos de los xiaolongbao del sábado. Abre hasta tarde.\n' +
+            'Enfrente, en el número 90, está Jia Jia Tang Bao (佳家汤包, 07:30–23:00), de los xiaolongbao más famosos de Shanghái.\n' +
+            'Huanghe Road se puso de moda por la serie «Blossoms Shanghai» (繁花).',
+          enlaces: [enlace('Huanghe Road', 'https://english.shanghai.gov.cn/en-Latest-WhatsNew/20240110/1ba02195e1ef4de49fabee498555c64d.html')],
+        },
+        {
+          hora: '16:05',
+          fin: '17:15',
+          nombre: 'Nanjing Road: tramo de People’s Square',
+          local: '南京路步行街 · 第一百货',
+          categoria: 'compras',
+          ...en(C.nanjingOeste),
+          llegada: { modo: 'a_pie' },
+          notas:
+            'Inicio de la calle peatonal. Grandes almacenes históricos No. 1 Department Store (con zona de anime y figuras), First Food Store (上海第一食品商店, n.º 720) para snacks y dulces de todo el país, y en Shimao Plaza las tiendas insignia de LEGO y M&M’s.\n' +
+            'Para compras grandes, preguntar en atención al cliente por la devolución de impuestos para turistas (con el pasaporte; se cobra en el aeropuerto).',
           enlaces: [
-            enlace('Tratamientos y horario (Klook)', 'https://www.klook.cn/zh-CN/activity/223147-hikyou-four-seasons-massage-jing-an-joy-city-store/'),
+            enlace('Guía de tiendas de Nanjing Road', 'https://www.wanderinchina.com/es/destinations/shanghai/nanjing-east-road/shopping/'),
           ],
         },
         {
-          hora: '13:15',
-          fin: '13:45',
-          nombre: 'Paseo por Suzhou Creek',
-          local: '苏州河 · 晋元纪念广场',
-          categoria: 'naturaleza',
-          ...en(C.suzhouCreek),
-          opcional: true,
+          hora: '17:20',
+          fin: '18:20',
+          nombre: 'Nanjing Road: tramo hacia el Bund',
+          local: '南京东路步行街',
+          categoria: 'compras',
+          ...en(C.nanjingEste),
           llegada: { modo: 'a_pie' },
           notas:
-            'Alternativa tranquila si no hay masaje: comer sin prisa y pasear un rato junto al río, junto al almacén Sihang.\n' +
-            'Hay otro buen tramo de paseo justo detrás del hotel (zona M50).',
+            'Marcas chinas y cosas curiosas: Miniso Land (n.º 387, tres plantas), Pop Mart Global Flagship en Hongyi Plaza (figuras sorpresa de edición Shanghái), Bailian ZX (seis plantas de anime y videojuegos) y las escaleras mecánicas doradas en espiral de New World Daimaru.\n' +
+            'Por la tarde-noche se encienden los neones de la calle. Posición en el mapa aproximada.',
         },
         {
-          ...HOTEL,
-          hora: '14:00',
-          fin: '16:10',
-          llegada: { modo: 'taxi', min: 10 },
-          notas: 'Entrada al hotel y descanso.',
+          hora: '18:30',
+          fin: '19:05',
+          nombre: 'The Bund al encenderse las luces',
+          local: '外滩',
+          categoria: 'mirador',
+          ...en(C.bund),
+          llegada: { modo: 'a_pie' },
+          notas:
+            'Primera vista de Lujiazui iluminado: en octubre las luces del Bund y de Lujiazui suelen estar encendidas de 18:00 a 22:00 (anochece hacia las 17:25).',
         },
         {
-          hora: '16:30',
-          fin: '19:00',
+          hora: '19:20',
+          fin: '20:20',
           nombre: 'Jing’an Joy City: ropa y maleta',
           local: '静安大悦城',
           categoria: 'compras',
           ...en(C.joyCity),
-          llegada: { modo: 'metro', detalle: 'Metro línea 12 (Hanzhong Rd → Qufu Rd) o taxi', min: 15 },
+          llegada: { modo: 'taxi', detalle: 'Taxi desde el Bund (~3 km)', min: 15 },
           direccionLocal: '上海市静安区西藏北路166号',
           notas:
-            'Comprar la ropa imprescindible para el día siguiente y buscar una maleta resistente: comparar tamaño, peso, ruedas y precio. No dar por hecho que habrá existencias de maletas Xiaomi.\n' +
+            'Comprar la ropa imprescindible para Disneyland y buscar una maleta resistente: comparar tamaño, peso, ruedas y precio. No dar por hecho que habrá existencias de maletas Xiaomi.\n' +
             'Antes de elegir el tamaño, revisar la franquicia de equipaje de los cuatro vuelos, sobre todo el Barcelona–Málaga de Vueling (según la tarifa, podría hacer falta añadir la maleta).\n' +
-            'Horario general: 10:00–22:00.',
+            'Las tiendas cierran a las 22:00.',
           enlaces: [
             enlace('Joy City', 'https://english.shanghai.gov.cn/en-ShoppingCenters/20231217/dbb23c40ef1b4ff68794226b8ca37d1a.html'),
             enlace('Equipaje en Vueling', 'https://help.vueling.com/hc/es/articles/19798835176081-Equipaje-de-mano-Maletas-de-mano'),
           ],
         },
         {
-          hora: '19:00',
-          fin: '19:45',
+          hora: '20:25',
+          fin: '21:00',
           nombre: 'Noria Sky Ring',
           local: 'SKY RING摩天轮',
           categoria: 'mirador',
           ...en(C.noria),
-          opcional: true,
           llegada: { modo: 'a_pie' },
           notas:
-            'En el edificio norte, con acceso por la planta 8. Solo si funciona ese día: confirmarlo por separado (el horario publicado, 10:00/11:00–21:30, es antiguo).',
+            'En la azotea del edificio norte, con acceso por la planta 8. Entrada desde unos 60 ¥.\n' +
+            'Trip.com da como horario 11:00–21:00 con última entrada a las 21:00 (una guía oficial antigua decía hasta las 22:00): confirmarlo ese día. Si abre hasta las 22:00, subir más tarde y cenar antes.\n' +
+            'Algunas reseñas avisan de que desde arriba se ve sobre todo la ciudad cercana; los rascacielos de Lujiazui quedan lejos.',
         },
         {
-          hora: '19:45',
-          fin: '21:00',
+          hora: '21:00',
+          fin: '21:50',
           nombre: 'Cena en Top Banana Market',
           categoria: 'comida',
-          ...en(C.joyCity),
+          ...en(C.noria),
           llegada: { modo: 'a_pie' },
-          notas: 'Cena informal en la planta baja del edificio norte de Joy City: puestos asiáticos, bebidas y postres.',
+          notas:
+            'Cena informal en la planta baja del edificio norte de Joy City: puestos asiáticos, bebidas y postres.\n' +
+            'Confirmar a qué hora cierra; si cierra pronto, cenar antes de subir a la noria.',
           enlaces: [enlace('Top Banana Market', 'https://english.shanghai.gov.cn/en-FirstStores/20260211/4976961a80794cf495e4eb67df6371ee.html')],
         },
         {
           ...HOTEL,
-          hora: '21:15',
+          hora: '22:05',
           llegada: { modo: 'taxi', min: 10 },
         },
       ],
@@ -583,14 +608,14 @@ export const itinerario: Itinerario = {
       titulo: 'Fuera del plan por ahora',
       puntos: [
         'Nankín: Niushoushan, Mausoleo Ming Xiaoling, Palacio Presidencial y los demás museos.',
-        'Shanghái: Museo de Historia Natural, Museo de Arte Contemporáneo, China Art Museum, Templo del Buda de Jade y varios centros comerciales.',
-        'Nanjing Road, solo si pasamos por allí; no es el sitio para moda china original a buen precio.',
+        'Shanghái: Museo de Arte Contemporáneo, China Art Museum, Templo del Buda de Jade y varios centros comerciales.',
+        'Masaje en Kangyou Four Seasons (222 Jinyuan Road): era el plan para el miércoles si no había habitación temprano.',
       ],
     },
   ],
   pendientes: [
-    'Hotel: consultar early check-in (gratis o de pago) y consigna.',
-    'Masaje: confirmar para dos el miércoles 21 hacia mediodía: tratamiento, duración y precio final (máx. 230 ¥/persona).',
+    'Museo de Historia Natural: elegir día y reservar la entrada (no venden en taquilla).',
+    'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.',
     'Tren y museo: comprobar 12306, elegir estaciones y horarios reales y hacer la reserva nominal del museo.',
     'Disneyland: comprar la entrada y consultar el horario del 22.',
     'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.',
