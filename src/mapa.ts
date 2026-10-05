@@ -36,6 +36,9 @@ const coleccion = (features: (Linea | Punto | Hueco)[]) => ({ type: 'FeatureColl
  */
 const HUECOS: Record<string, [number, number]> = { marcador: [40, 40], pastilla: [66, 26], punto: [16, 16] };
 
+/** Estado de una parada para pintarla: hecha (sello), saltada o pendiente (null). */
+export type EstadoParada = 'hecha' | 'saltada' | null;
+
 export interface Margenes {
   top: number;
   bottom: number;
@@ -139,6 +142,8 @@ export class VistaMapa {
   private clave = '';
   private t = 0;
   private momento: Momento | null = null;
+  /** De quién depende el sello: de la hora del repaso o de lo que el viajero ha marcado. */
+  private estadoDe: (p: ParadaC) => EstadoParada = (p) => (p.inicio <= this.t ? 'hecha' : null);
   private margenes: Margenes = { top: 0, bottom: 0, left: 0, right: 0 };
   private oscuro = false;
   private originales = new Map<string, Record<string, unknown>>();
@@ -217,7 +222,7 @@ export class VistaMapa {
       source: 'ruta',
       filter: ['==', ['get', 'hecho'], false],
       layout: redondo,
-      paint: { 'line-color': ['get', 'color'], 'line-width': 2.5, 'line-opacity': 0.75 },
+      paint: { 'line-color': ['get', 'color'], 'line-width': 3.5, 'line-opacity': 0.85 },
     });
     m.addLayer({
       id: 'ruta-hecha',
@@ -225,7 +230,7 @@ export class VistaMapa {
       source: 'ruta',
       filter: ['==', ['get', 'hecho'], true],
       layout: redondo,
-      paint: { 'line-color': ['get', 'color'], 'line-width': 3.5 },
+      paint: { 'line-color': ['get', 'color'], 'line-width': 4.5 },
     });
     m.addLayer({
       id: 'ruta-tinta',
@@ -425,6 +430,7 @@ export class VistaMapa {
       const el = x.m.getElement();
       el.classList.remove('oculto', 'racimo', 'junto-actual', 'junto-actual-dcha');
       el.querySelector('span')!.textContent = x.etiqueta;
+      el.setAttribute('aria-label', x.grupo[0].p.nombre);
       return { x, el, p: this.mapa.project(x.grupo[0].pos), actual: el.classList.contains('actual') };
     });
     const actual = puntos.find((c) => c.actual);
@@ -450,7 +456,11 @@ export class VistaMapa {
         for (const m of miembros.slice(1)) m.el.classList.add('oculto');
         const todas = miembros.flatMap((c) => c.x.grupo);
         lider.el.classList.add('racimo');
-        lider.el.querySelector('span')!.textContent = rango(todas.map((p) => p.n).filter((n) => n !== null)) || 'H';
+        const texto = rango(todas.map((p) => p.n).filter((n) => n !== null)) || 'H';
+        // Lupa: el grupo se abre acercando el mapa.
+        lider.el.querySelector('span')!.innerHTML =
+          `${texto}<svg class="lupa" viewBox="0 0 16 16" aria-hidden="true"><circle cx="6.5" cy="6.5" r="4.5"/><path d="M10 10l4 4M6.5 4.5v4M4.5 6.5h4"/></svg>`;
+        lider.el.setAttribute('aria-label', `Paradas ${texto}: toca para acercar`);
         this.racimos.set(lider.x.m, todas);
       }
       if (indices.some((i) => bajoActual[i]) || (actual && cerca(lider, actual, 40))) {
@@ -494,17 +504,18 @@ export class VistaMapa {
   }
 
   /** Pinta el estado del día en el instante `t`. */
-  actualizar(t: number, momento: Momento) {
+  actualizar(t: number, momento: Momento, estadoDe?: (p: ParadaC) => EstadoParada) {
     const dia = this.dia;
     if (!dia) return;
     this.t = t;
     this.momento = momento;
+    if (estadoDe) this.estadoDe = estadoDe;
     const color = this.colorDe(dia);
     const resaltado = this.tramoResaltado();
     const lineas: Linea[] = [];
     for (const tramo of dia.tramos) {
       if (tramo.nulo || tramo === resaltado) continue;
-      lineas.push(linea(tramo.arco.coords, tramo.llegada <= t, color));
+      lineas.push(linea(tramo.arco.coords, this.estadoDe(tramo.hasta) !== null, color));
     }
     // El tramo de ahora va en tinta sobre el fluorescente: de camino, solo lo que falta por recorrer.
     let tinta: LngLat[] = [];
@@ -523,8 +534,10 @@ export class VistaMapa {
     for (const { m, grupo } of this.marcadores) {
       const el = m.getElement();
       const esActual = !!actual && grupo.includes(actual);
+      const estados = grupo.map((p) => this.estadoDe(p));
       el.classList.toggle('actual', esActual);
-      el.classList.toggle('hecha', !esActual && grupo.some((p) => p.inicio <= t));
+      el.classList.toggle('hecha', !esActual && estados.includes('hecha'));
+      el.classList.toggle('saltada', !esActual && estados.every((e) => e === 'saltada'));
     }
 
     if (momento.tipo === 'camino') {

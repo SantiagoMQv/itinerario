@@ -13,6 +13,7 @@
   --margen: #e0454d;
   --fluor: #ddf94a;
   --fluor-suave: #ebfaaa;
+  --aviso: #b8323a;
   --tinta-fija: #14213d;
   /* Tinta secundaria sobre el fluorescente (igual de día y de noche). */
   --tinta-fija-suave: #3a4660;
@@ -48,7 +49,8 @@
   --etiqueta: #1f2a3a;
   --etiqueta-texto: #c3cfe1;
   --kraft-velo: rgba(22, 16, 10, 0.72);
-  --fluor-suave: #d3ec4a;
+  --fluor-suave: rgba(221, 249, 74, 0.16);
+  --aviso: #ff8a8f;
   --pestana-todo: #4a3d2e;
   --boton-mapa: #1b2330;
   --sombra-boton: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.35);
@@ -129,8 +131,15 @@ mark {
   box-shadow: 0 1px 0 rgba(20, 33, 61, 0.25);
 }
 
+#tapa {
+  display: flex;
+  align-items: flex-end;
+}
+
 #dias {
   position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
   display: flex;
   align-items: flex-end;
   gap: 4px;
@@ -141,6 +150,58 @@ mark {
   scrollbar-width: none;
 }
 #dias::-webkit-scrollbar {
+  display: none;
+}
+/* Quedan días a la derecha: el borde se difumina. */
+#dias.mas {
+  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+  mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
+}
+
+/* «Llévame al hotel»: siempre en la tapa, a un toque. */
+#btn-hotel {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 40px;
+  margin: 0 8px 7px 4px;
+  padding: 0 12px 0 10px;
+  border: none;
+  border-radius: 20px;
+  background: var(--pestana-todo);
+  color: var(--tinta);
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 1px 3px rgba(20, 16, 10, 0.3);
+}
+#btn-hotel[hidden] {
+  display: none;
+}
+#btn-hotel svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#btn-hotel .relleno {
+  fill: currentColor;
+  stroke: none;
+}
+
+/* Aviso de que no hay conexión: solo aparece cuando falta. */
+#red {
+  margin: 0;
+  padding: 6px 14px;
+  background: var(--tinta);
+  color: var(--papel);
+  font-size: 13.5px;
+  font-weight: 600;
+}
+#red[hidden] {
   display: none;
 }
 
@@ -189,7 +250,7 @@ mark {
   margin: 0;
   padding: 6px 12px;
   background: var(--papel);
-  color: var(--margen);
+  color: var(--aviso);
   font-size: 13px;
   font-weight: 600;
 }
@@ -200,24 +261,41 @@ mark {
   position: fixed;
   z-index: 4;
   right: 12px;
-  top: calc(var(--arriba) + 68px);
+  top: calc(var(--alto-barra, 54px) + 12px);
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 8px;
 }
 
 .btn-redondo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--tinta);
+}
+.btn-redondo .disco {
   position: relative;
   display: grid;
   place-items: center;
   width: 44px;
   height: 44px;
-  padding: 0;
-  border: none;
   border-radius: 50%;
   background: var(--boton-mapa);
-  color: var(--tinta);
   box-shadow: var(--sombra-boton);
+}
+/* Rótulo bajo cada botón: el icono solo no basta para quien la mira de vez en cuando. */
+.btn-redondo .rotulo {
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  text-shadow:
+    0 0 3px var(--papel),
+    0 0 3px var(--papel),
+    0 0 6px var(--papel);
 }
 .btn-redondo svg {
   width: 23px;
@@ -232,7 +310,7 @@ mark {
   fill: currentColor;
   stroke: none;
 }
-.btn-redondo.hecho::after {
+.btn-redondo.hecho .disco::after {
   content: '';
   position: absolute;
   right: 1px;
@@ -254,15 +332,27 @@ mark {
   display: block;
 }
 
-#btn-seguir {
+#pildoras {
   position: fixed;
   z-index: 4;
   left: 12px;
+  right: 76px;
   bottom: calc(var(--alto-panel) + 12px);
+  display: flex;
+  flex-wrap: wrap-reverse;
+  gap: 8px;
+  pointer-events: none;
+}
+#pildoras > button {
+  pointer-events: auto;
+}
+
+#btn-ahora,
+#btn-seguir {
   display: flex;
   align-items: center;
   gap: 6px;
-  min-height: 40px;
+  min-height: 44px;
   padding: 0 14px 0 10px;
   border: none;
   border-radius: 20px;
@@ -272,6 +362,19 @@ mark {
   font-size: 14px;
   font-weight: 650;
 }
+#btn-ahora {
+  gap: 8px;
+  padding: 0 16px 0 12px;
+  background: var(--tinta);
+  color: var(--papel);
+}
+#btn-ahora .punto-fluor {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--fluor);
+}
+#btn-ahora[hidden],
 #btn-seguir[hidden] {
   display: none;
 }
@@ -310,7 +413,7 @@ body.panel-abierto #botones-mapa {
   flex: none;
   display: grid;
   place-items: center;
-  height: 22px;
+  height: 28px;
   padding: 0;
   border: none;
   background: none;
@@ -340,20 +443,43 @@ body.panel-abierto #botones-mapa {
   font-stretch: 62%;
   line-height: 0.92;
   letter-spacing: 0.01em;
+  white-space: nowrap;
+}
+#hora.largo {
+  font-size: 42px;
+}
+#hora.tarde {
+  color: var(--margen);
+}
+/* En el repaso la hora va en contorno: no es la de verdad. */
+body.repaso #hora {
+  color: transparent;
+  -webkit-text-stroke: 1.6px var(--tinta);
+}
+#cuenta {
+  margin: 5px 0 0;
+  color: var(--tinta);
+  font-size: 14px;
+  font-weight: 650;
+  font-stretch: 88%;
+  line-height: 1.25;
+}
+body.repaso #cuenta {
+  color: var(--tinta-suave);
 }
 
 #controles {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: 6px 0 0 -6px;
+  gap: 6px;
+  margin: 4px 0 0 -8px;
 }
 
 .btn-control {
   display: grid;
   place-items: center;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   padding: 0;
   border: none;
   border-radius: 50%;
@@ -376,6 +502,18 @@ body.panel-abierto #botones-mapa {
   color: #fff;
   box-shadow: 0 2px 6px color-mix(in srgb, var(--color-dia) 40%, transparent);
 }
+/* En directo el repaso pasa a segundo plano: el botón se queda en contorno. */
+body:not(.repaso) .btn-control.principal {
+  width: 44px;
+  height: 44px;
+  background: none;
+  color: var(--tinta);
+  box-shadow: inset 0 0 0 2px var(--borde-fuerte);
+}
+:root[data-tema='oscuro'] body.repaso .btn-control.principal {
+  background: var(--tono);
+  color: #121820;
+}
 .btn-control.principal svg {
   width: 22px;
   height: 22px;
@@ -391,27 +529,33 @@ body.reproduciendo .icono-pausa {
 
 /* Velocidad de reproducción, entre las horas de inicio y fin de la línea de tiempo. */
 #btn-velocidad {
+  position: relative;
   min-width: 36px;
   height: 26px;
   padding: 0 7px;
   border: 1.5px solid var(--borde-fuerte);
-  border-radius: 13px;
+  border-radius: 20px;
   background: var(--papel);
   font-size: 12.5px;
   font-weight: 700;
   pointer-events: auto;
 }
+#btn-velocidad::after {
+  content: '';
+  position: absolute;
+  inset: -9px -4px;
+}
 
 /* Línea de tiempo: un punto por parada y el fluorescente sobre lo que pasa ahora. */
 #pista {
   position: relative;
-  height: 50px;
+  height: 64px;
 }
 #linea {
   position: absolute;
   left: 6px;
   right: 6px;
-  top: 13px;
+  top: 18.5px;
   height: 3px;
   border-radius: 2px;
   background: var(--tono);
@@ -421,11 +565,8 @@ body.reproduciendo .icono-pausa {
   top: -7px;
   min-width: 12px;
   height: 17px;
-  border-radius: 3px 5px 4px 3px;
+  border-radius: 0.5em 0.2em 0.6em 0.3em;
   background: var(--fluor);
-  transition:
-    left 0.2s,
-    width 0.2s;
 }
 #puntos span {
   position: absolute;
@@ -440,6 +581,10 @@ body.reproduciendo .icono-pausa {
 #puntos span.pasado {
   background: var(--tono);
 }
+#puntos span.saltado {
+  border-style: dashed;
+  border-color: var(--tinta-suave);
+}
 
 #deslizador {
   position: absolute;
@@ -447,7 +592,7 @@ body.reproduciendo .icono-pausa {
   right: 2px;
   top: 0;
   width: calc(100% - 4px);
-  height: 30px;
+  height: 40px;
   margin: 0;
   background: none;
   -webkit-appearance: none;
@@ -455,7 +600,7 @@ body.reproduciendo .icono-pausa {
   touch-action: none;
 }
 #deslizador::-webkit-slider-runnable-track {
-  height: 30px;
+  height: 40px;
   background: none;
 }
 #deslizador::-moz-range-track {
@@ -467,7 +612,7 @@ body.reproduciendo .icono-pausa {
   box-sizing: border-box;
   width: 6px;
   height: 26px;
-  margin-top: 1.5px;
+  margin-top: 7px;
   border: 1.5px solid var(--papel);
   border-radius: 4px;
   background: var(--tinta);
@@ -483,6 +628,7 @@ body.reproduciendo .icono-pausa {
 
 #extremos {
   position: absolute;
+  z-index: 1;
   left: 0;
   right: 0;
   bottom: 0;
@@ -521,13 +667,69 @@ body.reproduciendo .icono-pausa {
 .bloque {
   display: flex;
   flex-direction: column;
+  gap: 7px;
+}
+.bloque .abrir,
+.bloque.viaje,
+.bloque.fin {
+  display: flex;
+  flex-direction: column;
   gap: 3px;
   width: 100%;
   margin: 0;
   padding: 0;
   border: none;
   background: none;
+  color: inherit;
   text-align: left;
+}
+.acciones-bloque {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 8px;
+}
+/* Botones de la calle: hecho, saltar, taxi. 34 px a la vista y 44 px al dedo. */
+.mini {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1.5px solid var(--borde-fuerte);
+  border-radius: 8px;
+  background: var(--papel);
+  color: var(--tinta);
+  font-size: 14px;
+  font-weight: 700;
+}
+.mini::after {
+  content: '';
+  position: absolute;
+  inset: -5px -3px;
+}
+.mini svg {
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.mini.tinta {
+  border-color: var(--tinta);
+  background: var(--tinta);
+  color: var(--papel);
+}
+.mini.suave {
+  padding: 0 6px;
+  border-color: transparent;
+  background: none;
+  color: var(--tinta-suave);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 /* Hasta cuándo dura lo de ahora (o cuándo se llega) y a qué hora es lo siguiente. */
 .hasta,
@@ -566,7 +768,7 @@ body.reproduciendo .icono-pausa {
 li.tramo.actual > span {
   padding: 0 3px;
   margin-left: -3px;
-  border-radius: 0.3em 0.12em 0.36em 0.2em;
+  border-radius: 0.5em 0.2em 0.6em 0.3em;
   background: linear-gradient(var(--fluor), var(--fluor)) 0 0 / 100% 100% no-repeat;
   color: var(--tinta-fija);
   -webkit-box-decoration-break: clone;
@@ -659,6 +861,28 @@ li.actual > .fila {
   background-size: 100% 100%;
   color: var(--tinta-fija);
 }
+li.actual .nombre {
+  padding: 0 3px;
+  margin-left: -3px;
+  border-radius: 0.5em 0.2em 0.6em 0.3em;
+  background: var(--fluor);
+  color: var(--tinta-fija);
+  font-weight: 650;
+  -webkit-box-decoration-break: clone;
+  box-decoration-break: clone;
+}
+/* De noche la banda es tenue (no deslumbra) y el texto vuelve a ser tinta clara. */
+:root[data-tema='oscuro'] li.actual > .fila {
+  color: var(--tinta);
+}
+:root[data-tema='oscuro'] li.actual .local,
+:root[data-tema='oscuro'] li.actual .salida {
+  color: var(--tinta-suave);
+}
+:root[data-tema='oscuro'] li.actual .precio {
+  background: var(--etiqueta);
+  color: var(--etiqueta-texto);
+}
 
 .marca {
   display: grid;
@@ -725,6 +949,21 @@ li.actual .precio {
 li.hecha .nombre,
 li.hecha .hora-fila {
   color: var(--tinta-suave);
+}
+/* Saltada: tachada y con el anillo discontinuo, sin sello. */
+li.saltada .nombre,
+li.saltada .hora-fila {
+  color: var(--tinta-suave);
+  text-decoration: line-through;
+  text-decoration-thickness: 1.5px;
+}
+li.saltada .marca {
+  border-style: dashed;
+  border-color: var(--tinta-suave);
+  background: var(--papel);
+  color: var(--tinta-suave);
+  box-shadow: none;
+  rotate: 0deg;
 }
 .salida {
   display: block;
@@ -815,10 +1054,13 @@ li.abierta > .detalle {
 .enlaces {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px 16px;
-  margin: 0 0 12px;
+  gap: 0 18px;
+  margin: 0 0 8px;
 }
 .enlace {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
   color: var(--tinta);
   font-size: 14.5px;
   font-weight: 600;
@@ -835,7 +1077,8 @@ li.abierta > .detalle {
 .boton {
   display: inline-flex;
   align-items: center;
-  min-height: 42px;
+  gap: 6px;
+  min-height: 44px;
   padding: 0 14px;
   border: 1.5px solid var(--borde-fuerte);
   border-radius: 8px;
@@ -844,6 +1087,27 @@ li.abierta > .detalle {
   font-size: 14.5px;
   font-weight: 650;
   text-decoration: none;
+}
+.boton svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.1;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Hecha / Saltada / Pendiente en la ficha. */
+.marcas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0 0 12px;
+}
+.marcas .boton[aria-pressed='true'] {
+  border-color: var(--tinta);
+  background: var(--tinta);
+  color: var(--papel);
 }
 .boton.tinta {
   border-color: var(--tinta);
@@ -961,6 +1225,13 @@ body.vista-todo .lista {
 .seccion {
   margin-top: 24px;
 }
+.seccion h3 small {
+  color: var(--tinta-suave);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
 .seccion h3 {
   margin: 0 0 8px;
   font-size: 13px;
@@ -1020,10 +1291,11 @@ body.vista-todo .lista {
   background: none;
 }
 .marcador > span {
+  position: relative;
   display: grid;
   place-items: center;
-  width: 30px;
-  height: 30px;
+  width: 34px;
+  height: 34px;
   border: 2.5px solid var(--color);
   border-radius: 50%;
   background: var(--papel);
@@ -1032,12 +1304,24 @@ body.vista-todo .lista {
     0 0 0 2px var(--papel),
     0 2px 5px rgba(20, 33, 61, 0.3);
   font-family: var(--fuente);
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 800;
   line-height: 1;
 }
+/* Zona de toque de 44 px aunque el sello se vea más pequeño. */
+.marcador > span::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+}
 .marcador.opcional > span {
   border-style: dashed;
+}
+.marcador.saltada > span {
+  border-style: dashed;
+  border-color: var(--tinta-suave);
+  color: var(--tinta-suave);
 }
 .marcador.hecha > span,
 .marcador.hotel > span {
@@ -1051,10 +1335,13 @@ body.vista-todo .lista {
   display: none;
 }
 .marcador.racimo > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
   width: auto;
   min-width: 34px;
   padding: 0 8px;
-  border-radius: 15px;
+  border-radius: 20px;
   border-style: double;
   border-width: 4px;
   rotate: 0deg;
@@ -1066,18 +1353,27 @@ body.vista-todo .lista {
 .marcador.junto-actual-dcha > span {
   translate: calc(50% + 30px) 0;
 }
+.marcador .lupa {
+  width: 14px;
+  height: 14px;
+  margin-left: 3px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+}
 .marcador.varios > span {
   width: auto;
-  min-width: 30px;
+  min-width: 34px;
   padding: 0 7px;
-  border-radius: 15px;
+  border-radius: 20px;
 }
 .marcador.actual {
   z-index: 2;
 }
 .marcador.actual > span {
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-color: var(--tinta-fija);
   background: var(--tinta-fija);
   color: var(--fluor);
@@ -1089,10 +1385,12 @@ body.vista-todo .lista {
 }
 .marcador.varios.actual > span {
   width: auto;
-  border-radius: 18px;
+  border-radius: 20px;
 }
 
 .pastilla {
+  position: relative;
+  z-index: 4;
   padding: 2px 7px;
   border-radius: 5px;
   background: var(--papel);
@@ -1114,14 +1412,16 @@ body.vista-todo .lista {
   display: none;
 }
 
+/* Por dónde va el plan (no es un GPS): un rombo de tinta con el fluorescente dentro, sin latido. */
 .posicion {
   z-index: 3;
-  width: 18px;
-  height: 18px;
-  border: 3px solid var(--papel);
-  border-radius: 50%;
-  background: var(--tinta-fija);
-  animation: pulso 1.6s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+  width: 15px;
+  height: 15px;
+  border: 3px solid var(--tinta-fija);
+  border-radius: 2px;
+  background: var(--fluor);
+  rotate: 45deg;
+  box-shadow: 0 0 0 2px var(--papel);
 }
 
 .maplibregl-ctrl-bottom-right,
@@ -1163,6 +1463,14 @@ body.vista-todo .lista {
   color: #4f5b73;
   font-size: 15px;
 }
+/* El chino no se parte a media palabra y las líneas quedan equilibradas. */
+#taxi-texto,
+#taxi-direccion {
+  word-break: keep-all;
+  overflow-wrap: anywhere;
+  line-break: strict;
+  text-wrap: balance;
+}
 #taxi-texto {
   font-size: min(17vw, 112px);
   font-weight: 700;
@@ -1197,18 +1505,122 @@ body.vista-todo .lista {
   stroke-linecap: round;
 }
 
+/* Avisos junto al pulgar, encima del panel, con su «Deshacer». */
 #toast {
   position: fixed;
   z-index: 40;
-  top: calc(var(--arriba) + 70px);
   left: 50%;
+  bottom: calc(var(--alto-panel) + 68px);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: max-content;
   max-width: calc(100vw - 32px);
-  padding: 10px 14px;
+  padding: 8px 8px 8px 14px;
   border-radius: 8px;
   background: var(--tinta);
   color: var(--papel);
   font-size: 14.5px;
   transform: translateX(-50%);
+  box-shadow: var(--sombra-boton);
+}
+#toast-accion {
+  min-height: 36px;
+  padding: 0 10px;
+  border: 1.5px solid currentColor;
+  border-radius: 8px;
+  background: none;
+  color: var(--papel);
+  font-size: 14px;
+  font-weight: 700;
+}
+#toast-accion[hidden] {
+  display: none;
+}
+
+/* Pregunta con el aspecto de la app. */
+#dialogo {
+  width: min(420px, calc(100vw - 32px));
+  padding: 0;
+  border: none;
+  border-radius: 14px;
+  background: var(--papel);
+  color: var(--tinta);
+  box-shadow: 0 12px 40px rgba(20, 33, 61, 0.35);
+}
+#dialogo::backdrop {
+  background: rgba(20, 33, 61, 0.45);
+}
+#dialogo form {
+  padding: 20px 20px 18px;
+}
+#dialogo h2 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  font-weight: 750;
+  font-stretch: 92%;
+  line-height: 1.25;
+}
+#dialogo p {
+  margin: 0 0 18px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+#dialogo .acciones {
+  justify-content: flex-end;
+}
+
+/* Cómo leer las marcas del cuaderno. */
+.leyenda {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  margin: 16px 0 0;
+  color: var(--tinta-suave);
+  font-size: 13.5px;
+}
+.leyenda span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.leyenda .m {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--tono);
+  border-radius: 50%;
+  background: var(--papel);
+}
+.leyenda .m.hecha {
+  background: var(--tono);
+}
+.leyenda .m.opcional {
+  border-style: dashed;
+}
+.leyenda .m.saltada {
+  border-style: dashed;
+  border-color: var(--tinta-suave);
+}
+.leyenda mark {
+  padding: 0 4px;
+  border-radius: 0.5em 0.2em 0.6em 0.3em;
+  background: var(--fluor);
+  color: var(--tinta-fija);
+}
+
+/* Solo para lectores de pantalla. */
+.sr {
+  position: absolute !important;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
 }
 #toast[hidden] {
   display: none;
@@ -1237,15 +1649,6 @@ body.reproduciendo li.hecha .marca {
   }
 }
 
-@keyframes pulso {
-  0% {
-    box-shadow: 0 0 0 0 var(--fluor);
-  }
-  100% {
-    box-shadow: 0 0 0 16px transparent;
-  }
-}
-
 @keyframes latido {
   50% {
     opacity: 0.3;
@@ -1267,9 +1670,9 @@ body.reproduciendo li.hecha .marca {
   #panel {
     left: 16px;
     right: auto;
-    top: calc(var(--arriba) + 70px);
+    top: calc(var(--alto-barra, 54px) + 14px);
     bottom: 16px;
-    width: 440px;
+    width: 480px;
     height: auto;
     border-radius: 14px;
     box-shadow: var(--sombra-boton);
@@ -1281,14 +1684,20 @@ body.reproduciendo li.hecha .marca {
     display: none;
   }
   #cabecera {
-    padding-top: 16px;
+    padding: 18px 20px 6px;
+  }
+  #contenido {
+    padding: 0 20px 28px;
   }
   #ahora::before {
     top: -16px;
   }
-  #btn-seguir {
-    left: 472px;
+  #pildoras {
+    left: 512px;
     bottom: 16px;
+  }
+  #toast {
+    bottom: 76px;
   }
   .maplibregl-ctrl-bottom-right,
   .maplibregl-ctrl-bottom-left {

@@ -4,16 +4,16 @@ Web para móvil que sirve para revisar el itinerario de un viaje a Shanghái (co
 
 ## Qué hace
 
-- **Línea de tiempo por día:** arrastra el control o pulsa reproducir y la ruta se va dibujando, con un punto que avanza entre paradas. Los botones de los lados saltan de parada en parada y ×1…×8 cambia la velocidad.
-- **Ahora y después:** junto a la hora, lo que toca ahora (subrayado en fluorescente, igual que su tramo en el mapa y su fila en la lista) y lo siguiente, con cómo se llega y cuánto cuesta. Las paradas hechas salen como sellos; las pendientes, como anillos; las opcionales, con trazo discontinuo.
+- **En directo durante el viaje:** los días del viaje la app se abre en el día de hoy, con la hora real (avanza sola) y lo que tú has marcado. Lo grande del panel es lo que hay que hacer: «39 min · para salir · 18:20», o «+12 min» si vas tarde.
+- **Marcas a mano:** en «Ahora» tienes «Hecho» y «Saltar»; «ahora» pasa a la siguiente parada cuando la marcas, aunque vayas con retraso. Si se te olvidó marcar, «Ponerme al día» marca de un toque lo que ya pasó. Todo se puede deshacer y corregir en la ficha de cada parada. Las marcas se guardan en tu móvil.
+- **Repaso:** reproducir, arrastrar la línea de tiempo, saltar de parada o mirar otro día es un repaso del plan: la hora sale en contorno y la píldora «Volver a ahora» te devuelve al directo. Antes del viaje dice cuántos días faltan.
+- **Ahora y después:** junto a la hora, lo que toca ahora (subrayado en fluorescente, igual que su tramo en el mapa y su fila en la lista) y lo siguiente, con medio, distancia, minutos y precio.
+- **Taxi a un toque:** botón «Taxi» en lo siguiente (y en lo de ahora si vas de camino) y la píldora «Hotel» siempre arriba. La tarjeta enseña el nombre y la dirección en chino a pantalla completa, no se apaga la pantalla y solo se cierra con ✕ o el gesto de volver.
 - **Distancias:** cada trayecto muestra la distancia en línea recta, el medio de transporte y la duración (real o estimada con `~`). Cada parada indica también a qué distancia está del hotel.
-- **Itinerario en lista:** desliza el panel hacia arriba para ver el día entero. Al tocar una parada se abren sus notas, la reserva y botones para abrirla en Amap, Apple Maps o Google Maps.
-- **Enseñar al taxista:** muestra el nombre en chino a pantalla completa.
-- **Todo el viaje:** la pestaña «Todo» enseña todos los días a la vez, cada uno de un color.
-- **Sin conexión:** el botón de descarga guarda la app y los mapas de todas las zonas del viaje (unos 30 MB).
-- **Día o noche:** el botón de la luna cambia a modo noche (y el del sol, de vuelta). Se recuerda en el móvil.
-
-Si hoy es un día del viaje (hora de China), la app se abre directamente en ese día y a esa hora.
+- **Itinerario en lista:** desliza el panel hacia arriba para ver el día entero. Al tocar una parada se abren sus notas, la reserva y botones para abrirla en Amap, Apple Maps o Google Maps (leerla no cambia la hora).
+- **Todo el viaje:** la pestaña «Todo» enseña todos los días a la vez, cada uno de un color, con la lista de pendientes («3 de 7») y la fecha del plan que lleva tu móvil.
+- **Sin conexión:** el botón «Mapas» guarda la app y los mapas de todas las zonas del viaje (unos 30 MB). Si te quedas sin internet, una franja lo avisa bajo las pestañas.
+- **Día o noche:** el botón «Noche» cambia a modo noche (y «Día», de vuelta). Se recuerda en el móvil.
 
 ## Cambiar el itinerario
 
