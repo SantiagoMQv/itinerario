@@ -554,6 +554,34 @@ li.origen .nombre {
   vertical-align: 2px;
 }
 
+.precio {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: #f1ede4;
+  color: var(--suave);
+  font-size: 11px;
+  font-style: normal;
+  vertical-align: 2px;
+  white-space: nowrap;
+}
+
+.gastos {
+  margin: 0 0 10px;
+  font-size: 13px;
+}
+.gastos span {
+  color: var(--suave);
+}
+.gastos ul {
+  margin: 2px 0 0;
+  padding-left: 18px;
+}
+.gastos li + li {
+  margin-top: 2px;
+}
+
 .notas-dia {
   margin-top: 8px;
   padding: 8px 10px;

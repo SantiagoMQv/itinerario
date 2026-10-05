@@ -3,9 +3,18 @@ import { itinerario } from './datos/itinerario';
 import { ICONO_CATEGORIA, TRANSPORTE, ahoraEnChina, duracion, esc, fechaCorta, fechaLarga, hora, km } from './formato';
 import { distanciaKm } from './geo';
 import { VistaMapa } from './mapa';
-import { type DiaC, type Momento, type ParadaC, type TramoC, construirModelo, hotelDe, momentoEn } from './modelo';
+import {
+  type DiaC,
+  type Momento,
+  type ParadaC,
+  type TramoC,
+  construirModelo,
+  gastoTotal,
+  hotelDe,
+  momentoEn,
+} from './modelo';
 import { descargaAnterior, descargarMapas, registrarServiceWorker } from './offline';
-import type { Enlace } from './tipos';
+import type { Enlace, Gasto } from './tipos';
 
 const modelo = construirModelo(itinerario);
 for (const a of modelo.avisos) console.warn(a);
@@ -280,6 +289,22 @@ const parrafos = (texto: string, clase: string) =>
     .map((l) => `<p class="${clase}">${esc(l)}</p>`)
     .join('');
 
+/** "20–40 ¥ (≈3–5 €)", o "gratis". */
+function yuanes(min: number, max = min, conEuros = true): string {
+  if (max === 0) return 'gratis';
+  const texto = min === max ? `${min} ¥` : `${min}–${max} ¥`;
+  const cambio = modelo.yuanesPorEuro;
+  if (!conEuros || !cambio) return texto;
+  const e = (v: number) => Math.round(v / cambio);
+  return `${texto} (≈${min === max ? e(min) : `${e(min)}–${e(max)}`} €)`;
+}
+
+function gastosHtml(gastos: Gasto[] = []): string {
+  if (!gastos.length) return '';
+  const filas = gastos.map((g) => `<li><b>${esc(yuanes(g.min, g.max))}</b> ${esc(g.concepto)}</li>`).join('');
+  return `<div class="gastos"><span>Por persona</span><ul>${filas}</ul></div>`;
+}
+
 const enlacesHtml = (enlaces: Enlace[] = []) =>
   enlaces.map((e) => `<a class="enlace" href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.texto)} ↗</a>`).join('');
 
@@ -307,12 +332,13 @@ function filaParada(p: ParadaC, dia: DiaC, esOrigen: boolean): string {
       <button class="fila" type="button">
         <span class="num">${q.categoria === 'hotel' ? ICONO_CATEGORIA.hotel : p.n}</span>
         <span class="horas">${esOrigen ? 'Salida' : hora(p.inicio)}<small>${esOrigen ? hora(p.fin) : ''}</small></span>
-        <span class="nombre">${esc(q.nombre)}${q.opcional ? ' <em class="opcional">opcional</em>' : ''}${q.local ? `<small>${esc(q.local)}</small>` : ''}</span>
+        <span class="nombre">${esc(q.nombre)}${q.opcional ? ' <em class="opcional">opcional</em>' : ''}${precioCorto(p)}${q.local ? `<small>${esc(q.local)}</small>` : ''}</span>
         <span class="cat" aria-hidden="true">${ICONO_CATEGORIA[q.categoria]}</span>
       </button>
       <div class="detalle">
         ${q.notas && !esOrigen ? parrafos(q.notas, 'notas') : ''}
         ${datos.length ? `<dl>${datos.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''}
+        ${esOrigen ? '' : gastosHtml(q.gastos)}
         ${q.enlaces?.length && !esOrigen ? `<div class="acciones">${enlacesHtml(q.enlaces)}</div>` : ''}
         <div class="acciones">
           ${q.local ? `<button type="button" class="btn-taxi" data-taxi="${p.id}">🀄 Enseñar al taxista</button>` : ''}
@@ -320,6 +346,13 @@ function filaParada(p: ParadaC, dia: DiaC, esOrigen: boolean): string {
         </div>
       </div>
     </li>`;
+}
+
+/** Etiqueta con el gasto de la parada para la fila de la lista. */
+function precioCorto(p: ParadaC): string {
+  if (!p.p.gastos?.length) return '';
+  const [min, max] = gastoTotal([p]);
+  return ` <em class="precio">${esc(yuanes(min, max, false))}</em>`;
 }
 
 function filaTramo(t: TramoC): string {
@@ -331,6 +364,14 @@ function filaTramo(t: TramoC): string {
       <span class="icono" aria-hidden="true">${tp.icono}</span>
       <span>${partes.map(esc).join(' · ')}${t.detalle ? `<small>${esc(t.detalle)}</small>` : ''}</span>
     </li>`;
+}
+
+const paradas = (n: number) => `${n} parada${n === 1 ? '' : 's'}`;
+
+function lineaGasto(lista: ParadaC[]): string {
+  const [min, max] = gastoTotal(lista);
+  if (!max) return '';
+  return `<p class="cifras">Gasto previsto: <b>${esc(yuanes(min, max))}</b> por persona (entradas, comidas y trenes; sin taxis, metro ni compras)</p>`;
 }
 
 function pintarLista(dia: DiaC) {
@@ -346,7 +387,8 @@ function pintarLista(dia: DiaC) {
     <header class="cabecera">
       <h2>Día ${dia.idx + 1} · ${esc(fechaLarga(dia.d.fecha))}</h2>
       <p>${esc(dia.d.titulo)}</p>
-      <p class="cifras">${visitas} paradas · ${km(dia.km)} en línea recta</p>
+      <p class="cifras">${paradas(visitas)} · ${km(dia.km)} en línea recta</p>
+      ${lineaGasto(dia.paradas)}
       ${dia.d.notas ? `<div class="notas-dia">${parrafos(dia.d.notas, '')}</div>` : ''}
     </header>
     <ol class="lista">${filas.join('')}</ol>`;
@@ -422,7 +464,8 @@ function pintarResumen() {
     <svg class="flecha" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>`;
   const hechos = pendientesHechos();
   el.contenido.innerHTML = `
-    <p class="cifras resumen-cifras">${modelo.dias.length} días · ${visitas} paradas · ${km(total)} en línea recta</p>
+    <p class="cifras resumen-cifras">${modelo.dias.length} días · ${paradas(visitas)} · ${km(total)} en línea recta</p>
+    ${lineaGasto(modelo.paradas)}
     <ol class="lista-dias">
       ${modelo.dias
         .map(
@@ -430,7 +473,9 @@ function pintarResumen() {
         <li><button type="button" data-ir-dia="${d.idx}" style="--color:${d.color}">
           <span class="punto"></span>
           <span class="nombre"><b>Día ${d.idx + 1} · ${esc(fechaLarga(d.d.fecha))}</b><small>${esc(d.d.titulo)}</small></span>
-          <span class="cifras">${d.paradas.filter((p) => p.n !== null).length} paradas<br>${km(d.km)}</span>
+          <span class="cifras">${paradas(d.paradas.filter((p) => p.n !== null).length)} · ${km(d.km)}${
+            gastoTotal(d.paradas)[1] ? `<br>${esc(yuanes(...gastoTotal(d.paradas), false))}` : ''
+          }</span>
         </button></li>`,
         )
         .join('')}

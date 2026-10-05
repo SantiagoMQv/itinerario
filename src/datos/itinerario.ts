@@ -63,6 +63,8 @@ const enlace = (texto: string, url: string) => ({ texto, url });
 export const itinerario: Itinerario = {
   titulo: 'Shanghái y Nankín',
   subtitulo: '21–26 de octubre de 2026 · 2 personas',
+  // Cambio aproximado de julio de 2026; solo sirve para dar una idea en euros.
+  yuanesPorEuro: 7.7,
   dias: [
     {
       fecha: '2026-10-21',
@@ -106,9 +108,10 @@ export const itinerario: Itinerario = {
           direccion: '97 Huanghe Road, junto a People’s Square',
           direccionLocal: '黄河路97号',
           notas:
-            'Shengjian (bollos fritos de sopa), distintos de los xiaolongbao del sábado. Abre hasta tarde.\n' +
-            'Enfrente, en el número 90, está Jia Jia Tang Bao (佳家汤包, 07:30–23:00), de los xiaolongbao más famosos de Shanghái.\n' +
+            'Shengjian (bollos fritos de sopa), distintos de los xiaolongbao del sábado: un plato de 4 cuesta unos 12 ¥. Abre hasta tarde.\n' +
+            'En la misma calle está Jia Jia Tang Bao (佳家汤包), de los xiaolongbao más famosos de Shanghái (unos 40 ¥ por persona; abre de 07:30 a 20:00).\n' +
             'Huanghe Road se puso de moda por la serie «Blossoms Shanghai» (繁花).',
+          gastos: [{ concepto: 'comida', min: 25, max: 45 }],
           enlaces: [enlace('Huanghe Road', 'https://english.shanghai.gov.cn/en-Latest-WhatsNew/20240110/1ba02195e1ef4de49fabee498555c64d.html')],
         },
         {
@@ -152,16 +155,17 @@ export const itinerario: Itinerario = {
         {
           hora: '19:20',
           fin: '20:20',
-          nombre: 'Jing’an Joy City: ropa y maleta',
+          nombre: 'Jing’an Joy City: maleta y ropa',
           local: '静安大悦城',
           categoria: 'compras',
           ...en(C.joyCity),
           llegada: { modo: 'taxi', detalle: 'Taxi desde el Bund (~3 km)', min: 15 },
           direccionLocal: '上海市静安区西藏北路166号',
           notas:
-            'Comprar la ropa imprescindible para Disneyland y buscar una maleta resistente: comparar tamaño, peso, ruedas y precio. No dar por hecho que habrá existencias de maletas Xiaomi.\n' +
+            'Maleta: en Joy City hay una tienda Xiaomi (edificio sur, planta baja, según información de hace unos años: confirmarlo). Vende las maletas de 90分 (NINETYGO) y Mijia, la opción china con mejor calidad/precio (policarbonato, ruedas silenciosas, candado TSA). Precios orientativos: 20″ ~200–500 ¥, 24″ ~300–700 ¥, 28″ ~460 ¥ en adelante.\n' +
+            'Para comparar o si no hay existencias: en JD o Taobao son algo más baratas y llegan al hotel en 1–2 días. En los grandes almacenes de Nanjing Road predominan marcas internacionales más caras.\n' +
             'Antes de elegir el tamaño, revisar la franquicia de equipaje de los cuatro vuelos, sobre todo el Barcelona–Málaga de Vueling (según la tarifa, podría hacer falta añadir la maleta).\n' +
-            'Las tiendas cierran a las 22:00.',
+            'Ropa imprescindible para Disneyland. Las tiendas cierran a las 22:00.',
           enlaces: [
             enlace('Joy City', 'https://english.shanghai.gov.cn/en-ShoppingCenters/20231217/dbb23c40ef1b4ff68794226b8ca37d1a.html'),
             enlace('Equipaje en Vueling', 'https://help.vueling.com/hc/es/articles/19798835176081-Equipaje-de-mano-Maletas-de-mano'),
@@ -176,9 +180,10 @@ export const itinerario: Itinerario = {
           ...en(C.noria),
           llegada: { modo: 'a_pie' },
           notas:
-            'En la azotea del edificio norte, con acceso por la planta 8. Entrada desde unos 60 ¥.\n' +
+            'En la azotea del edificio norte, con acceso por la planta 8. Las cabinas tienen luz regulable y altavoz Bluetooth.\n' +
             'Trip.com da como horario 11:00–21:00 con última entrada a las 21:00 (una guía oficial antigua decía hasta las 22:00): confirmarlo ese día. Si abre hasta las 22:00, subir más tarde y cenar antes.\n' +
             'Algunas reseñas avisan de que desde arriba se ve sobre todo la ciudad cercana; los rascacielos de Lujiazui quedan lejos.',
+          gastos: [{ concepto: 'entrada (desde)', min: 60 }],
         },
         {
           hora: '21:00',
@@ -188,8 +193,9 @@ export const itinerario: Itinerario = {
           ...en(C.noria),
           llegada: { modo: 'a_pie' },
           notas:
-            'Cena informal en la planta baja del edificio norte de Joy City: puestos asiáticos, bebidas y postres.\n' +
-            'Confirmar a qué hora cierra; si cierra pronto, cenar antes de subir a la noria.',
+            'Mercado gastronómico de cocinas asiáticas con mesas compartidas (abrió en 2026): cocina del sudeste asiático de Opalm Asia, tempura de Nuu Nuu, sukiyaki de wagyu para comer en barra (Karasuma) y fideos salteados de Wen Made, además de bebidas y postres.\n' +
+            'Está en la planta baja del edificio norte de Joy City. Confirmar a qué hora cierra; si cierra pronto, cenar antes de subir a la noria.',
+          gastos: [{ concepto: 'cena (estimado, sin precios publicados)', min: 60, max: 120 }],
           enlaces: [enlace('Top Banana Market', 'https://english.shanghai.gov.cn/en-FirstStores/20260211/4976961a80794cf495e4eb67df6371ee.html')],
         },
         {
@@ -217,7 +223,14 @@ export const itinerario: Itinerario = {
           llegada: { modo: 'metro', detalle: 'Metro hasta Disney Resort (línea 11) o taxi/DiDi', min: 60 },
           notas:
             'Comprar la entrada y consultar el horario de apertura y cierre publicado para el 22. La hora de salida de aquí es orientativa.\n' +
+            'El precio de la entrada depende del día (calendario oficial con unos 30 días de antelación). Comer en Disneytown, junto al parque, sale bastante más barato.\n' +
             'El punto del mapa es el centro del parque, no la puerta de entrada.',
+          gastos: [
+            { concepto: 'entrada (día normal; los días punta, hasta 719 ¥)', min: 475, max: 599 },
+            { concepto: 'comida y cena de servicio rápido', min: 120, max: 240 },
+            { concepto: 'snacks (gofre de Mickey 40 ¥, pata de pavo 80 ¥)', min: 20, max: 80 },
+          ],
+          enlaces: [enlace('Precios de las entradas', 'https://wanderinchina.com/es/destinations/shanghai/disneyland/tickets/')],
         },
         {
           ...HOTEL,
@@ -245,6 +258,7 @@ export const itinerario: Itinerario = {
           llegada: { modo: 'a_pie', detalle: 'Unos 600 m por Hengfeng Rd y Moling Rd hasta la plaza sur', min: 10 },
           notas:
             'Tren hacia la estación de Nankín sobre las 11:00–11:30, si hay un horario que deje tiempo suficiente. Tren y duración exactos pendientes de reserva. Llevar el pasaporte.',
+          gastos: [{ concepto: 'tren de ida, 2.ª clase', min: 110, max: 160 }],
           enlaces: [
             enlace('Información ferroviaria', 'https://english.beijing.gov.cn/travellinginbeijing/transportation/railway/202607/t20260720_4772390.html'),
           ],
@@ -266,7 +280,9 @@ export const itinerario: Itinerario = {
           llegada: { modo: 'metro', detalle: 'Línea 3 hasta Jiming Temple (鸡鸣寺)', min: 15 },
           notas:
             'Comida sencilla por la zona, por ejemplo fideos locales con pato. El museo está a unos 200 m de la salida 5 del metro.\n' +
-            'En días de mucha gente la salida 5 es solo de entrada; para salir se usa la 6 (o la 1 y la 4).',
+            'En días de mucha gente la salida 5 es solo de entrada; para salir se usa la 6 (o la 1 y la 4).\n' +
+            'Otras especialidades baratas de Nankín: sopa de fideos con sangre de pato (鸭血粉丝汤, ~15 ¥) y fideos con piel de cerdo (皮肚面, ~25 ¥).',
+          gastos: [{ concepto: 'comida', min: 20, max: 50 }],
         },
         {
           hora: '14:00',
@@ -281,6 +297,7 @@ export const itinerario: Itinerario = {
           notas:
             'Gratuito. Abre de miércoles a domingo de 09:00 a 17:00, último acceso a las 16:00 (lunes y martes cerrado).\n' +
             'Cada adulto necesita reserva nominal y su propio código en el WeChat oficial del museo.',
+          gastos: [{ concepto: 'entrada', min: 0 }],
           enlaces: [enlace('Guía oficial del museo', 'https://www.nmp.ac.cn/bwggk/cgzn/')],
         },
         {
@@ -293,6 +310,7 @@ export const itinerario: Itinerario = {
           opcional: true,
           llegada: { modo: 'a_pie' },
           notas: 'Breve, solo si apetece. El templo abre de 07:00 a 17:30.',
+          gastos: [{ concepto: 'entrada (aprox., sin confirmar)', min: 10 }],
         },
         {
           hora: '17:35',
@@ -303,6 +321,7 @@ export const itinerario: Itinerario = {
           ...en(C.estacionNankin),
           llegada: { modo: 'metro', detalle: 'Línea 3', min: 20 },
           notas: 'Tren de regreso a Shanghái (horario pendiente de reserva).',
+          gastos: [{ concepto: 'tren de vuelta, 2.ª clase', min: 110, max: 160 }],
         },
         {
           hora: '19:40',
@@ -317,6 +336,7 @@ export const itinerario: Itinerario = {
           hora: '20:00',
           llegada: { modo: 'a_pie', min: 10 },
           notas: 'Cena sencilla cerca del hotel.',
+          gastos: [{ concepto: 'cena sencilla', min: 40, max: 80 }],
         },
       ],
     },
@@ -355,6 +375,7 @@ export const itinerario: Itinerario = {
           notas:
             'Cocina shanghainesa. No admite reservas. Horario: 11:00–13:30 y 17:00–21:00: al mediodía cierra a las 13:30, así que conviene no llegar más tarde de las 13:00.\n' +
             'Alternativa si preferimos pato pekinés: Quanjude (no imprescindible).',
+          gastos: [{ concepto: 'comida (gasto medio por persona en las reseñas: 60–80 ¥)', min: 60, max: 90 }],
         },
         {
           hora: '14:10',
@@ -397,7 +418,10 @@ export const itinerario: Itinerario = {
           categoria: 'comida',
           ...en(C.nanxiang),
           llegada: { modo: 'a_pie' },
-          notas: 'Cena, en el bazar de Yuyuan. Ajustar según la cola y el horario efectivo.',
+          notas:
+            'Cena, en el bazar de Yuyuan. Ajustar según la cola y el horario efectivo.\n' +
+            'Cada planta tiene un precio: en la planta baja, para llevar, 6 xiaolongbao cuestan 30 ¥; en la primera planta, 38 ¥ (o 48 ¥ los de cangrejo); en la segunda, con vistas, menús de 80–100 ¥.',
+          gastos: [{ concepto: 'cena (según la planta)', min: 40, max: 100 }],
         },
         {
           hora: '20:00',
@@ -419,7 +443,8 @@ export const itinerario: Itinerario = {
           llegada: { modo: 'taxi', min: 20 },
           direccion: '579 Middle Fuxing Road',
           direccionLocal: '复兴中路579号',
-          notas: 'Cócteles.',
+          notas: 'Cócteles de estilo japonés. Cada planta del bar tiene su ambiente; la tercera es la más cuidada.',
+          gastos: [{ concepto: 'dos cócteles (75–150 ¥ cada uno)', min: 160, max: 260 }],
           enlaces: [enlace('Speak Low', 'https://rachelgouk.com/listings/speak-low/')],
         },
         {
@@ -437,6 +462,7 @@ export const itinerario: Itinerario = {
             'Si apetece hip-hop/R&B. Comprobar la sesión y el precio de la entrada de esa noche antes de comprar pases.\n' +
             'Si llegamos cansados, el bar ya cumple el plan nocturno y la discoteca se puede omitir. Hora de salida orientativa.\n' +
             'INS Land está en el lado norte del parque Fuxing; el punto del mapa es aproximado.',
+          gastos: [{ concepto: 'entrada de sábado (suele incluir bebidas)', min: 198, max: 288 }],
           enlaces: [enlace('Hush', 'https://www.smartshanghai.com/venue/28730/smshwxmpqr.jpeg?share=true28730')],
         },
         {
@@ -448,41 +474,63 @@ export const itinerario: Itinerario = {
     },
     {
       fecha: '2026-10-25',
-      titulo: 'Anfu/Wukang, cafés curiosos y vistas',
+      titulo: 'Historia Natural, Wukang/Anfu, cafés y vistas',
       ciudad: 'Shanghái',
-      notas: 'Después de la salida del sábado, levantarnos sobre las 11:00.',
+      notas:
+        'Después de la salida del sábado, levantarnos sobre las 11:00.\n' +
+        'Con el museo, los cafés pasan a la tarde y Lujiazui se ve ya de noche.',
       paradas: [
         {
-          hora: '12:00',
-          fin: '12:30',
-          nombre: 'Wukang Road',
-          local: '武康大楼 · 武康路',
-          categoria: 'barrio',
-          ...en(C.wukang),
-          llegada: { modo: 'taxi', min: 20 },
-          notas: 'Paseo y compras relajadas por Wukang Road y Anfu Road: boutiques y diseño local, sin obligación de comprar.',
-        },
-        {
-          hora: '12:30',
-          fin: '13:30',
-          nombre: 'Dongxin Jiujia',
-          categoria: 'comida',
-          ...en(C.dongxin),
-          llegada: { modo: 'a_pie' },
-          direccion: '98 Wukang Road',
-          direccionLocal: '武康路98号',
+          hora: '11:45',
+          fin: '14:00',
+          nombre: 'Museo de Historia Natural de Shanghái',
+          local: '上海自然博物馆',
+          categoria: 'museo',
+          ...en(C.museoHistoriaNatural),
+          llegada: { modo: 'taxi', detalle: 'Taxi (10 min) o andando (~1,5 km)', min: 10 },
+          direccion: '510 West Beijing Road, en el parque de esculturas de Jing’an',
+          direccionLocal: '北京西路510号',
           notas:
-            'Almuerzo recomendado, cocina shanghainesa.\n' +
-            'Si preferimos un brunch occidental: SOMETHING Dining & Bar, en la segunda planta del mismo número.\n' +
-            'Posición en el mapa aproximada.',
+            'Hay que reservar con antelación: no venden entradas en taquilla.\n' +
+            'Abre de martes a domingo de 09:00 a 17:15, con última entrada sobre las 16:00; los lunes cierra. Se recomiendan 2–3 h.\n' +
+            'En fin de semana suele haber muchas familias.',
+          gastos: [{ concepto: 'entrada', min: 30 }],
           enlaces: [
-            enlace('Restaurantes de Wukang', 'https://english.shanghai.gov.cn/en-Restaurants/20250411/1dfa64b624304bff969afd23b9d2bb24.html'),
-            enlace('SOMETHING', 'https://english.shanghai.gov.cn/en-Restaurants/20240416/b3de189a44064a76afd2e677f7e60b37.html'),
+            enlace('Museo (Time Out)', 'https://www.timeoutshanghai.com/venue/Things_to_Do-Museums/1309/Shanghai-Natural-History-Museum.html'),
           ],
         },
         {
-          hora: '13:40',
-          fin: '14:40',
+          hora: '14:20',
+          fin: '15:20',
+          nombre: 'Comida en el n.º 98 de Wukang Road',
+          categoria: 'comida',
+          ...en(C.dongxin),
+          llegada: { modo: 'taxi', min: 15 },
+          direccion: '98 Wukang Road',
+          direccionLocal: '武康路98号',
+          notas:
+            'A esta hora lo seguro es SOMETHING Dining & Bar (2.ª planta), con brunch y cocina occidental de 10:00 a 22:00.\n' +
+            'Dongxin Jiujia, de cocina shanghainesa, está en el mismo número, pero no hemos podido confirmar si sirve después de las 14:00.\n' +
+            'Posición en el mapa aproximada.',
+          gastos: [{ concepto: 'comida (estimado, sin precio publicado)', min: 100, max: 180 }],
+          enlaces: [
+            enlace('SOMETHING', 'https://english.shanghai.gov.cn/en-Restaurants/20240416/b3de189a44064a76afd2e677f7e60b37.html'),
+            enlace('Restaurantes de Wukang', 'https://english.shanghai.gov.cn/en-Restaurants/20250411/1dfa64b624304bff969afd23b9d2bb24.html'),
+          ],
+        },
+        {
+          hora: '15:25',
+          fin: '15:55',
+          nombre: 'Wukang Road y Wukang Mansion',
+          local: '武康大楼 · 武康路',
+          categoria: 'barrio',
+          ...en(C.wukang),
+          llegada: { modo: 'a_pie' },
+          notas: 'Paseo y compras relajadas por Wukang Road y Anfu Road: boutiques y diseño local, sin obligación de comprar.',
+        },
+        {
+          hora: '16:05',
+          fin: '16:50',
           nombre: '13DEMARZO Café',
           categoria: 'comida',
           ...en(C.demarzo),
@@ -490,7 +538,8 @@ export const itinerario: Itinerario = {
           direccion: '322 Anfu Road',
           direccionLocal: '安福路322号',
           notas:
-            'La bebida con el osito. Puede haber cola, sobre todo en domingo: pedir primero y seguir mirando tiendas por Anfu mientras esperamos, si el sistema de recogida lo permite.',
+            'La bebida con el osito. Abre de 10:00 a 21:30. Puede haber cola, sobre todo en domingo: pedir primero y seguir mirando tiendas por Anfu mientras esperamos, si el sistema de recogida lo permite.',
+          gastos: [{ concepto: 'bebida (la más pedida, el latte de rosa, cuesta 36 ¥)', min: 30, max: 40 }],
           enlaces: [
             enlace(
               'Ubicación y horarios',
@@ -499,8 +548,8 @@ export const itinerario: Itinerario = {
           ],
         },
         {
-          hora: '15:00',
-          fin: '15:45',
+          hora: '17:05',
+          fin: '17:35',
           nombre: 'CUBIC3: -86°C Dirty',
           categoria: 'comida',
           ...en(C.cubic3),
@@ -510,45 +559,50 @@ export const itinerario: Itinerario = {
           notas:
             'El «−86 °C» se refiere a la experiencia del vaso, no a beber líquido a esa temperatura.\n' +
             'Tramo flexible si la espera en 13DEMARZO se alarga. Posición en el mapa aproximada (Yongkang Road).',
+          gastos: [{ concepto: 'bebida (estimado, sin precio publicado)', min: 40, max: 70 }],
           enlaces: [enlace('CUBIC3 en Amap', 'https://www.amap.com/place/B0LUF51YXH')],
         },
         {
-          hora: '15:45',
-          fin: '16:30',
+          hora: '17:35',
+          fin: '18:00',
           nombre: 'Hinichijou (Bear Paw Café)',
           categoria: 'comida',
           ...en(C.hinichijou),
           llegada: { modo: 'a_pie' },
           notas:
-            'El café servido por una «garra» a través de un hueco en la pared. Muy cerca de CUBIC3; posición en el mapa aproximada.',
+            'El café servido por una «garra» a través de un hueco en la pared; lo atienden baristas sordos. Se pide escaneando un código QR.\n' +
+            'Comprobar el horario: los cafés de la zona suelen cerrar a media tarde. Muy cerca de CUBIC3; posición en el mapa aproximada.',
+          gastos: [{ concepto: 'café (todos cuestan unos 20 ¥)', min: 20, max: 35 }],
           enlaces: [enlace('Hinichijou', 'https://english.shanghai.gov.cn/en-Cafes/20240823/f098caef928a48a495162811624512a4.html')],
         },
         {
-          hora: '17:30',
-          fin: '18:30',
-          nombre: 'Lujiazui: rascacielos',
+          hora: '18:40',
+          fin: '19:20',
+          nombre: 'Lujiazui de noche',
           local: '陆家嘴环形天桥',
           categoria: 'mirador',
           ...en(C.lujiazui),
-          llegada: { modo: 'metro', detalle: 'Metro hasta Lujiazui (línea 2)', min: 35 },
-          notas: 'Pasarela circular y zona de rascacielos.',
+          llegada: { modo: 'metro', detalle: 'Metro hasta Lujiazui (línea 2) o taxi', min: 35 },
+          notas: 'Pasarela circular entre los rascacielos, ya iluminados.',
         },
         {
-          hora: '18:30',
-          fin: '20:10',
+          hora: '19:25',
+          fin: '21:00',
           nombre: 'Torre Perla Oriental',
           local: '东方明珠',
           categoria: 'mirador',
           ...en(C.perla),
           llegada: { modo: 'a_pie' },
           notas:
-            'Cena pendiente de decidir: restaurante giratorio si valoramos la experiencia y aceptamos su precio, o mirador y cena aparte por la zona.\n' +
+            'Cena pendiente de decidir: restaurante giratorio (bufé de cena, entrada a la torre incluida) si valoramos la experiencia y aceptamos su precio, o solo el mirador y cena aparte por la zona (sumar ~80–150 ¥).\n' +
             'No considerar la cena giratoria reservada.',
+          gastos: [{ concepto: 'mirador (199–220 ¥) o bufé giratorio de cena (~418 ¥)', min: 199, max: 418 }],
+          enlaces: [enlace('Precios de la torre', 'https://wanderinchina.com/destinations/shanghai/oriental-pearl-tower/')],
         },
         {
           ...HOTEL,
-          hora: '20:45',
-          llegada: { modo: 'metro', detalle: 'Línea 2 y transbordo', min: 35 },
+          hora: '21:40',
+          llegada: { modo: 'metro', detalle: 'Línea 2 y transbordo, o taxi', min: 35 },
           notas: 'Ordenar compras y pesar la maleta.',
         },
       ],
@@ -614,7 +668,7 @@ export const itinerario: Itinerario = {
     },
   ],
   pendientes: [
-    'Museo de Historia Natural: elegir día y reservar la entrada (no venden en taquilla).',
+    'Museo de Historia Natural (domingo 25): reservar la entrada (no venden en taquilla).',
     'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.',
     'Tren y museo: comprobar 12306, elegir estaciones y horarios reales y hacer la reserva nominal del museo.',
     'Disneyland: comprar la entrada y consultar el horario del 22.',

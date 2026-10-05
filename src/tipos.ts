@@ -20,6 +20,13 @@ export interface Enlace {
   url: string;
 }
 
+/** Gasto aproximado por persona, en yuanes. Sin `max` es un precio fijo; 0 es gratis. */
+export interface Gasto {
+  concepto: string;
+  min: number;
+  max?: number;
+}
+
 export interface Llegada {
   modo: Transporte;
   /** Texto libre, p. ej. "Línea 2 → Nanjing Rd East". */
@@ -50,6 +57,7 @@ export interface Parada {
   /** Plan que se hace solo si apetece o si se cumple alguna condición. */
   opcional?: boolean;
   enlaces?: Enlace[];
+  gastos?: Gasto[];
 }
 
 export interface Dia {
@@ -73,6 +81,8 @@ export interface Seccion {
 export interface Itinerario {
   titulo: string;
   subtitulo?: string;
+  /** Yuanes por euro, para mostrar la equivalencia aproximada de los gastos. */
+  yuanesPorEuro?: number;
   /** Marca los datos como de ejemplo (se avisa en pantalla). */
   ejemplo?: boolean;
   dias: Dia[];

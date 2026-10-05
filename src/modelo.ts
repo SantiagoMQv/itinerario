@@ -49,6 +49,7 @@ export interface DiaC {
 export interface Modelo {
   titulo: string;
   subtitulo?: string;
+  yuanesPorEuro?: number;
   ejemplo: boolean;
   secciones: Seccion[];
   pendientes: string[];
@@ -202,6 +203,7 @@ export function construirModelo(it: Itinerario): Modelo {
   return {
     titulo: it.titulo,
     subtitulo: it.subtitulo,
+    yuanesPorEuro: it.yuanesPorEuro,
     ejemplo: !!it.ejemplo,
     secciones: it.secciones ?? [],
     pendientes: it.pendientes ?? [],
@@ -231,4 +233,17 @@ export function momentoEn(m: Modelo, t: number): Momento {
 export function hotelDe(m: Modelo, p: ParadaC): ParadaC | null {
   const hoteles = m.paradas.filter((h) => h.p.categoria === 'hotel' && h.zona === p.zona);
   return hoteles.filter((h) => h.id <= p.id).pop() ?? hoteles[0] ?? null;
+}
+
+/** Suma de los gastos por persona de un conjunto de paradas: [mínimo, máximo] en yuanes. */
+export function gastoTotal(paradas: ParadaC[]): [number, number] {
+  let min = 0;
+  let max = 0;
+  for (const p of paradas) {
+    for (const g of p.p.gastos ?? []) {
+      min += g.min;
+      max += g.max ?? g.min;
+    }
+  }
+  return [min, max];
 }
