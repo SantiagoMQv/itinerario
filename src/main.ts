@@ -1,6 +1,7 @@
+import '@fontsource-variable/archivo/wdth.css';
 import './estilos.css';
 import { itinerario } from './datos/itinerario';
-import { ICONO_CATEGORIA, TRANSPORTE, ahoraEnChina, duracion, esc, fechaCorta, fechaLarga, hora, km } from './formato';
+import { TRANSPORTE, ahoraEnChina, duracion, esc, fechaCorta, fechaLarga, hora, km } from './formato';
 import { distanciaKm } from './geo';
 import { VistaMapa } from './mapa';
 import {
@@ -26,20 +27,23 @@ const el = {
   aviso: $('aviso'),
   panel: $('panel'),
   asa: $('asa'),
-  controles: $('controles'),
+  cabecera: $('cabecera'),
+  reloj: $('hora'),
+  ahora: $('ahora'),
   play: $<HTMLButtonElement>('btn-play'),
   anterior: $<HTMLButtonElement>('btn-anterior'),
   siguiente: $<HTMLButtonElement>('btn-siguiente'),
   velocidad: $<HTMLButtonElement>('btn-velocidad'),
   deslizador: $<HTMLInputElement>('deslizador'),
-  marcas: $('marcas'),
+  puntos: $('puntos'),
+  tramoAhora: $('tramo-ahora'),
   horaDesde: $('hora-desde'),
   horaHasta: $('hora-hasta'),
-  estado: $('estado'),
   contenido: $('contenido'),
   encuadrar: $<HTMLButtonElement>('btn-encuadrar'),
   offline: $<HTMLButtonElement>('btn-offline'),
   seguir: $<HTMLButtonElement>('btn-seguir'),
+  tema: $<HTMLButtonElement>('btn-tema'),
   taxi: $('taxi'),
   toast: $('toast'),
 };
@@ -56,7 +60,7 @@ const estado = {
   velocidad: 0,
   seguir: true,
   expandido: false,
-  /** Parada desplegada en la lista: null = la actual, -1 = ninguna. */
+  /** Parada con la ficha desplegada en la lista (null o -1: ninguna). */
   abierta: null as number | null,
   claveMomento: '',
 };
@@ -74,19 +78,32 @@ const claveDe = (m: Momento) => (m.tipo === 'camino' ? `t${m.tramo.id}` : `p${m.
 
 // ---------- Barra de días ----------
 
+/** Ciudad más repetida del viaje: solo se rotulan en las pestañas los días que salen de ella. */
+const ciudadBase = (() => {
+  const cuenta = new Map<string, number>();
+  for (const d of modelo.dias) if (d.d.ciudad) cuenta.set(d.d.ciudad, (cuenta.get(d.d.ciudad) ?? 0) + 1);
+  return [...cuenta].sort((a, b) => b[1] - a[1])[0]?.[0];
+})();
+
 function pintarDias() {
-  const chips = [
-    `<button type="button" class="chip${estado.vista === 'todo' ? ' activo' : ''}" data-dia="todo">
-      <b>Todo</b><small>${modelo.dias.length} días</small></button>`,
-    ...modelo.dias.map(
-      (d) => `<button type="button" class="chip${estado.vista === 'dia' && estado.dia === d.idx ? ' activo' : ''}"
-        data-dia="${d.idx}" style="--color:${d.color}">
-        <b>Día ${d.idx + 1}</b><small>${esc(fechaCorta(d.d.fecha))}${d.d.ciudad && d.d.ciudad !== 'Shanghái' ? ` · ${esc(d.d.ciudad)}` : ''}</small>
-      </button>`,
-    ),
+  const pestanas = [
+    `<button type="button" class="pestana todo${estado.vista === 'todo' ? ' activa' : ''}" data-dia="todo"
+      aria-pressed="${estado.vista === 'todo'}"><b>Todo</b></button>`,
+    ...modelo.dias.map((d) => {
+      const activa = estado.vista === 'dia' && estado.dia === d.idx;
+      const ciudad = d.d.ciudad && d.d.ciudad !== ciudadBase ? ` · ${esc(d.d.ciudad)}` : '';
+      return `<button type="button" class="pestana${activa ? ' activa' : ''}" data-dia="${d.idx}"
+        aria-pressed="${activa}" style="--color:${d.color}">
+        <b>Día ${d.idx + 1}</b><small>${esc(fechaCorta(d.d.fecha))}${ciudad}</small>
+      </button>`;
+    }),
   ];
-  el.dias.innerHTML = chips.join('');
-  el.dias.querySelector('.activo')?.scrollIntoView({ inline: 'nearest', block: 'nearest' });
+  el.dias.innerHTML = pestanas.join('');
+  // Que la pestaña activa quede a la vista sin mover nada más de la página.
+  const activa = el.dias.querySelector<HTMLElement>('.activa');
+  if (activa && (activa.offsetLeft < el.dias.scrollLeft || activa.offsetLeft + activa.offsetWidth > el.dias.scrollLeft + el.dias.clientWidth)) {
+    el.dias.scrollLeft = activa.offsetLeft - 40;
+  }
 }
 
 el.dias.addEventListener('click', (e) => {
@@ -100,6 +117,7 @@ el.dias.addEventListener('click', (e) => {
 
 function seleccionarDia(idx: number, t?: number, encuadrar = true) {
   const dia = modelo.dias[idx];
+  if (estado.vista === 'todo') expandir(false);
   estado.vista = 'dia';
   estado.dia = idx;
   estado.t = Math.min(Math.max(t ?? dia.desde, dia.desde), dia.hasta);
@@ -134,22 +152,30 @@ function verTodo() {
 
 // ---------- Línea de tiempo ----------
 
+/** Posición (0–100 %) de un instante en la línea de tiempo del día. */
+function pct(dia: DiaC, m: number): number {
+  return ((Math.min(Math.max(m, dia.desde), dia.hasta) - dia.desde) / (dia.hasta - dia.desde)) * 100;
+}
+
 function prepararLineaTiempo(dia: DiaC) {
   el.deslizador.min = String(dia.desde);
   el.deslizador.max = String(dia.hasta);
   el.horaDesde.textContent = hora(dia.desde);
   el.horaHasta.textContent = hora(dia.hasta);
-  const total = dia.hasta - dia.desde;
-  const pct = (m: number) => ((Math.min(Math.max(m, dia.desde), dia.hasta) - dia.desde) / total) * 100;
-  // Bloques de estancia en cada parada; los huecos entre bloques son los trayectos.
-  el.marcas.innerHTML = [dia.origen, ...dia.paradas]
-    .filter((p): p is ParadaC => !!p)
-    .map((p) => {
-      const desde = pct(p.inicio);
-      const ancho = Math.max(pct(p.fin) - desde, 0.6);
-      return `<span style="left:${desde}%;width:${ancho}%;--color:${dia.color}"></span>`;
-    })
-    .join('');
+  // Un punto por parada (y la salida del hotel), a su hora de llegada.
+  const marcas = [...(dia.origen ? [dia.origen.fin] : []), ...dia.paradas.map((p) => p.inicio)];
+  el.puntos.innerHTML = marcas.map((m) => `<span data-t="${m}" style="left:${pct(dia, m)}%"></span>`).join('');
+}
+
+/** Puntos ya pasados rellenos y el fluorescente sobre lo que pasa ahora (la estancia o el trayecto). */
+function pintarLineaTiempo(dia: DiaC, m: Momento) {
+  for (const punto of el.puntos.children as HTMLCollectionOf<HTMLElement>) {
+    punto.classList.toggle('pasado', Number(punto.dataset.t) <= estado.t);
+  }
+  const [desde, hasta] = m.tipo === 'camino' ? [m.tramo.salida, m.tramo.llegada] : [m.parada.inicio, m.parada.fin];
+  const izquierda = pct(dia, desde);
+  el.tramoAhora.style.left = `${izquierda}%`;
+  el.tramoAhora.style.width = `${Math.max(pct(dia, hasta) - izquierda, 1.5)}%`;
 }
 
 el.deslizador.addEventListener('input', () => {
@@ -249,35 +275,73 @@ function pintar(moverCamara: boolean) {
   vista.actualizar(t, momento);
   if (estado.seguir) vista.seguir(momento, moverCamara);
   el.deslizador.value = String(t);
-  el.marcas.style.setProperty('--avance', `${((t - dia.desde) / (dia.hasta - dia.desde)) * 100}%`);
+  el.reloj.textContent = hora(t);
+  pintarLineaTiempo(dia, momento);
 
   const clave = claveDe(momento);
   if (clave !== estado.claveMomento) {
     estado.claveMomento = clave;
-    pintarEstado(momento);
+    pintarAhora(momento);
     marcarLista(momento);
   }
-  el.estado.querySelector('.hora-grande')!.textContent = hora(t);
 }
 
-function pintarEstado(m: Momento) {
-  const dia = diaActual();
-  let titulo: string;
-  let detalle: string;
+/** «Ahora» y «Después» a la derecha del margen. */
+function pintarAhora(m: Momento) {
+  let ahora: string;
+  let despues: ParadaC | undefined;
   if (m.tipo === 'camino') {
     const tr = m.tramo;
-    titulo = `${TRANSPORTE[tr.modo].icono} Hacia ${esc(tr.hasta.p.nombre)}`;
-    detalle = [TRANSPORTE[tr.modo].nombre, km(tr.km), `llegada ${hora(tr.llegada)}`].map(esc).join(' · ');
+    despues = tr.hasta;
+    ahora = bloqueAhora(
+      tr.hasta.id,
+      `Camino de ${tr.hasta.p.nombre}`,
+      `${TRANSPORTE[tr.modo]} · ${km(tr.km)}`,
+      `llegada ${hora(tr.llegada)}`,
+    );
   } else {
     const p = m.parada;
-    titulo = `${ICONO_CATEGORIA[p.p.categoria]} ${esc(p.p.nombre)}`;
-    const horario = p.dia === dia.idx ? `${hora(p.inicio)}–${hora(p.fin)}` : `hasta ${hora(p.fin)}`;
-    detalle = [horario, p.p.local].filter(Boolean).map((s) => esc(s!)).join(' · ');
+    despues = modelo.paradas[p.id + 1];
+    ahora = bloqueAhora(p.id, p.p.nombre, p.p.local ?? '', `hasta ${hora(p.fin)}`);
   }
-  el.estado.innerHTML = `
-    <span class="hora-grande"></span>
-    <span class="resumen"><b>${titulo}</b><small>${detalle}</small></span>
-    <svg class="flecha" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>`;
+  el.ahora.innerHTML = `${ahora}<hr />${bloqueDespues(despues, m)}`;
+}
+
+function bloqueAhora(id: number, titulo: string, detalle: string, hasta = ''): string {
+  return `<button type="button" class="bloque" data-abrir="${id}">
+    <span class="etiqueta">Ahora${hasta ? ` <b>${esc(hasta)}</b>` : ''}</span>
+    <span class="titulo"><mark>${esc(titulo)}</mark></span>
+    ${detalle ? `<span class="detalle-ahora">${esc(detalle)}</span>` : ''}
+  </button>`;
+}
+
+function bloqueDespues(q: ParadaC | undefined, m: Momento): string {
+  if (!q) return `<p class="bloque fin"><span class="etiqueta">Después</span><span class="titulo">Fin del viaje</span></p>`;
+  const dia = diaActual();
+  const cuando = q.dia === dia.idx ? hora(q.inicio) : `${fechaCorta(modelo.dias[q.dia].d.fecha)} ${hora(q.inicio)}`;
+  // Parado: cómo se llega a lo siguiente. De camino: el nombre local del destino, que es lo útil al llegar.
+  const tramo = m.tipo === 'parada' ? modelo.tramos.find((t) => t.hasta === q && !t.nulo) : undefined;
+  const pie = tramo ? `${TRANSPORTE[tramo.modo]} · ${km(tramo.km)}` : (q.p.local ?? '');
+  return `<button type="button" class="bloque" data-abrir="${q.id}">
+    <span class="etiqueta">Después <b>${esc(cuando)}</b></span>
+    <span class="titulo">${esc(q.p.nombre)}</span>
+    <span class="pie"><span>${esc(pie)}</span>${precioCorto(q)}</span>
+  </button>`;
+}
+
+el.ahora.addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>('[data-abrir]');
+  if (!b) return;
+  abrirFicha(modelo.paradas[Number(b.dataset.abrir)]);
+});
+
+/** Despliega la ficha de una parada en la lista sin mover la hora. */
+function abrirFicha(p: ParadaC) {
+  if (p.dia !== estado.dia && p !== diaActual().origen) seleccionarDia(p.dia, p.inicio, false);
+  expandir(true);
+  estado.abierta = p.id;
+  marcarLista(momentoEn(modelo, estado.t));
+  requestAnimationFrame(() => mostrarFila(el.contenido.querySelector(`li.parada[data-id="${p.id}"]`)));
 }
 
 // ---------- Lista del día ----------
@@ -306,18 +370,18 @@ function gastosHtml(gastos: Gasto[] = []): string {
 }
 
 const enlacesHtml = (enlaces: Enlace[] = []) =>
-  enlaces.map((e) => `<a class="enlace" href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.texto)} ↗</a>`).join('');
+  enlaces.map((e) => `<a class="enlace" href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.texto)}</a>`).join('');
 
 function enlacesMapas(p: ParadaC): string {
   const [lng, lat] = p.pos;
   const nombre = encodeURIComponent(p.p.local ?? p.p.nombre);
   return `
-    <a href="https://uri.amap.com/marker?position=${lng},${lat}&name=${nombre}&coordinate=wgs84&callnative=1" target="_blank" rel="noopener">Amap</a>
-    <a href="https://maps.apple.com/?ll=${lat},${lng}&q=${encodeURIComponent(p.p.nombre)}" target="_blank" rel="noopener">Apple Maps</a>
-    <a href="https://www.google.com/maps/search/?api=1&query=${lat},${lng}" target="_blank" rel="noopener">Google Maps</a>`;
+    <a class="boton" href="https://uri.amap.com/marker?position=${lng},${lat}&name=${nombre}&coordinate=wgs84&callnative=1" target="_blank" rel="noopener">Amap</a>
+    <a class="boton" href="https://maps.apple.com/?ll=${lat},${lng}&q=${encodeURIComponent(p.p.nombre)}" target="_blank" rel="noopener">Apple Maps</a>
+    <a class="boton" href="https://www.google.com/maps/search/?api=1&query=${lat},${lng}" target="_blank" rel="noopener">Google Maps</a>`;
 }
 
-function filaParada(p: ParadaC, dia: DiaC, esOrigen: boolean): string {
+function filaParada(p: ParadaC, esOrigen: boolean): string {
   const q = p.p;
   const hotel = hotelDe(modelo, p);
   const aHotel = hotel && q.categoria !== 'hotel' ? distanciaKm(p.pos, hotel.pos) : null;
@@ -327,41 +391,44 @@ function filaParada(p: ParadaC, dia: DiaC, esOrigen: boolean): string {
   if (q.direccion) datos.push(['Dirección', q.direccion]);
   if (q.direccionLocal) datos.push(['地址', q.direccionLocal]);
   if (q.reserva) datos.push(['Reserva', q.reserva]);
+  const clases = ['parada', esOrigen && 'origen', q.opcional && 'opcional', q.categoria === 'hotel' && 'hotel'];
   return `
-    <li class="parada${esOrigen ? ' origen' : ''}" data-id="${p.id}" style="--color:${dia.color}">
-      <button class="fila" type="button">
-        <span class="num">${q.categoria === 'hotel' ? ICONO_CATEGORIA.hotel : p.n}</span>
-        <span class="horas">${esOrigen ? 'Salida' : hora(p.inicio)}<small>${esOrigen ? hora(p.fin) : ''}</small></span>
-        <span class="nombre">${esc(q.nombre)}${q.opcional ? ' <em class="opcional">opcional</em>' : ''}${precioCorto(p)}${q.local ? `<small>${esc(q.local)}</small>` : ''}</span>
-        <span class="cat" aria-hidden="true">${ICONO_CATEGORIA[q.categoria]}</span>
+    <li class="${clases.filter(Boolean).join(' ')}" data-id="${p.id}">
+      <button class="fila" type="button" aria-expanded="false">
+        <span class="marca"><span>${p.n ?? 'H'}</span></span>
+        <span class="hora-fila">${esOrigen ? '' : hora(p.inicio)}</span>
+        <span class="texto">
+          <span class="nombre">${esc(q.nombre)}</span>${q.local ? ` <span class="local">(${esc(q.local)})</span>` : ''}
+          ${q.opcional ? '<span class="opcional-etiqueta">opcional</span>' : ''}
+          ${esOrigen ? `<span class="salida">Salida ${hora(p.fin)}</span>` : ''}
+        </span>
+        ${esOrigen ? '' : precioCorto(p)}
       </button>
       <div class="detalle">
         ${q.notas && !esOrigen ? parrafos(q.notas, 'notas') : ''}
         ${datos.length ? `<dl>${datos.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl>` : ''}
         ${esOrigen ? '' : gastosHtml(q.gastos)}
-        ${q.enlaces?.length && !esOrigen ? `<div class="acciones">${enlacesHtml(q.enlaces)}</div>` : ''}
+        ${q.enlaces?.length && !esOrigen ? `<p class="enlaces">${enlacesHtml(q.enlaces)}</p>` : ''}
         <div class="acciones">
-          ${q.local ? `<button type="button" class="btn-taxi" data-taxi="${p.id}">🀄 Enseñar al taxista</button>` : ''}
+          ${q.local ? `<button type="button" class="boton tinta" data-taxi="${p.id}">Enseñar al taxista</button>` : ''}
           ${enlacesMapas(p)}
         </div>
       </div>
     </li>`;
 }
 
-/** Etiqueta con el gasto de la parada para la fila de la lista. */
+/** Etiqueta con el gasto de la parada. */
 function precioCorto(p: ParadaC): string {
   if (!p.p.gastos?.length) return '';
   const [min, max] = gastoTotal([p]);
-  return ` <em class="precio">${esc(yuanes(min, max, false))}</em>`;
+  return `<span class="precio">${esc(yuanes(min, max, false))}</span>`;
 }
 
 function filaTramo(t: TramoC): string {
-  const tp = TRANSPORTE[t.modo];
   const tiempo = `${t.estimado ? '~' : ''}${duracion(t.minutos)}`;
-  const partes = t.nulo ? [tp.nombre] : [tp.nombre, km(t.km), tiempo];
+  const partes = t.nulo ? [TRANSPORTE[t.modo]] : [TRANSPORTE[t.modo], km(t.km), tiempo];
   return `
     <li class="tramo" data-tramo="${t.id}">
-      <span class="icono" aria-hidden="true">${tp.icono}</span>
       <span>${partes.map(esc).join(' · ')}${t.detalle ? `<small>${esc(t.detalle)}</small>` : ''}</span>
     </li>`;
 }
@@ -377,40 +444,52 @@ function lineaGasto(lista: ParadaC[]): string {
 function pintarLista(dia: DiaC) {
   const visitas = dia.paradas.filter((p) => p.n !== null).length;
   const filas: string[] = [];
-  if (dia.origen) filas.push(filaParada(dia.origen, dia, true));
+  if (dia.origen) filas.push(filaParada(dia.origen, true));
   for (const p of dia.paradas) {
     const tramo = dia.tramos.find((t) => t.hasta === p);
     if (tramo) filas.push(filaTramo(tramo));
-    filas.push(filaParada(p, dia, false));
+    filas.push(filaParada(p, false));
   }
   el.contenido.innerHTML = `
-    <header class="cabecera">
-      <h2>Día ${dia.idx + 1} · ${esc(fechaLarga(dia.d.fecha))}</h2>
-      <p>${esc(dia.d.titulo)}</p>
-      <p class="cifras">${paradas(visitas)} · ${km(dia.km)} en línea recta</p>
+    <h2 class="titulo-lista"><span>Itinerario del día</span><small>${paradas(visitas)} · ${esc(km(dia.km))}</small></h2>
+    <ol class="lista">${filas.join('')}</ol>
+    <section class="sobre-dia">
+      <h3>Día ${dia.idx + 1} · ${esc(fechaLarga(dia.d.fecha))}</h3>
+      <p class="titulo-dia">${esc(dia.d.titulo)}</p>
       ${lineaGasto(dia.paradas)}
       ${dia.d.notas ? `<div class="notas-dia">${parrafos(dia.d.notas, '')}</div>` : ''}
-    </header>
-    <ol class="lista">${filas.join('')}</ol>`;
+    </section>`;
   estado.claveMomento = '';
 }
 
 function marcarLista(m: Momento) {
   const actual = m.parada?.id ?? null;
-  const abierta = estado.abierta ?? actual;
+  const abierta = estado.abierta ?? -1;
   for (const li of el.contenido.querySelectorAll<HTMLLIElement>('li.parada')) {
     const id = Number(li.dataset.id);
     const p = modelo.paradas[id];
     li.classList.toggle('actual', id === actual);
     li.classList.toggle('abierta', id === abierta);
+    li.querySelector('.fila')?.setAttribute('aria-expanded', String(id === abierta));
     li.classList.toggle('hecha', p.inicio <= estado.t && id !== actual && !li.classList.contains('origen'));
   }
   for (const li of el.contenido.querySelectorAll<HTMLLIElement>('li.tramo')) {
     li.classList.toggle('actual', m.tramo?.id === Number(li.dataset.tramo));
   }
-  if (estado.expandido && estado.abierta === null) {
-    el.contenido.querySelector('li.actual')?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
-  }
+  if (estado.abierta === null) mostrarFila(el.contenido.querySelector('li.actual'));
+}
+
+/** Desplaza la lista para que se vea la fila, con la parada anterior encima como contexto. */
+function mostrarFila(li: HTMLElement | null, suave = true) {
+  if (!li) return;
+  const c = el.contenido;
+  const arriba = li.offsetTop;
+  const abajo = arriba + li.offsetHeight;
+  if (arriba >= c.scrollTop && abajo <= c.scrollTop + c.clientHeight) return;
+  let previa = li.previousElementSibling as HTMLElement | null;
+  while (previa && !previa.classList.contains('parada')) previa = previa.previousElementSibling as HTMLElement | null;
+  const conContexto = previa && abajo - previa.offsetTop <= c.clientHeight ? previa.offsetTop : arriba;
+  c.scrollTo({ top: Math.max(0, conContexto - 6), behavior: suave ? 'smooth' : 'auto' });
 }
 
 el.contenido.addEventListener('click', (e) => {
@@ -450,7 +529,7 @@ function pulsarParada(p: ParadaC) {
   estado.abierta = p.id;
   estado.claveMomento = '';
   pintar(false);
-  el.contenido.querySelector(`li.parada[data-id="${p.id}"]`)?.scrollIntoView({ block: 'nearest' });
+  mostrarFila(el.contenido.querySelector(`li.parada[data-id="${p.id}"]`), false);
 }
 
 // ---------- Vista de todo el viaje ----------
@@ -458,21 +537,23 @@ function pulsarParada(p: ParadaC) {
 function pintarResumen() {
   const visitas = modelo.paradas.filter((p) => p.n !== null).length;
   const total = modelo.tramos.reduce((s, t) => s + t.km, 0);
-  el.estado.innerHTML = `
-    <span class="resumen"><b>${esc(modelo.titulo)}</b>
-    <small>${esc(modelo.subtitulo ?? `${modelo.dias.length} días`)}</small></span>
-    <svg class="flecha" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 15 6-6 6 6" /></svg>`;
+  el.ahora.innerHTML = `
+    <div class="bloque viaje">
+      <h2 class="titulo-viaje">${esc(modelo.titulo)}</h2>
+      ${modelo.subtitulo ? `<p class="detalle-ahora">${esc(modelo.subtitulo)}</p>` : ''}
+      <p class="cifras">${modelo.dias.length} días · ${paradas(visitas)} · ${esc(km(total))} en línea recta</p>
+    </div>`;
   const hechos = pendientesHechos();
+  el.contenido.scrollTop = 0;
   el.contenido.innerHTML = `
-    <p class="cifras resumen-cifras">${modelo.dias.length} días · ${paradas(visitas)} · ${km(total)} en línea recta</p>
     ${lineaGasto(modelo.paradas)}
     <ol class="lista-dias">
       ${modelo.dias
         .map(
           (d) => `
         <li><button type="button" data-ir-dia="${d.idx}" style="--color:${d.color}">
-          <span class="punto"></span>
-          <span class="nombre"><b>Día ${d.idx + 1} · ${esc(fechaLarga(d.d.fecha))}</b><small>${esc(d.d.titulo)}</small></span>
+          <span class="lomo">${d.idx + 1}</span>
+          <span class="nombre"><b>${esc(fechaLarga(d.d.fecha))}${d.d.ciudad ? ` · ${esc(d.d.ciudad)}` : ''}</b><small>${esc(d.d.titulo)}</small></span>
           <span class="cifras">${paradas(d.paradas.filter((p) => p.n !== null).length)} · ${km(d.km)}${
             gastoTotal(d.paradas)[1] ? `<br>${esc(yuanes(...gastoTotal(d.paradas), false))}` : ''
           }</span>
@@ -533,19 +614,18 @@ el.contenido.addEventListener('change', (e) => {
 function expandir(abrir = !estado.expandido) {
   estado.expandido = abrir;
   el.panel.classList.toggle('expandido', abrir);
+  el.asa.setAttribute('aria-expanded', String(abrir));
+  document.body.classList.toggle('panel-abierto', abrir);
   if (abrir && estado.vista === 'dia') {
-    requestAnimationFrame(() =>
-      el.contenido.querySelector('li.abierta, li.actual')?.scrollIntoView({ block: 'nearest' }),
-    );
+    requestAnimationFrame(() => mostrarFila(el.contenido.querySelector('li.abierta, li.actual'), false));
   }
 }
 
 el.asa.addEventListener('click', () => expandir());
-el.estado.addEventListener('click', () => expandir());
 
-// Deslizar el panel arriba o abajo desde el asa o el resumen.
+// Deslizar el panel arriba o abajo desde el asa o la cabecera.
 let inicioToque: number | null = null;
-for (const zona of [el.asa, el.estado]) {
+for (const zona of [el.asa, el.cabecera]) {
   zona.addEventListener('touchstart', (e) => (inicioToque = e.touches[0].clientY), { passive: true });
   zona.addEventListener('touchend', (e) => {
     if (inicioToque === null) return;
@@ -613,6 +693,38 @@ el.offline.addEventListener('click', async () => {
   }
 });
 
+// ---------- Día / noche ----------
+
+// La elección se recuerda en este móvil; por defecto, claro (se usa sobre todo de día, en la calle).
+const CLAVE_TEMA = 'tema';
+const metaColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!;
+
+function fijarTema(oscuro: boolean) {
+  document.documentElement.dataset.tema = oscuro ? 'oscuro' : 'claro';
+  metaColor.content = oscuro ? '#2a2119' : '#a8804f';
+  el.tema.setAttribute('aria-pressed', String(oscuro));
+  const texto = oscuro ? 'Modo día' : 'Modo noche';
+  el.tema.title = texto;
+  el.tema.setAttribute('aria-label', texto);
+  vista.fijarTema(oscuro);
+}
+
+el.tema.addEventListener('click', () => {
+  const oscuro = document.documentElement.dataset.tema !== 'oscuro';
+  fijarTema(oscuro);
+  try {
+    localStorage.setItem(CLAVE_TEMA, oscuro ? 'oscuro' : 'claro');
+  } catch {
+    // Sin almacenamiento local: el modo dura hasta recargar.
+  }
+});
+
+try {
+  if (localStorage.getItem(CLAVE_TEMA) === 'oscuro') fijarTema(true);
+} catch {
+  // Sin almacenamiento local: se queda en modo día.
+}
+
 // ---------- Tarjeta para el taxista ----------
 
 function mostrarTaxi(p: ParadaC) {
@@ -636,7 +748,7 @@ function aviso(texto: string, ms = 4000) {
 if (modelo.ejemplo || modelo.avisos.length) {
   el.aviso.hidden = false;
   el.aviso.textContent = modelo.avisos.length
-    ? `⚠ ${modelo.avisos.length} aviso(s) en el itinerario: ${modelo.avisos[0]}`
+    ? `${modelo.avisos.length} aviso(s) en el itinerario: ${modelo.avisos[0]}`
     : 'Itinerario de ejemplo';
 }
 

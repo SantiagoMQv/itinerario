@@ -1,0 +1,128 @@
+{
+  "tool": "build-phase",
+  "version": 2,
+  "startedAt": "2026-10-05T16:17:27.432Z",
+  "comp": ".impeccable/mocks/cuaderno-a.png",
+  "direction": null,
+  "breakpoint": "390x698",
+  "artifact": "index.html",
+  "phase": "plates",
+  "phases": {
+    "comps": {
+      "status": "skipped",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [
+        {
+          "at": "2026-10-05T16:17:27.432Z",
+          "text": "started with an approved comp; the comp round happened before this state (surface round or manual)"
+        }
+      ],
+      "gate": null,
+      "forced": null
+    },
+    "spec": {
+      "status": "closed",
+      "openedAt": "2026-10-05T16:17:27.432Z",
+      "closedAt": "2026-10-05T16:24:20.474Z",
+      "attempts": 2,
+      "notes": [],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "45 regions, 1 plates, 12 text regions measured",
+        "at": "2026-10-05T16:24:20.474Z"
+      },
+      "forced": null
+    },
+    "plates": {
+      "status": "open",
+      "openedAt": "2026-10-05T16:24:20.474Z",
+      "closedAt": null,
+      "attempts": 1,
+      "notes": [
+        {
+          "at": "2026-10-05T16:42:37.828Z",
+          "text": "Plan and asset review (session 738f7693…) could not be served: no reviewer browser in this cloud session. The user approved the plan in chat (2026-10-05: 'Apruebo el plan') after seeing the region overlay; the gate receipt was NOT written on their behalf, so the plates gate stays formally open. Font: font-match rank unavailable in this engine build (catalog picked display faces); Archivo variable (wdth 62) chosen by direct render against the hora crop: 149px vs 150px ink width at cap 53.3px."
+        }
+      ],
+      "gate": {
+        "ok": true,
+        "reasons": [],
+        "summary": "1/1 plates",
+        "at": "2026-10-05T16:24:38.044Z"
+      },
+      "forced": null
+    },
+    "hero": {
+      "status": "pending",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    },
+    "sections": {
+      "status": "pending",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    },
+    "motion": {
+      "status": "pending",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    },
+    "responsive": {
+      "status": "pending",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    },
+    "review": {
+      "status": "pending",
+      "openedAt": null,
+      "closedAt": null,
+      "attempts": 0,
+      "notes": [],
+      "gate": null,
+      "forced": null
+    }
+  },
+  "finish": null,
+  "plates": {
+    "kraft": {
+      "id": "kraft",
+      "file": "assets/plates/kraft.png",
+      "status": "ok",
+      "assetHash": "c58f22c70aaa329646e34e9f95f8b8b0e62d689363b43444acc9c4d9e1d6996d",
+      "regionHash": "427e55d71a5d3400c9b3a0704e21288d1037d7f0672acea6beb922ebd87750d2",
+      "referenceHash": "664edbed9834ac4305aaab62cdfc0207d4f4af96da1cda5ddb507b35098d2e29",
+      "reference": {
+        "policy": "plate-reference-v2",
+        "excludedPixels": 0,
+        "totalPixels": 990,
+        "remainingPixels": 990,
+        "excludedFraction": 0.0,
+        "fullyExcluded": false,
+        "regions": [],
+        "ignoredContainers": []
+      },
+      "compHash": "0150e00b083ed287ffdb0e29e5c09190ac43dc9f85326226b1b16bb6a8c721b5",
+      "size": "360x44",
+      "score": 0.7304
+    }
+  }
+}

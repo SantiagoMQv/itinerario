@@ -1,4 +1,4 @@
-import type { Categoria, Transporte } from './tipos';
+import type { Transporte } from './tipos';
 
 // Los instantes se guardan como minutos desde 1970 tratando la hora de China como si fuera UTC:
 // así no dependen de la zona horaria del móvil.
@@ -51,30 +51,16 @@ export function duracion(min: number): string {
   return m % 60 ? `${h} h ${m % 60} min` : `${h} h`;
 }
 
-export const ICONO_CATEGORIA: Record<Categoria, string> = {
-  hotel: '🏨',
-  comida: '🥟',
-  cultura: '🏯',
-  museo: '🏛️',
-  mirador: '🌆',
-  barrio: '🏮',
-  naturaleza: '🌳',
-  compras: '🛍️',
-  ocio: '🎭',
-  transporte: '🚉',
-  otro: '📍',
-};
-
-export const TRANSPORTE: Record<Transporte, { icono: string; nombre: string }> = {
-  a_pie: { icono: '🚶', nombre: 'A pie' },
-  metro: { icono: '🚇', nombre: 'Metro' },
-  taxi: { icono: '🚕', nombre: 'Taxi' },
-  bus: { icono: '🚌', nombre: 'Bus' },
-  tren: { icono: '🚄', nombre: 'Tren' },
-  maglev: { icono: '🚝', nombre: 'Maglev' },
-  ferry: { icono: '⛴️', nombre: 'Ferry' },
-  avion: { icono: '✈️', nombre: 'Avión' },
-  bici: { icono: '🚲', nombre: 'Bici' },
+export const TRANSPORTE: Record<Transporte, string> = {
+  a_pie: 'A pie',
+  metro: 'Metro',
+  taxi: 'Taxi',
+  bus: 'Bus',
+  tren: 'Tren',
+  maglev: 'Maglev',
+  ferry: 'Ferry',
+  avion: 'Avión',
+  bici: 'Bici',
 };
 
 export function esc(texto: string): string {

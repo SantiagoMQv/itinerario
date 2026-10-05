@@ -1,0 +1,539 @@
+{
+ "regions": [
+  {
+   "id": "kraft",
+   "kind": "texture",
+   "pixelBox": {
+    "x": 15,
+    "y": 0,
+    "w": 90,
+    "h": 11
+   },
+   "note": "kraft board fibre texture of the day-tab bar (clean sample, no ink)"
+  },
+  {
+   "id": "tab-todo",
+   "kind": "control",
+   "pixelBox": {
+    "x": 8,
+    "y": 14,
+    "w": 100,
+    "h": 44
+   },
+   "note": "light kraft divider tab 'Todo'"
+  },
+  {
+   "id": "tab-dia1",
+   "kind": "control",
+   "pixelBox": {
+    "x": 118,
+    "y": 7,
+    "w": 128,
+    "h": 51
+   },
+   "note": "active cobalt divider tab 'Día 1 / mié 21', raised"
+  },
+  {
+   "id": "tab-dia2",
+   "kind": "control",
+   "pixelBox": {
+    "x": 250,
+    "y": 12,
+    "w": 116,
+    "h": 46
+   },
+   "note": "green divider tab 'Día 2 / jue 22'"
+  },
+  {
+   "id": "tab-dia3",
+   "kind": "control",
+   "pixelBox": {
+    "x": 370,
+    "y": 12,
+    "w": 130,
+    "h": 46
+   },
+   "note": "magenta divider tab 'Día 3 / vie 23 · Nankín'"
+  },
+  {
+   "id": "tab-dia4",
+   "kind": "control",
+   "pixelBox": {
+    "x": 504,
+    "y": 12,
+    "w": 104,
+    "h": 46
+   },
+   "note": "orange divider tab 'Día 4 / sáb 24'"
+  },
+  {
+   "id": "mapa",
+   "kind": "chrome",
+   "container": true,
+   "pixelBox": {
+    "x": 0,
+    "y": 58,
+    "w": 608,
+    "h": 452
+   },
+   "note": "live map drawn at runtime by MapLibre: light street map, day route as cobalt ink arcs, numbered stops, fluorescent current leg; base-map labels come from the map style",
+   "codeDrawn": true
+  },
+  {
+   "id": "btn-ubicar",
+   "kind": "control",
+   "parentId": "mapa",
+   "pixelBox": {
+    "x": 546,
+    "y": 74,
+    "w": 48,
+    "h": 48
+   },
+   "note": "round white map button with target icon (fit the day)"
+  },
+  {
+   "id": "btn-descargar",
+   "kind": "control",
+   "parentId": "mapa",
+   "pixelBox": {
+    "x": 546,
+    "y": 134,
+    "w": 48,
+    "h": 48
+   },
+   "note": "round white map button with download icon (offline maps)"
+  },
+  {
+   "id": "marcador-hotel",
+   "kind": "control",
+   "parentId": "mapa",
+   "pixelBox": {
+    "x": 54,
+    "y": 168,
+    "w": 30,
+    "h": 30
+   },
+   "note": "hotel marker: filled cobalt disc with white H"
+  },
+  {
+   "id": "marcador-1",
+   "kind": "control",
+   "parentId": "mapa",
+   "pixelBox": {
+    "x": 139,
+    "y": 133,
+    "w": 31,
+    "h": 31
+   },
+   "note": "finished stop 1: solid cobalt stamp with white number"
+  },
+  {
+   "id": "marcador-2",
+   "kind": "control",
+   "parentId": "mapa",
+   "pixelBox": {
+    "x": 217,
+    "y": 163,
+    "w": 31,
+    "h": 31
+   },
+   "note": "finished stop 2: solid cobalt stamp with white number"
+  },
+  {
+   "id": "marcador-3",
+   "kind": "control",
+   "parentId": "mapa",
+   "pixelBox": {
+    "x": 309,
+    "y": 198,
+    "w": 30,
+    "h": 30
+   },
+   "note": "current stop 3: dark disc on fluorescent highlighter"
+  },
+  {
+   "id": "marcador-4",
+   "kind": "control",
+   "parentId": "mapa",
+   "pixelBox": {
+    "x": 440,
+    "y": 232,
+    "w": 31,
+    "h": 31
+   },
+   "note": "upcoming stop 4: open cobalt ring with number"
+  },
+  {
+   "id": "marcador-5",
+   "kind": "control",
+   "parentId": "mapa",
+   "pixelBox": {
+    "x": 243,
+    "y": 309,
+    "w": 30,
+    "h": 30
+   },
+   "note": "upcoming stop 5: open cobalt ring"
+  },
+  {
+   "id": "marcador-6",
+   "kind": "control",
+   "parentId": "mapa",
+   "pixelBox": {
+    "x": 222,
+    "y": 397,
+    "w": 31,
+    "h": 31
+   },
+   "note": "upcoming stop 6: open cobalt ring"
+  },
+  {
+   "id": "marcador-7",
+   "kind": "control",
+   "parentId": "mapa",
+   "pixelBox": {
+    "x": 336,
+    "y": 428,
+    "w": 31,
+    "h": 31
+   },
+   "note": "upcoming stop 7: open cobalt ring"
+  },
+  {
+   "id": "pastilla-distancia",
+   "kind": "text",
+   "parentId": "mapa",
+   "pixelBox": {
+    "x": 358,
+    "y": 206,
+    "w": 48,
+    "h": 20
+   },
+   "note": "white distance label '1,1 km' on the current leg"
+  },
+  {
+   "id": "panel",
+   "kind": "chrome",
+   "container": true,
+   "pixelBox": {
+    "x": 0,
+    "y": 510,
+    "w": 608,
+    "h": 578
+   },
+   "note": "bottom sheet: white graph paper with pale blue grid, rounded top corners, red margin rule"
+  },
+  {
+   "id": "asa",
+   "kind": "chrome",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 278,
+    "y": 515,
+    "w": 54,
+    "h": 12
+   },
+   "note": "grey grab handle"
+  },
+  {
+   "id": "hora",
+   "kind": "text",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 24,
+    "y": 537,
+    "w": 156,
+    "h": 64
+   },
+   "note": "very large condensed bold time '17:41' in near-black ink, tabular figures"
+  },
+  {
+   "id": "btn-anterior",
+   "kind": "control",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 34,
+    "y": 614,
+    "w": 23,
+    "h": 25
+   },
+   "note": "previous-stop icon button, ink"
+  },
+  {
+   "id": "btn-play",
+   "kind": "control",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 83,
+    "y": 600,
+    "w": 51,
+    "h": 52
+   },
+   "note": "round cobalt play button with white triangle"
+  },
+  {
+   "id": "btn-siguiente",
+   "kind": "control",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 159,
+    "y": 614,
+    "w": 24,
+    "h": 25
+   },
+   "note": "next-stop icon button, ink"
+  },
+  {
+   "id": "linea-tiempo",
+   "kind": "control",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 25,
+    "y": 656,
+    "w": 302,
+    "h": 21
+   },
+   "note": "timeline slider: cobalt line with a dot per stop and the current segment in fluorescent highlighter"
+  },
+  {
+   "id": "hora-inicio",
+   "kind": "text",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 25,
+    "y": 680,
+    "w": 32,
+    "h": 14
+   },
+   "note": "small label '14:30'"
+  },
+  {
+   "id": "hora-fin",
+   "kind": "text",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 292,
+    "y": 680,
+    "w": 35,
+    "h": 14
+   },
+   "note": "small label '22:30'"
+  },
+  {
+   "id": "titulo-lista",
+   "kind": "text",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 25,
+    "y": 716,
+    "w": 142,
+    "h": 17
+   },
+   "note": "small caps label 'ITINERARIO DEL DÍA'"
+  },
+  {
+   "id": "fila-hotel",
+   "kind": "control",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 25,
+    "y": 738,
+    "w": 180,
+    "h": 39
+   },
+   "note": "hotel row: cobalt H disc, 'H Hotel Aqua Suhe NO.1', 'Salida 15:00'"
+  },
+  {
+   "id": "fila-1",
+   "kind": "control",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 25,
+    "y": 778,
+    "w": 302,
+    "h": 44
+   },
+   "note": "row: stamped 1, '15:15', 'Comida en Huanghe Road (小杨生煎)', price tag '25–45 ¥'"
+  },
+  {
+   "id": "fila-2",
+   "kind": "control",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 25,
+    "y": 822,
+    "w": 302,
+    "h": 42
+   },
+   "note": "row: stamped 2, '16:05', 'Nanjing Road: tramo de People's Square', price tag"
+  },
+  {
+   "id": "fila-3",
+   "kind": "control",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 19,
+    "y": 864,
+    "w": 312,
+    "h": 41
+   },
+   "note": "current row fully swiped with fluorescent highlighter: 3, '17:20', 'Nanjing Road: tramo hacia el Bund (南京东路步行街)', price tag"
+  },
+  {
+   "id": "fila-4",
+   "kind": "control",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 25,
+    "y": 907,
+    "w": 302,
+    "h": 43
+   },
+   "note": "row: open ring 4, '18:30', 'The Bund al encenderse las luces (外滩)', price tag"
+  },
+  {
+   "id": "fila-5",
+   "kind": "control",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 25,
+    "y": 952,
+    "w": 302,
+    "h": 29
+   },
+   "note": "row: open ring 5, '19:20', 'Jing'an Joy City: maleta y ropa', price tag"
+  },
+  {
+   "id": "fila-6",
+   "kind": "control",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 25,
+    "y": 984,
+    "w": 302,
+    "h": 30
+   },
+   "note": "row: open ring 6, '20:25', 'Noria Sky Ring', price tag"
+  },
+  {
+   "id": "fila-7",
+   "kind": "control",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 25,
+    "y": 1017,
+    "w": 302,
+    "h": 30
+   },
+   "note": "row: open ring 7, '21:00', 'Cena en Top Banana Market', price tag"
+  },
+  {
+   "id": "margen",
+   "kind": "chrome",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 337,
+    "y": 528,
+    "w": 5,
+    "h": 560
+   },
+   "note": "thin red vertical margin rule"
+  },
+  {
+   "id": "ahora-etiqueta",
+   "kind": "text",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 356,
+    "y": 545,
+    "w": 40,
+    "h": 14
+   },
+   "note": "small caps label 'AHORA'"
+  },
+  {
+   "id": "ahora-nombre",
+   "kind": "text",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 345,
+    "y": 561,
+    "w": 248,
+    "h": 28
+   },
+   "note": "'Nanjing Road: tramo hacia el Bund' in bold ink on a fluorescent highlighter swipe"
+  },
+  {
+   "id": "ahora-local",
+   "kind": "text",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 356,
+    "y": 594,
+    "w": 108,
+    "h": 19
+   },
+   "note": "Chinese name '南京东路步行街' in grey"
+  },
+  {
+   "id": "divisor",
+   "kind": "chrome",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 356,
+    "y": 631,
+    "w": 231,
+    "h": 5
+   },
+   "note": "thin grey rule"
+  },
+  {
+   "id": "despues-etiqueta",
+   "kind": "text",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 356,
+    "y": 650,
+    "w": 90,
+    "h": 17
+   },
+   "note": "small caps label 'DESPUÉS 18:30'"
+  },
+  {
+   "id": "despues-nombre",
+   "kind": "text",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 356,
+    "y": 668,
+    "w": 198,
+    "h": 23
+   },
+   "note": "'The Bund al encenderse las luces', bold first words"
+  },
+  {
+   "id": "despues-tramo",
+   "kind": "text",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 356,
+    "y": 699,
+    "w": 82,
+    "h": 18
+   },
+   "note": "'A pie · 1,1 km'"
+  },
+  {
+   "id": "despues-precio",
+   "kind": "text",
+   "parentId": "panel",
+   "pixelBox": {
+    "x": 534,
+    "y": 696,
+    "w": 53,
+    "h": 22
+   },
+   "note": "pale blue price tag '0–10 ¥'"
+  }
+ ]
+}

@@ -5,3 +5,9 @@ dist
 
 # Motor de Impeccable: el lanzador lo descarga (versión fijada y verificada) si falta
 .claude/skills/impeccable/scripts/bin/
+# Impeccable: recortes, inspecciones y comparaciones se regeneran con su CLI
+.impeccable/build/crops/
+.impeccable/build/map-inspections/
+.impeccable/build/scaffold/
+.impeccable/build/comp-grid.png
+.impeccable/review/diff/

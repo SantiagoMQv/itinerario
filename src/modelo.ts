@@ -63,17 +63,18 @@ export type Momento =
   | { tipo: 'parada'; parada: ParadaC; tramo: null }
   | { tipo: 'camino'; parada: null; tramo: TramoC; f: number };
 
+/** Colores de pestaña de cada día (todos con contraste suficiente para texto blanco). */
 export const COLORES_DIA = [
-  '#d7263d',
-  '#1b6fd1',
-  '#7b3fb8',
-  '#0c9270',
-  '#d97a00',
-  '#c2185b',
-  '#00838f',
-  '#5f6f1a',
-  '#8d5524',
-  '#3949ab',
+  '#2453d1', // cobalto
+  '#1e7f3e', // verde hoja
+  '#c8327e', // magenta
+  '#c45200', // naranja
+  '#00777a', // verde azulado
+  '#7a2e8e', // ciruela
+  '#b3261e', // rojo
+  '#5c6b12', // oliva
+  '#8a4b1f', // tabaco
+  '#3949ab', // índigo
 ];
 
 /** Duración aproximada (min) de un trayecto según el medio y la distancia en línea recta. */

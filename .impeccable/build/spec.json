@@ -1,0 +1,2660 @@
+{
+  "tool": "comp-spec",
+  "version": 1,
+  "createdAt": "2026-10-05T16:21:06.130Z",
+  "comp": ".impeccable/mocks/cuaderno-a.png",
+  "warnings": [
+    "region mapa: \"codeDrawn\": true set in the regions file (the painted-material refusal is overridden: code draws this region)",
+    "region mapa: \"container\": true set in the regions file (the region-size refusal is overridden: one undivided element)",
+    "region panel: \"container\": true set in the regions file (the region-size refusal is overridden: one undivided element)"
+  ],
+  "uncoveredInkCells": [],
+  "compSize": {
+    "width": 608,
+    "height": 1088
+  },
+  "aspect": 0.5588,
+  "orientation": "portrait",
+  "palette": [
+    {
+      "hex": "#f5f7f7",
+      "coverage": 0.8901
+    },
+    {
+      "hex": "#bcd9f5",
+      "coverage": 0.0686
+    },
+    {
+      "hex": "#1446e6",
+      "coverage": 0.0167
+    },
+    {
+      "hex": "#e9f8ac",
+      "coverage": 0.0123
+    },
+    {
+      "hex": "#af8858",
+      "coverage": 0.0122
+    }
+  ],
+  "bands": [
+    {
+      "y": 0.0087,
+      "strength": 0.3099
+    },
+    {
+      "y": 0.0306,
+      "strength": 0.215
+    },
+    {
+      "y": 0.0568,
+      "strength": 0.9998
+    },
+    {
+      "y": 0.5153,
+      "strength": 0.3578
+    },
+    {
+      "y": 0.5371,
+      "strength": 0.4717
+    },
+    {
+      "y": 0.6114,
+      "strength": 0.528
+    },
+    {
+      "y": 0.6725,
+      "strength": 0.2025
+    },
+    {
+      "y": 0.7205,
+      "strength": 0.2976
+    },
+    {
+      "y": 0.7686,
+      "strength": 0.2519
+    },
+    {
+      "y": 0.7948,
+      "strength": 0.2749
+    },
+    {
+      "y": 0.8297,
+      "strength": 0.2678
+    },
+    {
+      "y": 0.8515,
+      "strength": 0.3471
+    },
+    {
+      "y": 0.8865,
+      "strength": 0.2402
+    },
+    {
+      "y": 0.952,
+      "strength": 0.2447
+    }
+  ],
+  "regions": [
+    {
+      "id": "kraft",
+      "kind": "texture",
+      "note": "kraft board fibre texture of the day-tab bar (clean sample, no ink)",
+      "grid": null,
+      "box": {
+        "x": 0.0247,
+        "y": 0,
+        "w": 0.148,
+        "h": 0.0101
+      },
+      "px": {
+        "x": 15,
+        "y": 0,
+        "w": 90,
+        "h": 11
+      },
+      "aspect": 8.1818,
+      "palette": [
+        {
+          "hex": "#b08857",
+          "coverage": 1
+        }
+      ],
+      "detail": {
+        "energy": 3.3185
+      },
+      "medium": "raster",
+      "plate": "assets/plates/kraft.png",
+      "text": null
+    },
+    {
+      "id": "tab-todo",
+      "kind": "control",
+      "note": "light kraft divider tab 'Todo'",
+      "grid": null,
+      "box": {
+        "x": 0.0132,
+        "y": 0.0129,
+        "w": 0.1645,
+        "h": 0.0404
+      },
+      "px": {
+        "x": 8,
+        "y": 14,
+        "w": 100,
+        "h": 44
+      },
+      "aspect": 2.2727,
+      "palette": [
+        {
+          "hex": "#e8d8c7",
+          "coverage": 0.8688
+        },
+        {
+          "hex": "#d3bc9c",
+          "coverage": 0.0656
+        },
+        {
+          "hex": "#ad8757",
+          "coverage": 0.0338
+        },
+        {
+          "hex": "#0e162e",
+          "coverage": 0.0199
+        },
+        {
+          "hex": "#a09da0",
+          "coverage": 0.0119
+        }
+      ],
+      "detail": {
+        "energy": 9.0971
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "tab-dia1",
+      "kind": "control",
+      "note": "active cobalt divider tab 'Día 1 / mié 21', raised",
+      "grid": null,
+      "box": {
+        "x": 0.1941,
+        "y": 0.0064,
+        "w": 0.2105,
+        "h": 0.0469
+      },
+      "px": {
+        "x": 118,
+        "y": 7,
+        "w": 128,
+        "h": 51
+      },
+      "aspect": 2.5098,
+      "palette": [
+        {
+          "hex": "#1647e7",
+          "coverage": 0.9109
+        },
+        {
+          "hex": "#f3f6f8",
+          "coverage": 0.0307
+        },
+        {
+          "hex": "#6a6887",
+          "coverage": 0.0219
+        },
+        {
+          "hex": "#9d8367",
+          "coverage": 0.019
+        },
+        {
+          "hex": "#7f777b",
+          "coverage": 0.0175
+        }
+      ],
+      "detail": {
+        "energy": 12.7314
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "tab-dia2",
+      "kind": "control",
+      "note": "green divider tab 'Día 2 / jue 22'",
+      "grid": null,
+      "box": {
+        "x": 0.4112,
+        "y": 0.011,
+        "w": 0.1908,
+        "h": 0.0423
+      },
+      "px": {
+        "x": 250,
+        "y": 12,
+        "w": 116,
+        "h": 46
+      },
+      "aspect": 2.5217,
+      "palette": [
+        {
+          "hex": "#299747",
+          "coverage": 0.8798
+        },
+        {
+          "hex": "#978854",
+          "coverage": 0.0451
+        },
+        {
+          "hex": "#6a8848",
+          "coverage": 0.0317
+        },
+        {
+          "hex": "#a0d8b0",
+          "coverage": 0.0284
+        },
+        {
+          "hex": "#f6f8f6",
+          "coverage": 0.015
+        }
+      ],
+      "detail": {
+        "energy": 8.6415
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "tab-dia3",
+      "kind": "control",
+      "note": "magenta divider tab 'Día 3 / vie 23 · Nankín'",
+      "grid": null,
+      "box": {
+        "x": 0.6086,
+        "y": 0.011,
+        "w": 0.2138,
+        "h": 0.0423
+      },
+      "px": {
+        "x": 370,
+        "y": 12,
+        "w": 130,
+        "h": 46
+      },
+      "aspect": 2.8261,
+      "palette": [
+        {
+          "hex": "#d82883",
+          "coverage": 0.8529
+        },
+        {
+          "hex": "#da5193",
+          "coverage": 0.0433
+        },
+        {
+          "hex": "#ee9bc9",
+          "coverage": 0.0356
+        },
+        {
+          "hex": "#b95e68",
+          "coverage": 0.0356
+        },
+        {
+          "hex": "#f8eef8",
+          "coverage": 0.0325
+        }
+      ],
+      "detail": {
+        "energy": 15.4073
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "tab-dia4",
+      "kind": "control",
+      "note": "orange divider tab 'Día 4 / sáb 24'",
+      "grid": null,
+      "box": {
+        "x": 0.8289,
+        "y": 0.011,
+        "w": 0.1711,
+        "h": 0.0423
+      },
+      "px": {
+        "x": 504,
+        "y": 12,
+        "w": 104,
+        "h": 46
+      },
+      "aspect": 2.2609,
+      "palette": [
+        {
+          "hex": "#f86d08",
+          "coverage": 0.8108
+        },
+        {
+          "hex": "#b28652",
+          "coverage": 0.1076
+        },
+        {
+          "hex": "#f8f7f5",
+          "coverage": 0.0297
+        },
+        {
+          "hex": "#c77c37",
+          "coverage": 0.0297
+        },
+        {
+          "hex": "#f8d1a5",
+          "coverage": 0.0223
+        }
+      ],
+      "detail": {
+        "energy": 8.1147
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "mapa",
+      "kind": "chrome",
+      "note": "live map drawn at runtime by MapLibre: light street map, day route as cobalt ink arcs, numbered stops, fluorescent current leg; base-map labels come from the map style",
+      "grid": null,
+      "codeDrawn": true,
+      "container": true,
+      "box": {
+        "x": 0,
+        "y": 0.0533,
+        "w": 1,
+        "h": 0.4154
+      },
+      "px": {
+        "x": 0,
+        "y": 58,
+        "w": 608,
+        "h": 452
+      },
+      "aspect": 1.3451,
+      "palette": [
+        {
+          "hex": "#f3f5f5",
+          "coverage": 0.8416
+        },
+        {
+          "hex": "#bad8f5",
+          "coverage": 0.1431
+        },
+        {
+          "hex": "#1040e4",
+          "coverage": 0.0069
+        },
+        {
+          "hex": "#d8f840",
+          "coverage": 0.0056
+        },
+        {
+          "hex": "#111e3e",
+          "coverage": 0.0027
+        }
+      ],
+      "detail": {
+        "energy": 21.4988
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "btn-ubicar",
+      "kind": "control",
+      "note": "round white map button with target icon (fit the day)",
+      "grid": null,
+      "parentId": "mapa",
+      "box": {
+        "x": 0.898,
+        "y": 0.068,
+        "w": 0.0789,
+        "h": 0.0441
+      },
+      "px": {
+        "x": 546,
+        "y": 74,
+        "w": 48,
+        "h": 48
+      },
+      "aspect": 1,
+      "palette": [
+        {
+          "hex": "#f7f7f8",
+          "coverage": 0.7008
+        },
+        {
+          "hex": "#b5d5e8",
+          "coverage": 0.2244
+        },
+        {
+          "hex": "#0e1a3e",
+          "coverage": 0.0315
+        },
+        {
+          "hex": "#7c869a",
+          "coverage": 0.0315
+        },
+        {
+          "hex": "#333d63",
+          "coverage": 0.0118
+        }
+      ],
+      "detail": {
+        "energy": 7.9645
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "btn-descargar",
+      "kind": "control",
+      "note": "round white map button with download icon (offline maps)",
+      "grid": null,
+      "parentId": "mapa",
+      "box": {
+        "x": 0.898,
+        "y": 0.1232,
+        "w": 0.0789,
+        "h": 0.0441
+      },
+      "px": {
+        "x": 546,
+        "y": 134,
+        "w": 48,
+        "h": 48
+      },
+      "aspect": 1,
+      "palette": [
+        {
+          "hex": "#f7f7f8",
+          "coverage": 0.7109
+        },
+        {
+          "hex": "#b5d4e9",
+          "coverage": 0.2148
+        },
+        {
+          "hex": "#080e38",
+          "coverage": 0.0313
+        },
+        {
+          "hex": "#9ba8b5",
+          "coverage": 0.0234
+        },
+        {
+          "hex": "#2b324e",
+          "coverage": 0.0195
+        }
+      ],
+      "detail": {
+        "energy": 6.31
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "marcador-hotel",
+      "kind": "control",
+      "note": "hotel marker: filled cobalt disc with white H",
+      "grid": null,
+      "parentId": "mapa",
+      "box": {
+        "x": 0.0888,
+        "y": 0.1544,
+        "w": 0.0493,
+        "h": 0.0276
+      },
+      "px": {
+        "x": 54,
+        "y": 168,
+        "w": 30,
+        "h": 30
+      },
+      "aspect": 1,
+      "palette": [
+        {
+          "hex": "#f5f6f8",
+          "coverage": 0.63
+        },
+        {
+          "hex": "#1342e0",
+          "coverage": 0.3
+        },
+        {
+          "hex": "#4068dc",
+          "coverage": 0.04
+        },
+        {
+          "hex": "#5080d8",
+          "coverage": 0.02
+        },
+        {
+          "hex": "#a8b8e8",
+          "coverage": 0.01
+        }
+      ],
+      "detail": {
+        "energy": 8.9053
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "marcador-1",
+      "kind": "control",
+      "note": "finished stop 1: solid cobalt stamp with white number",
+      "grid": null,
+      "parentId": "mapa",
+      "box": {
+        "x": 0.2286,
+        "y": 0.1222,
+        "w": 0.051,
+        "h": 0.0285
+      },
+      "px": {
+        "x": 139,
+        "y": 133,
+        "w": 31,
+        "h": 31
+      },
+      "aspect": 1,
+      "palette": [
+        {
+          "hex": "#1645e6",
+          "coverage": 0.4583
+        },
+        {
+          "hex": "#f2f6f7",
+          "coverage": 0.425
+        },
+        {
+          "hex": "#6d90e8",
+          "coverage": 0.05
+        },
+        {
+          "hex": "#b8d0f8",
+          "coverage": 0.0333
+        },
+        {
+          "hex": "#4068e0",
+          "coverage": 0.0333
+        }
+      ],
+      "detail": {
+        "energy": 8.0035
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "marcador-2",
+      "kind": "control",
+      "note": "finished stop 2: solid cobalt stamp with white number",
+      "grid": null,
+      "parentId": "mapa",
+      "box": {
+        "x": 0.3569,
+        "y": 0.1498,
+        "w": 0.051,
+        "h": 0.0285
+      },
+      "px": {
+        "x": 217,
+        "y": 163,
+        "w": 31,
+        "h": 31
+      },
+      "aspect": 1,
+      "palette": [
+        {
+          "hex": "#e6efea",
+          "coverage": 0.4435
+        },
+        {
+          "hex": "#1746e5",
+          "coverage": 0.3652
+        },
+        {
+          "hex": "#2d58d8",
+          "coverage": 0.0783
+        },
+        {
+          "hex": "#c3d6f1",
+          "coverage": 0.0609
+        },
+        {
+          "hex": "#5b83dd",
+          "coverage": 0.0522
+        }
+      ],
+      "detail": {
+        "energy": 9.634
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "marcador-3",
+      "kind": "control",
+      "note": "current stop 3: dark disc on fluorescent highlighter",
+      "grid": null,
+      "parentId": "mapa",
+      "box": {
+        "x": 0.5082,
+        "y": 0.182,
+        "w": 0.0493,
+        "h": 0.0276
+      },
+      "px": {
+        "x": 309,
+        "y": 198,
+        "w": 30,
+        "h": 30
+      },
+      "aspect": 1,
+      "palette": [
+        {
+          "hex": "#d5f731",
+          "coverage": 0.5977
+        },
+        {
+          "hex": "#1f3248",
+          "coverage": 0.1954
+        },
+        {
+          "hex": "#364a38",
+          "coverage": 0.0805
+        },
+        {
+          "hex": "#c5e03b",
+          "coverage": 0.069
+        },
+        {
+          "hex": "#7b9b2b",
+          "coverage": 0.0575
+        }
+      ],
+      "detail": {
+        "energy": 6.7301
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "marcador-4",
+      "kind": "control",
+      "note": "upcoming stop 4: open cobalt ring with number",
+      "grid": null,
+      "parentId": "mapa",
+      "box": {
+        "x": 0.7237,
+        "y": 0.2132,
+        "w": 0.051,
+        "h": 0.0285
+      },
+      "px": {
+        "x": 440,
+        "y": 232,
+        "w": 31,
+        "h": 31
+      },
+      "aspect": 1,
+      "palette": [
+        {
+          "hex": "#f5f6f6",
+          "coverage": 0.5474
+        },
+        {
+          "hex": "#bcdaf7",
+          "coverage": 0.2632
+        },
+        {
+          "hex": "#d8f640",
+          "coverage": 0.0842
+        },
+        {
+          "hex": "#0b1bb8",
+          "coverage": 0.0526
+        },
+        {
+          "hex": "#c2ced5",
+          "coverage": 0.0526
+        }
+      ],
+      "detail": {
+        "energy": 13.3903
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "marcador-5",
+      "kind": "control",
+      "note": "upcoming stop 5: open cobalt ring",
+      "grid": null,
+      "parentId": "mapa",
+      "box": {
+        "x": 0.3997,
+        "y": 0.284,
+        "w": 0.0493,
+        "h": 0.0276
+      },
+      "px": {
+        "x": 243,
+        "y": 309,
+        "w": 30,
+        "h": 30
+      },
+      "aspect": 1,
+      "palette": [
+        {
+          "hex": "#f3f5f6",
+          "coverage": 0.7556
+        },
+        {
+          "hex": "#0d1fb1",
+          "coverage": 0.0778
+        },
+        {
+          "hex": "#8da1dd",
+          "coverage": 0.0778
+        },
+        {
+          "hex": "#223bb8",
+          "coverage": 0.0556
+        },
+        {
+          "hex": "#435dc3",
+          "coverage": 0.0333
+        }
+      ],
+      "detail": {
+        "energy": 14.6829
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "marcador-6",
+      "kind": "control",
+      "note": "upcoming stop 6: open cobalt ring",
+      "grid": null,
+      "parentId": "mapa",
+      "box": {
+        "x": 0.3651,
+        "y": 0.3649,
+        "w": 0.051,
+        "h": 0.0285
+      },
+      "px": {
+        "x": 222,
+        "y": 397,
+        "w": 31,
+        "h": 31
+      },
+      "aspect": 1,
+      "palette": [
+        {
+          "hex": "#f7f7f8",
+          "coverage": 0.7297
+        },
+        {
+          "hex": "#0a1db3",
+          "coverage": 0.0811
+        },
+        {
+          "hex": "#516fcd",
+          "coverage": 0.0631
+        },
+        {
+          "hex": "#213fb8",
+          "coverage": 0.0631
+        },
+        {
+          "hex": "#cdd3f3",
+          "coverage": 0.0631
+        }
+      ],
+      "detail": {
+        "energy": 15.0311
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "marcador-7",
+      "kind": "control",
+      "note": "upcoming stop 7: open cobalt ring",
+      "grid": null,
+      "parentId": "mapa",
+      "box": {
+        "x": 0.5526,
+        "y": 0.3934,
+        "w": 0.051,
+        "h": 0.0285
+      },
+      "px": {
+        "x": 336,
+        "y": 428,
+        "w": 31,
+        "h": 31
+      },
+      "aspect": 1,
+      "palette": [
+        {
+          "hex": "#f5f6f7",
+          "coverage": 0.7965
+        },
+        {
+          "hex": "#0818b8",
+          "coverage": 0.0531
+        },
+        {
+          "hex": "#1535bb",
+          "coverage": 0.0531
+        },
+        {
+          "hex": "#556bd0",
+          "coverage": 0.0531
+        },
+        {
+          "hex": "#c8ceeb",
+          "coverage": 0.0442
+        }
+      ],
+      "detail": {
+        "energy": 12.913
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "pastilla-distancia",
+      "kind": "text",
+      "note": "white distance label '1,1 km' on the current leg",
+      "grid": null,
+      "parentId": "mapa",
+      "box": {
+        "x": 0.5888,
+        "y": 0.1893,
+        "w": 0.0789,
+        "h": 0.0184
+      },
+      "px": {
+        "x": 358,
+        "y": 206,
+        "w": 48,
+        "h": 20
+      },
+      "aspect": 2.4,
+      "palette": [
+        {
+          "hex": "#f7f8f7",
+          "coverage": 0.7451
+        },
+        {
+          "hex": "#e8f8d3",
+          "coverage": 0.098
+        },
+        {
+          "hex": "#cdf638",
+          "coverage": 0.0686
+        },
+        {
+          "hex": "#e8f8a8",
+          "coverage": 0.049
+        },
+        {
+          "hex": "#c0c8d0",
+          "coverage": 0.0392
+        }
+      ],
+      "detail": {
+        "energy": 12.6868
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      },
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 5,
+          "capHeightPx": 8.7,
+          "inkIsDark": true,
+          "allCaps": false,
+          "advance": 0.4762,
+          "advTall": 0.381,
+          "advX": 0.9143,
+          "gap": 0.3048,
+          "xRatio": 0.75,
+          "stemW": 0.1971,
+          "contrast": 0.8597,
+          "serif": 0.3055,
+          "densTall": 0.577,
+          "densX": 0.6727,
+          "weight": 0.577
+        },
+        "widthClass": "wide",
+        "weightClass": "bold"
+      }
+    },
+    {
+      "id": "panel",
+      "kind": "chrome",
+      "note": "bottom sheet: white graph paper with pale blue grid, rounded top corners, red margin rule",
+      "grid": null,
+      "container": true,
+      "box": {
+        "x": 0,
+        "y": 0.4688,
+        "w": 1,
+        "h": 0.5313
+      },
+      "px": {
+        "x": 0,
+        "y": 510,
+        "w": 608,
+        "h": 578
+      },
+      "aspect": 1.0519,
+      "palette": [
+        {
+          "hex": "#f6f7f8",
+          "coverage": 0.9491
+        },
+        {
+          "hex": "#e8f8ab",
+          "coverage": 0.0228
+        },
+        {
+          "hex": "#d7f83b",
+          "coverage": 0.0109
+        },
+        {
+          "hex": "#1345e6",
+          "coverage": 0.0087
+        },
+        {
+          "hex": "#172646",
+          "coverage": 0.0086
+        }
+      ],
+      "detail": {
+        "energy": 21.8363
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": true,
+        "rules": false
+      }
+    },
+    {
+      "id": "asa",
+      "kind": "chrome",
+      "note": "grey grab handle",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.4572,
+        "y": 0.4733,
+        "w": 0.0888,
+        "h": 0.011
+      },
+      "px": {
+        "x": 278,
+        "y": 515,
+        "w": 54,
+        "h": 12
+      },
+      "aspect": 4.5,
+      "palette": [
+        {
+          "hex": "#afbbc2",
+          "coverage": 0.6389
+        },
+        {
+          "hex": "#f7f8f8",
+          "coverage": 0.3056
+        },
+        {
+          "hex": "#a8a8c8",
+          "coverage": 0.0556
+        }
+      ],
+      "detail": {
+        "energy": 6.6704
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "hora",
+      "kind": "text",
+      "note": "very large condensed bold time '17:41' in near-black ink, tabular figures",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.0395,
+        "y": 0.4936,
+        "w": 0.2566,
+        "h": 0.0588
+      },
+      "px": {
+        "x": 24,
+        "y": 537,
+        "w": 156,
+        "h": 64
+      },
+      "aspect": 2.4375,
+      "palette": [
+        {
+          "hex": "#f6f7f7",
+          "coverage": 0.7075
+        },
+        {
+          "hex": "#132343",
+          "coverage": 0.1806
+        },
+        {
+          "hex": "#151747",
+          "coverage": 0.0705
+        },
+        {
+          "hex": "#858da0",
+          "coverage": 0.037
+        },
+        {
+          "hex": "#4b5575",
+          "coverage": 0.0044
+        }
+      ],
+      "detail": {
+        "energy": 24.0048
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      },
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 6,
+          "capHeightPx": 53.3,
+          "inkIsDark": true,
+          "allCaps": false,
+          "advance": 0.2999,
+          "advTall": 0.3562,
+          "advX": 0.1875,
+          "gap": 0.1312,
+          "xRatio": 0.7314,
+          "stemW": 0.1767,
+          "contrast": 1.0158,
+          "serif": 0.9963,
+          "densTall": 0.5893,
+          "densX": 0.59,
+          "weight": 0.5893
+        },
+        "widthClass": "compressed",
+        "weightClass": "bold",
+        "chosen": {
+          "family": "Stick No Bills",
+          "weight": 700,
+          "fontSizePx": 76,
+          "source": "catalog",
+          "estimatedSize": true,
+          "stamp": "42ccd0a14f54"
+        }
+      }
+    },
+    {
+      "id": "btn-anterior",
+      "kind": "control",
+      "note": "previous-stop icon button, ink",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.0559,
+        "y": 0.5643,
+        "w": 0.0378,
+        "h": 0.023
+      },
+      "px": {
+        "x": 34,
+        "y": 614,
+        "w": 23,
+        "h": 25
+      },
+      "aspect": 0.92,
+      "palette": [
+        {
+          "hex": "#f1f4f6",
+          "coverage": 0.6944
+        },
+        {
+          "hex": "#283454",
+          "coverage": 0.125
+        },
+        {
+          "hex": "#5d6d7d",
+          "coverage": 0.0833
+        },
+        {
+          "hex": "#0e1548",
+          "coverage": 0.0694
+        },
+        {
+          "hex": "#b8b8c8",
+          "coverage": 0.0278
+        }
+      ],
+      "detail": {
+        "energy": 7.4536
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "btn-play",
+      "kind": "control",
+      "note": "round cobalt play button with white triangle",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.1365,
+        "y": 0.5515,
+        "w": 0.0839,
+        "h": 0.0478
+      },
+      "px": {
+        "x": 83,
+        "y": 600,
+        "w": 51,
+        "h": 52
+      },
+      "aspect": 0.9808,
+      "palette": [
+        {
+          "hex": "#1647e8",
+          "coverage": 0.5493
+        },
+        {
+          "hex": "#f7f8f8",
+          "coverage": 0.4079
+        },
+        {
+          "hex": "#6b8eee",
+          "coverage": 0.0164
+        },
+        {
+          "hex": "#bbcef8",
+          "coverage": 0.0164
+        },
+        {
+          "hex": "#93aded",
+          "coverage": 0.0099
+        }
+      ],
+      "detail": {
+        "energy": 7.4535
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "btn-siguiente",
+      "kind": "control",
+      "note": "next-stop icon button, ink",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.2615,
+        "y": 0.5643,
+        "w": 0.0395,
+        "h": 0.023
+      },
+      "px": {
+        "x": 159,
+        "y": 614,
+        "w": 24,
+        "h": 25
+      },
+      "aspect": 0.96,
+      "palette": [
+        {
+          "hex": "#f6f8f8",
+          "coverage": 0.7222
+        },
+        {
+          "hex": "#112144",
+          "coverage": 0.2222
+        },
+        {
+          "hex": "#c0c8d0",
+          "coverage": 0.0278
+        },
+        {
+          "hex": "#686888",
+          "coverage": 0.0139
+        },
+        {
+          "hex": "#98a8b8",
+          "coverage": 0.0139
+        }
+      ],
+      "detail": {
+        "energy": 7.5174
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "linea-tiempo",
+      "kind": "control",
+      "note": "timeline slider: cobalt line with a dot per stop and the current segment in fluorescent highlighter",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.0411,
+        "y": 0.6029,
+        "w": 0.4967,
+        "h": 0.0193
+      },
+      "px": {
+        "x": 25,
+        "y": 656,
+        "w": 302,
+        "h": 21
+      },
+      "aspect": 14.381,
+      "palette": [
+        {
+          "hex": "#f7f8f8",
+          "coverage": 0.7848
+        },
+        {
+          "hex": "#0d44e7",
+          "coverage": 0.1478
+        },
+        {
+          "hex": "#d8f830",
+          "coverage": 0.0516
+        },
+        {
+          "hex": "#bdcdf8",
+          "coverage": 0.0086
+        },
+        {
+          "hex": "#2555d5",
+          "coverage": 0.0072
+        }
+      ],
+      "detail": {
+        "energy": 43.9881
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "hora-inicio",
+      "kind": "text",
+      "note": "small label '14:30'",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.0411,
+        "y": 0.625,
+        "w": 0.0526,
+        "h": 0.0129
+      },
+      "px": {
+        "x": 25,
+        "y": 680,
+        "w": 32,
+        "h": 14
+      },
+      "aspect": 2.2857,
+      "palette": [
+        {
+          "hex": "#f6f7f7",
+          "coverage": 0.6545
+        },
+        {
+          "hex": "#13244f",
+          "coverage": 0.1636
+        },
+        {
+          "hex": "#9dabbd",
+          "coverage": 0.1091
+        },
+        {
+          "hex": "#405878",
+          "coverage": 0.0364
+        },
+        {
+          "hex": "#7090a8",
+          "coverage": 0.0364
+        }
+      ],
+      "detail": {
+        "energy": 18.2216
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      },
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 4,
+          "capHeightPx": 8.5,
+          "inkIsDark": true,
+          "allCaps": false,
+          "advance": 0.5123,
+          "advTall": 0.6699,
+          "advX": 0.2364,
+          "gap": 0.1182,
+          "xRatio": 0.7334,
+          "stemW": 0.2088,
+          "contrast": 0.9953,
+          "serif": 0.4908,
+          "densTall": 0.5902,
+          "densX": 0.3761,
+          "weight": 0.5902
+        },
+        "widthClass": "compressed",
+        "weightClass": "bold"
+      }
+    },
+    {
+      "id": "hora-fin",
+      "kind": "text",
+      "note": "small label '22:30'",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.4803,
+        "y": 0.625,
+        "w": 0.0576,
+        "h": 0.0129
+      },
+      "px": {
+        "x": 292,
+        "y": 680,
+        "w": 35,
+        "h": 14
+      },
+      "aspect": 2.5,
+      "palette": [
+        {
+          "hex": "#f7f8f8",
+          "coverage": 0.6379
+        },
+        {
+          "hex": "#1b2343",
+          "coverage": 0.1724
+        },
+        {
+          "hex": "#455278",
+          "coverage": 0.0862
+        },
+        {
+          "hex": "#081040",
+          "coverage": 0.069
+        },
+        {
+          "hex": "#98a0b8",
+          "coverage": 0.0345
+        }
+      ],
+      "detail": {
+        "energy": 18.3668
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      },
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 5,
+          "capHeightPx": 9,
+          "inkIsDark": true,
+          "allCaps": false,
+          "advance": 0.5165,
+          "advTall": 0.5534,
+          "advX": 0.1845,
+          "gap": 0.1107,
+          "xRatio": 0.7464,
+          "stemW": 0.2351,
+          "contrast": 1.0472,
+          "serif": null,
+          "densTall": 0.6249,
+          "densX": 0.4493,
+          "weight": 0.6249
+        },
+        "widthClass": "compressed",
+        "weightClass": "bold"
+      }
+    },
+    {
+      "id": "titulo-lista",
+      "kind": "text",
+      "note": "small caps label 'ITINERARIO DEL DÍA'",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.0411,
+        "y": 0.6581,
+        "w": 0.2336,
+        "h": 0.0156
+      },
+      "px": {
+        "x": 25,
+        "y": 716,
+        "w": 142,
+        "h": 17
+      },
+      "aspect": 8.3529,
+      "palette": [
+        {
+          "hex": "#f7f8f8",
+          "coverage": 0.7714
+        },
+        {
+          "hex": "#101a3f",
+          "coverage": 0.075
+        },
+        {
+          "hex": "#8893a9",
+          "coverage": 0.0571
+        },
+        {
+          "hex": "#4e607b",
+          "coverage": 0.05
+        },
+        {
+          "hex": "#c2c8d3",
+          "coverage": 0.0464
+        }
+      ],
+      "detail": {
+        "energy": 49.1679
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      },
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 16,
+          "capHeightPx": 11.2,
+          "inkIsDark": true,
+          "allCaps": false,
+          "advance": 0.5349,
+          "advTall": 0.208,
+          "advX": 0.5349,
+          "gap": 0.0892,
+          "xRatio": 0.8195,
+          "stemW": 0.1778,
+          "contrast": 1.0007,
+          "serif": 0.355,
+          "densTall": 0.7199,
+          "densX": 0.6687,
+          "weight": 0.7199
+        },
+        "widthClass": "condensed",
+        "weightClass": "black"
+      }
+    },
+    {
+      "id": "fila-hotel",
+      "kind": "control",
+      "note": "hotel row: cobalt H disc, 'H Hotel Aqua Suhe NO.1', 'Salida 15:00'",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.0411,
+        "y": 0.6783,
+        "w": 0.2961,
+        "h": 0.0358
+      },
+      "px": {
+        "x": 25,
+        "y": 738,
+        "w": 180,
+        "h": 39
+      },
+      "aspect": 4.6154,
+      "palette": [
+        {
+          "hex": "#f6f7f8",
+          "coverage": 0.8689
+        },
+        {
+          "hex": "#9ba5b8",
+          "coverage": 0.0451
+        },
+        {
+          "hex": "#1647e5",
+          "coverage": 0.041
+        },
+        {
+          "hex": "#46546e",
+          "coverage": 0.0273
+        },
+        {
+          "hex": "#2e345e",
+          "coverage": 0.0178
+        }
+      ],
+      "detail": {
+        "energy": 31.677
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "fila-1",
+      "kind": "control",
+      "note": "row: stamped 1, '15:15', 'Comida en Huanghe Road (小杨生煎)', price tag '25–45 ¥'",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.0411,
+        "y": 0.7151,
+        "w": 0.4967,
+        "h": 0.0404
+      },
+      "px": {
+        "x": 25,
+        "y": 778,
+        "w": 302,
+        "h": 44
+      },
+      "aspect": 6.8636,
+      "palette": [
+        {
+          "hex": "#f4f7f8",
+          "coverage": 0.9051
+        },
+        {
+          "hex": "#c4cad8",
+          "coverage": 0.0307
+        },
+        {
+          "hex": "#9399ae",
+          "coverage": 0.0225
+        },
+        {
+          "hex": "#1746e5",
+          "coverage": 0.0218
+        },
+        {
+          "hex": "#242f51",
+          "coverage": 0.0198
+        }
+      ],
+      "detail": {
+        "energy": 34.9169
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "fila-2",
+      "kind": "control",
+      "note": "row: stamped 2, '16:05', 'Nanjing Road: tramo de People's Square', price tag",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.0411,
+        "y": 0.7555,
+        "w": 0.4967,
+        "h": 0.0386
+      },
+      "px": {
+        "x": 25,
+        "y": 822,
+        "w": 302,
+        "h": 42
+      },
+      "aspect": 7.1905,
+      "palette": [
+        {
+          "hex": "#f5f7f7",
+          "coverage": 0.9118
+        },
+        {
+          "hex": "#1445e6",
+          "coverage": 0.023
+        },
+        {
+          "hex": "#1b1f43",
+          "coverage": 0.0222
+        },
+        {
+          "hex": "#414b6a",
+          "coverage": 0.0215
+        },
+        {
+          "hex": "#c3cad5",
+          "coverage": 0.0215
+        }
+      ],
+      "detail": {
+        "energy": 37.1116
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "fila-3",
+      "kind": "control",
+      "note": "current row fully swiped with fluorescent highlighter: 3, '17:20', 'Nanjing Road: tramo hacia el Bund (南京东路步行街)', price tag",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.0313,
+        "y": 0.7941,
+        "w": 0.5132,
+        "h": 0.0377
+      },
+      "px": {
+        "x": 19,
+        "y": 864,
+        "w": 312,
+        "h": 41
+      },
+      "aspect": 7.6098,
+      "palette": [
+        {
+          "hex": "#e8f8ab",
+          "coverage": 0.6548
+        },
+        {
+          "hex": "#f6f7f0",
+          "coverage": 0.1375
+        },
+        {
+          "hex": "#e4eeca",
+          "coverage": 0.1313
+        },
+        {
+          "hex": "#a2b080",
+          "coverage": 0.0432
+        },
+        {
+          "hex": "#1e2f1f",
+          "coverage": 0.0332
+        }
+      ],
+      "detail": {
+        "energy": 41.7833
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "fila-4",
+      "kind": "control",
+      "note": "row: open ring 4, '18:30', 'The Bund al encenderse las luces (外滩)', price tag",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.0411,
+        "y": 0.8336,
+        "w": 0.4967,
+        "h": 0.0395
+      },
+      "px": {
+        "x": 25,
+        "y": 907,
+        "w": 302,
+        "h": 43
+      },
+      "aspect": 7.0233,
+      "palette": [
+        {
+          "hex": "#f4f7f7",
+          "coverage": 0.9074
+        },
+        {
+          "hex": "#515d77",
+          "coverage": 0.0345
+        },
+        {
+          "hex": "#8a96af",
+          "coverage": 0.0264
+        },
+        {
+          "hex": "#bdc6d3",
+          "coverage": 0.0216
+        },
+        {
+          "hex": "#2b3156",
+          "coverage": 0.0101
+        }
+      ],
+      "detail": {
+        "energy": 34.5736
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "fila-5",
+      "kind": "control",
+      "note": "row: open ring 5, '19:20', 'Jing'an Joy City: maleta y ropa', price tag",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.0411,
+        "y": 0.875,
+        "w": 0.4967,
+        "h": 0.0267
+      },
+      "px": {
+        "x": 25,
+        "y": 952,
+        "w": 302,
+        "h": 29
+      },
+      "aspect": 10.4138,
+      "palette": [
+        {
+          "hex": "#f4f6f7",
+          "coverage": 0.9048
+        },
+        {
+          "hex": "#545e7f",
+          "coverage": 0.03
+        },
+        {
+          "hex": "#c4cddc",
+          "coverage": 0.0248
+        },
+        {
+          "hex": "#828ea0",
+          "coverage": 0.0228
+        },
+        {
+          "hex": "#282f53",
+          "coverage": 0.0176
+        }
+      ],
+      "detail": {
+        "energy": 48.9151
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "fila-6",
+      "kind": "control",
+      "note": "row: open ring 6, '20:25', 'Noria Sky Ring', price tag",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.0411,
+        "y": 0.9044,
+        "w": 0.4967,
+        "h": 0.0276
+      },
+      "px": {
+        "x": 25,
+        "y": 984,
+        "w": 302,
+        "h": 30
+      },
+      "aspect": 10.0667,
+      "palette": [
+        {
+          "hex": "#f4f6f7",
+          "coverage": 0.9142
+        },
+        {
+          "hex": "#3f4965",
+          "coverage": 0.0286
+        },
+        {
+          "hex": "#bfc9d9",
+          "coverage": 0.0245
+        },
+        {
+          "hex": "#8d94a8",
+          "coverage": 0.0225
+        },
+        {
+          "hex": "#626e88",
+          "coverage": 0.0102
+        }
+      ],
+      "detail": {
+        "energy": 36.0631
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "fila-7",
+      "kind": "control",
+      "note": "row: open ring 7, '21:00', 'Cena en Top Banana Market', price tag",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.0411,
+        "y": 0.9347,
+        "w": 0.4967,
+        "h": 0.0276
+      },
+      "px": {
+        "x": 25,
+        "y": 1017,
+        "w": 302,
+        "h": 30
+      },
+      "aspect": 10.0667,
+      "palette": [
+        {
+          "hex": "#f4f6f7",
+          "coverage": 0.8723
+        },
+        {
+          "hex": "#3a4361",
+          "coverage": 0.0429
+        },
+        {
+          "hex": "#c3c8d7",
+          "coverage": 0.0419
+        },
+        {
+          "hex": "#8a90a9",
+          "coverage": 0.0235
+        },
+        {
+          "hex": "#5b657e",
+          "coverage": 0.0194
+        }
+      ],
+      "detail": {
+        "energy": 44.5547
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      }
+    },
+    {
+      "id": "margen",
+      "kind": "chrome",
+      "note": "thin red vertical margin rule",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.5543,
+        "y": 0.4853,
+        "w": 0.0082,
+        "h": 0.5147
+      },
+      "px": {
+        "x": 337,
+        "y": 528,
+        "w": 5,
+        "h": 560
+      },
+      "aspect": 0.0089,
+      "palette": [
+        {
+          "hex": "#f3f3f3",
+          "coverage": 0.7353
+        },
+        {
+          "hex": "#f8d8e3",
+          "coverage": 0.2647
+        }
+      ],
+      "detail": {
+        "energy": 2.4279
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": true
+      }
+    },
+    {
+      "id": "ahora-etiqueta",
+      "kind": "text",
+      "note": "small caps label 'AHORA'",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.5855,
+        "y": 0.5009,
+        "w": 0.0658,
+        "h": 0.0129
+      },
+      "px": {
+        "x": 356,
+        "y": 545,
+        "w": 40,
+        "h": 14
+      },
+      "aspect": 2.8571,
+      "palette": [
+        {
+          "hex": "#f1f3f5",
+          "coverage": 0.7424
+        },
+        {
+          "hex": "#404d68",
+          "coverage": 0.0909
+        },
+        {
+          "hex": "#323e6b",
+          "coverage": 0.0758
+        },
+        {
+          "hex": "#081028",
+          "coverage": 0.0606
+        },
+        {
+          "hex": "#8888a8",
+          "coverage": 0.0303
+        }
+      ],
+      "detail": {
+        "energy": 27.1969
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      },
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 4,
+          "capHeightPx": 9.1,
+          "inkIsDark": true,
+          "allCaps": true,
+          "advance": 0.7707,
+          "advTall": 0.7707,
+          "advX": null,
+          "gap": 0.1101,
+          "xRatio": null,
+          "stemW": 0.2192,
+          "contrast": 1.0129,
+          "serif": null,
+          "densTall": 0.5787,
+          "densX": null,
+          "weight": 0.5787
+        },
+        "widthClass": "normal",
+        "weightClass": "bold"
+      }
+    },
+    {
+      "id": "ahora-nombre",
+      "kind": "text",
+      "note": "'Nanjing Road: tramo hacia el Bund' in bold ink on a fluorescent highlighter swipe",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.5674,
+        "y": 0.5156,
+        "w": 0.4079,
+        "h": 0.0257
+      },
+      "px": {
+        "x": 345,
+        "y": 561,
+        "w": 248,
+        "h": 28
+      },
+      "aspect": 8.8571,
+      "palette": [
+        {
+          "hex": "#d8f73e",
+          "coverage": 0.6302
+        },
+        {
+          "hex": "#f7f8f6",
+          "coverage": 0.1735
+        },
+        {
+          "hex": "#f5f8d3",
+          "coverage": 0.0839
+        },
+        {
+          "hex": "#0a120d",
+          "coverage": 0.0754
+        },
+        {
+          "hex": "#4b6124",
+          "coverage": 0.037
+        }
+      ],
+      "detail": {
+        "energy": 58.2947
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      },
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 24,
+          "capHeightPx": 12.5,
+          "inkIsDark": true,
+          "allCaps": false,
+          "advance": 0.5791,
+          "advTall": 0.599,
+          "advX": 0.5591,
+          "gap": 0.0799,
+          "xRatio": 0.7363,
+          "stemW": 0.1965,
+          "contrast": 1.1052,
+          "serif": 0.2754,
+          "densTall": 0.6533,
+          "densX": 0.6854,
+          "weight": 0.6533
+        },
+        "widthClass": "condensed",
+        "weightClass": "bold"
+      }
+    },
+    {
+      "id": "ahora-local",
+      "kind": "text",
+      "note": "Chinese name '南京东路步行街' in grey",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.5855,
+        "y": 0.546,
+        "w": 0.1776,
+        "h": 0.0175
+      },
+      "px": {
+        "x": 356,
+        "y": 594,
+        "w": 108,
+        "h": 19
+      },
+      "aspect": 5.6842,
+      "palette": [
+        {
+          "hex": "#f4f6f7",
+          "coverage": 0.636
+        },
+        {
+          "hex": "#737e94",
+          "coverage": 0.16
+        },
+        {
+          "hex": "#c7cdda",
+          "coverage": 0.124
+        },
+        {
+          "hex": "#51597c",
+          "coverage": 0.06
+        },
+        {
+          "hex": "#a2abb2",
+          "coverage": 0.02
+        }
+      ],
+      "detail": {
+        "energy": 45.904
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      },
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 7,
+          "capHeightPx": 13.7,
+          "inkIsDark": true,
+          "allCaps": false,
+          "advance": 0.9522,
+          "advTall": 0.9522,
+          "advX": null,
+          "gap": 0.1465,
+          "xRatio": 0.6804,
+          "stemW": 0.1269,
+          "contrast": 0.9993,
+          "serif": 1.2569,
+          "densTall": 0.4683,
+          "densX": null,
+          "weight": 0.4683
+        },
+        "widthClass": "wide",
+        "weightClass": "regular"
+      }
+    },
+    {
+      "id": "divisor",
+      "kind": "chrome",
+      "note": "thin grey rule",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.5855,
+        "y": 0.58,
+        "w": 0.3799,
+        "h": 0.0046
+      },
+      "px": {
+        "x": 356,
+        "y": 631,
+        "w": 231,
+        "h": 5
+      },
+      "aspect": 46.2,
+      "palette": [
+        {
+          "hex": "#f8f8f8",
+          "coverage": 0.5065
+        },
+        {
+          "hex": "#bfc8d8",
+          "coverage": 0.4935
+        }
+      ],
+      "detail": {
+        "energy": 15.3887
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": true
+      }
+    },
+    {
+      "id": "despues-etiqueta",
+      "kind": "text",
+      "note": "small caps label 'DESPUÉS 18:30'",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.5855,
+        "y": 0.5974,
+        "w": 0.148,
+        "h": 0.0156
+      },
+      "px": {
+        "x": 356,
+        "y": 650,
+        "w": 90,
+        "h": 17
+      },
+      "aspect": 5.2941,
+      "palette": [
+        {
+          "hex": "#f5f6f6",
+          "coverage": 0.7644
+        },
+        {
+          "hex": "#58647d",
+          "coverage": 0.1034
+        },
+        {
+          "hex": "#d4dce8",
+          "coverage": 0.046
+        },
+        {
+          "hex": "#12204a",
+          "coverage": 0.046
+        },
+        {
+          "hex": "#818fa1",
+          "coverage": 0.0402
+        }
+      ],
+      "detail": {
+        "energy": 44.016
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      },
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 12,
+          "capHeightPx": 11.7,
+          "inkIsDark": true,
+          "allCaps": false,
+          "advance": 0.4837,
+          "advTall": 0.4553,
+          "advX": 0.4837,
+          "gap": 0.1138,
+          "xRatio": 0.7832,
+          "stemW": 0.1748,
+          "contrast": 1.0369,
+          "serif": 0.5107,
+          "densTall": 0.6028,
+          "densX": 0.6047,
+          "weight": 0.6028
+        },
+        "widthClass": "condensed",
+        "weightClass": "bold"
+      }
+    },
+    {
+      "id": "despues-nombre",
+      "kind": "text",
+      "note": "'The Bund al encenderse las luces', bold first words",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.5855,
+        "y": 0.614,
+        "w": 0.3257,
+        "h": 0.0211
+      },
+      "px": {
+        "x": 356,
+        "y": 668,
+        "w": 198,
+        "h": 23
+      },
+      "aspect": 8.6087,
+      "palette": [
+        {
+          "hex": "#f7f8f8",
+          "coverage": 0.7675
+        },
+        {
+          "hex": "#2c3858",
+          "coverage": 0.0762
+        },
+        {
+          "hex": "#0d1339",
+          "coverage": 0.0681
+        },
+        {
+          "hex": "#b7bccd",
+          "coverage": 0.0501
+        },
+        {
+          "hex": "#5b6686",
+          "coverage": 0.0381
+        }
+      ],
+      "detail": {
+        "energy": 65.8676
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      },
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 23,
+          "capHeightPx": 12.7,
+          "inkIsDark": true,
+          "allCaps": false,
+          "advance": 0.513,
+          "advTall": 0.3749,
+          "advX": 0.513,
+          "gap": 0.0789,
+          "xRatio": 0.6992,
+          "stemW": 0.1688,
+          "contrast": 1.0715,
+          "serif": 0.724,
+          "densTall": 0.7822,
+          "densX": 0.6335,
+          "weight": 0.7822
+        },
+        "widthClass": "condensed",
+        "weightClass": "black"
+      }
+    },
+    {
+      "id": "despues-tramo",
+      "kind": "text",
+      "note": "'A pie · 1,1 km'",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.5855,
+        "y": 0.6425,
+        "w": 0.1349,
+        "h": 0.0165
+      },
+      "px": {
+        "x": 356,
+        "y": 699,
+        "w": 82,
+        "h": 18
+      },
+      "aspect": 4.5556,
+      "palette": [
+        {
+          "hex": "#f4f7f7",
+          "coverage": 0.8193
+        },
+        {
+          "hex": "#bac5d2",
+          "coverage": 0.0602
+        },
+        {
+          "hex": "#5a667d",
+          "coverage": 0.0542
+        },
+        {
+          "hex": "#313d53",
+          "coverage": 0.0422
+        },
+        {
+          "hex": "#6c78a4",
+          "coverage": 0.0241
+        }
+      ],
+      "detail": {
+        "energy": 23.4609
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      },
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 9,
+          "capHeightPx": 10.3,
+          "inkIsDark": true,
+          "allCaps": false,
+          "advance": 0.5164,
+          "advTall": 0.1937,
+          "advX": 0.6939,
+          "gap": 0.0968,
+          "xRatio": 0.7254,
+          "stemW": 0.1546,
+          "contrast": 0.9632,
+          "serif": null,
+          "densTall": 0.658,
+          "densX": 0.6587,
+          "weight": 0.658
+        },
+        "widthClass": "normal",
+        "weightClass": "bold"
+      }
+    },
+    {
+      "id": "despues-precio",
+      "kind": "text",
+      "note": "pale blue price tag '0–10 ¥'",
+      "grid": null,
+      "parentId": "panel",
+      "box": {
+        "x": 0.8783,
+        "y": 0.6397,
+        "w": 0.0872,
+        "h": 0.0202
+      },
+      "px": {
+        "x": 534,
+        "y": 696,
+        "w": 53,
+        "h": 22
+      },
+      "aspect": 2.4091,
+      "palette": [
+        {
+          "hex": "#e1ebf0",
+          "coverage": 0.8681
+        },
+        {
+          "hex": "#677184",
+          "coverage": 0.0764
+        },
+        {
+          "hex": "#3c4868",
+          "coverage": 0.0278
+        },
+        {
+          "hex": "#93a3ad",
+          "coverage": 0.0208
+        },
+        {
+          "hex": "#9898b8",
+          "coverage": 0.0069
+        }
+      ],
+      "detail": {
+        "energy": 9.0839
+      },
+      "medium": "semantic",
+      "plate": null,
+      "text": null,
+      "surface": {
+        "flat": false,
+        "rules": false
+      },
+      "type": {
+        "comp": {
+          "lines": 1,
+          "glyphs": 4,
+          "capHeightPx": 8.7,
+          "inkIsDark": true,
+          "allCaps": false,
+          "advance": 0.5911,
+          "advTall": 0.5911,
+          "advX": null,
+          "gap": 0.2669,
+          "xRatio": 0.4813,
+          "stemW": 0.2137,
+          "contrast": 1.0885,
+          "serif": null,
+          "densTall": 0.6519,
+          "densX": null,
+          "weight": 0.6519
+        },
+        "widthClass": "condensed",
+        "weightClass": "bold"
+      }
+    }
+  ],
+  "compSha256": "e2ef6a21aa7377dfb01a33b70bb0393d2e7ee8c41b2d0c49e3041435a64e35a2",
+  "regionsSource": {
+    "path": ".impeccable/build/regions.json",
+    "sha256": "54ada265f6ea3961928804f0425e46ac6acca1c00d095ab1e185aef255034a87"
+  }
+}
