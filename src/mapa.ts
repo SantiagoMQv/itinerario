@@ -463,7 +463,8 @@ export class VistaMapa {
         lider.el.setAttribute('aria-label', `Paradas ${texto}: toca para acercar`);
         this.racimos.set(lider.x.m, todas);
       }
-      if (indices.some((i) => bajoActual[i]) || (actual && cerca(lider, actual, 40))) {
+      // Solo se apartan los grupos: una parada suelta se queda en su sitio (apartarla la llevaría a otra ciudad).
+      if (miembros.length > 1 && (indices.some((i) => bajoActual[i]) || (actual && cerca(lider, actual, 40)))) {
         lider.el.classList.add(lider.p.x < 120 ? 'junto-actual-dcha' : 'junto-actual');
       }
     }

@@ -264,7 +264,8 @@ Tinta casi negra sobre papel blanco, una paleta de pestañas saturadas por día 
 - **Fluorescente pálido** (`fluor-suave`): la banda de la fila activa de la lista. De noche pasa a `fluor-suave-noche`, más intenso para que la banda se vea sobre papel oscuro; el texto encima sigue en tinta fija.
 
 ### Tertiary
-- **Rojo de margen** (`margen`): la raya vertical de 1,5 px del margen del cuaderno, que separa reloj y «ahora/después» solo en la cabecera del panel, y los avisos de texto.
+- **Rojo de margen** (`margen`): la raya vertical de 1,5 px del margen del cuaderno, que separa reloj y «ahora/después» solo en la cabecera del panel.
+- **Rojo de aviso** (`aviso`, `--tarde` en CSS): la etiqueta maciza «Tarde» junto a la cuenta atrás y los avisos de texto. Las cifras de la cuenta nunca se tiñen: siguen en tinta para leerse al sol.
 - **Cartón kraft** (`kraft`): la textura de la barra de días (placa `assets/plates/kraft.png`, en mosaico a 231 px de ancho) y el color de tema del navegador y del icono. De noche la textura se cubre con un velo marrón oscuro al 72 %.
 
 ### Neutral
@@ -275,7 +276,7 @@ Tinta casi negra sobre papel blanco, una paleta de pestañas saturadas por día 
 - **Etiqueta** (`etiqueta` / `etiqueta-texto`): fondo y texto de las pastillas de precio.
 - **Pestaña Todo** (`pestana-todo`): pestaña de la vista de todo el viaje, color de cartulina para no competir con los colores de día.
 - **Agua y parque del mapa** (`mapa-agua`, `mapa-parque`): retoques del mapa base para que parezca un plano dibujado en vez de gris.
-- Bordes como tinta translúcida: `--borde` (tinta al 14 %) para divisores y `--borde-fuerte` (al 32 %) para contornos de botones, asa y separador de «ahora/después».
+- Bordes como tinta translúcida: `--borde` (tinta al 14 %) para divisores y `--borde-fuerte` (al 55 %; 50 % de noche) para contornos de botones, asa y separador de «ahora/después», de modo que todo contorno pulsable llega a 3:1 sobre papel.
 
 ### Named Rules
 **La Regla del Rotulador Único.** El fluorescente saturado marca una sola cosa: lo que pasa ahora. Solo lo llevan el título de «ahora», el tramo del mapa y el segmento de la línea de tiempo (y el anillo y número del marcador actual). La fila activa de la lista usa la banda pálida, nunca el saturado.
@@ -361,18 +362,22 @@ Redondos, táctiles y sin texto superfluo.
 
 ### Directo y repaso
 La app tiene dos modos y nunca los confunde:
-- **Directo** (solo los días del viaje): la hora real, que avanza sola cada medio minuto y al volver a la app, y lo que el viajero ha marcado. «Ahora» es la primera parada de hoy sin marcar; si aún no es su hora, se va de camino hacia ella. Lo grande del panel es lo que hay que hacer: «39 min · para salir · 18:20» (o «+12 min» en rojo de margen si se va tarde). Si se va muy por detrás del plan aparece «Ponerme al día», que marca de un toque lo que ya pasó.
-- **Repaso:** cualquier hora del plan (reproducir, arrastrar, saltar, otro día). La hora va en contorno y debajo dice «Repaso del plan» (o «faltan N días» antes del viaje). Una píldora de tinta con un punto fluorescente, «Volver a ahora · 17:41», devuelve al directo.
+- **Directo** (solo los días del viaje): el reloj del plan con la hora real, que avanza solo cada medio minuto y al volver a la app. Por defecto «ahora» es donde el plan dice que se está, y todo lo anterior se da por hecho: no marcar nada nunca enciende una alarma. Las marcas solo corrigen al plan: «Hecha» (se terminó antes: se pasa de camino a lo siguiente), «Saltar», «Llegué» (de camino, ya se está allí) y «Sigo aquí» (se va por detrás: «ahora» se queda en esa parada hasta marcarla). Durante los 20 minutos siguientes a que el plan deje una parada sin marcar, encima de «ahora» aparece una pregunta discreta, «¿Sigues en X? · Sigo aquí · Ya salí». Lo grande del panel es lo que hay que hacer: «39 min · para salir · 18:20», «49 min · para llegar · 18:30» o, al acabar el día, la salida de mañana. Si se va tarde, la cifra pasa a «+15 min» con la etiqueta roja «Tarde · salida prevista 18:20», y «Después» dice cuándo se llegaría saliendo ya y ofrece «Saltar esta».
+- **Cabecera de calle:** en directo, debajo de la cuenta atrás solo hay una línea de tiempo fina de 40 px (sin controles ni horas de los extremos) y el enlace «Repasar el día». Los controles de reproducción solo existen en el repaso.
+- **Repaso:** cualquier hora del plan (reproducir, arrastrar, saltar, otro día, o «Repasar el día»). La hora va en contorno y debajo dice «Repaso del plan» (o «faltan N días» antes del viaje); el título de «ahora» y la fila activa solo se subrayan con rotulador, no se rellenan. Una píldora de tinta con un punto fluorescente, «Volver a ahora · 17:41», devuelve al directo; solo aparece en la vista de un día, nunca tapando el mapa de «Todo».
 Leer una parada (tocar su fila o su marcador) nunca cambia la hora: abre la ficha y lleva el mapa hasta ella.
 
 ### Botones de la calle
-«Hecho» (tinta llena con ✓), «Saltar» (texto subrayado) y «Taxi» (contorno con icono) miden 34 px a la vista y 44 px al dedo. «Hecho» y «Saltar» viven en «Ahora» en directo; «Taxi» en «Después» y en «Ahora» de camino. Cada marca se puede deshacer desde el aviso y corregir en la ficha con «Hecha / Saltada / Pendiente». Las marcas se guardan en el móvil por fecha, hora y nombre.
+Siempre en el mismo sitio y con el mismo nombre: la acción principal a la izquierda en tinta llena con ✓ («Hecha» en una parada, «Llegué» de camino), «Saltar» como texto subrayado a su derecha y, debajo o en «Después», el botón de contorno para hablar con alguien. Ese botón dice «Taxi» con icono de coche solo si el trayecto es en taxi; en cualquier otro caso dice «En chino» con un bocadillo, y los dos abren la misma tarjeta. Miden 34 px a la vista y 44 px al dedo. Tras marcar, el foco vuelve a «ahora». Cada marca se puede deshacer desde el aviso y corregir en la ficha con «Hecha / Saltada / Según el plan». Las marcas se guardan en el móvil por fecha, hora y nombre.
 
 ### Tapa
-A la derecha de las pestañas, fuera del desplazamiento, la píldora «Hotel» abre la tarjeta del taxista con el hotel donde se duerme ese día. Cuando quedan días a la derecha, el borde de las pestañas se difumina. Sin conexión aparece bajo la tapa una franja de tinta: «Sin conexión · mapas guardados el 5 oct».
+Solo pestañas: cuando quedan días a la derecha, su borde se difumina, y la pestaña de hoy se desplaza hasta verse entera. Al bajar por la lista, la cabecera del panel se separa con una sombra corta y el borde pasa a `--borde-fuerte`.
+
+### Píldoras del pulgar
+Sobre el borde del panel, abajo a la izquierda, viven las píldoras de papel o tinta de 44 px: «Hotel» (abre la tarjeta del taxista con el hotel donde se duerme ese día; no sale en «Todo», donde taparía el mapa), «Volver a ahora» y, sin conexión, una píldora de tinta «Sin conexión · solo se ven las zonas del mapa ya visitadas» (o «mapas guardados el 5 oct»). Los rótulos de los botones del mapa («Día», «Mapas», «Noche» o «Claro») van en una pastilla de papel para no chocar con el mapa.
 
 ### Avisos y diálogo
-Los avisos salen encima del panel, junto al pulgar, en tinta con su acción («Deshacer»). Las preguntas usan un diálogo propio de papel cuadriculado, nunca el cuadro del navegador.
+Los avisos salen encima del panel, junto al pulgar, en tinta con su acción («Deshacer», 44 px), sin tapar las píldoras ni los botones del mapa; en escritorio, a la derecha de la página. La región viva anuncia la cuenta atrás junto con «ahora» y «después». Las preguntas usan un diálogo propio de papel cuadriculado, nunca el cuadro del navegador.
 
 ### Fila del itinerario (signature)
 Número en anillo, hora tabular, nombre y precio. La fila activa se resalta con una banda de rotulador pálido que se traza de izquierda a derecha en 0,45 s, y su nombre lleva además el trazo saturado para que se vea al sol (de noche la banda es tenue y el texto vuelve a tinta clara). Un hilo de 2 px en el color del día une las marcas. Los trayectos van entre filas en tinta suave y se vuelven tinta fija y rotulador saturado cuando son el tramo de ahora. Al tocar, la fila despliega su ficha: notas, datos en lista de definiciones, gasto por persona, enlaces subrayados con 2 px del color del día y botones Amap, Apple Maps, Google Maps y taxista.
@@ -392,10 +397,10 @@ Sin etiquetas encima. «Ahora» se reconoce por el título trazado con rotulador
 Paradas a la misma distancia y el tiempo lineal dentro de cada tramo. Línea de 3 px en el color del día, un punto de 8 px por parada (vacío pendiente, relleno hecho, discontinuo saltado), zona de toque de 40 px, con teclado de 5 en 5 minutos y la hora anunciada como texto («17:41»), el segmento de ahora como un trazo fluorescente de 17 px de alto con extremos irregulares, y una aguja de tinta fina de 6 × 26 px con filo de papel para no tapar el fluorescente.
 
 ### Mapa
-Mapa base real (OpenFreeMap) con agua azul y parques verdes retocados. Rutas en arcos del color del día: pendiente a 3,5 px y 85 % de opacidad, recorrida a 4,5 px, y el tramo de ahora en tinta de 3 px sobre un trazo fluorescente de 12–20 px según el zoom. De noche, cada color del estilo base se recolorea en sitio (suelo y calles en azul noche, rótulos claros con halo oscuro), sin descargar otro estilo, para que siga funcionando sin conexión. Los marcadores y pastillas reservan su hueco con símbolos invisibles para que los rótulos del mapa se aparten. Por dónde va el plan se marca con un rombo de tinta con fluorescente dentro, sin latido: no es un GPS. Los botones del mapa llevan rótulo («Día», «Mapas», «Noche»).
+Mapa base real (OpenFreeMap) con agua azul y parques verdes retocados. Rutas en arcos del color del día: pendiente a 3,5 px y 85 % de opacidad, recorrida a 4,5 px, y el tramo de ahora en tinta de 3 px sobre un trazo fluorescente de 12–20 px según el zoom. De noche, cada color del estilo base se recolorea en sitio (suelo y calles en azul noche, rótulos claros con halo oscuro), sin descargar otro estilo, para que siga funcionando sin conexión. Los marcadores y pastillas reservan su hueco con símbolos invisibles para que los rótulos del mapa se aparten. Por dónde va el plan se marca con un rombo de tinta con fluorescente dentro, sin latido: no es un GPS. Los botones del mapa llevan rótulo («Día», «Mapas» y «Noche», que pasa a «Claro» de noche: dicen lo que hacen, no el estado). Solo los grupos de paradas se apartan de la parada actual; un marcador suelto nunca se mueve de su sitio.
 
 ### Tarjeta para el taxista
-Pantalla completa en blanco y tinta fijos en ambos temas, con la petición en chino, el nombre en chino a min(17vw, 112 px) y la dirección a min(7vw, 34 px). Es para enseñarla a otra persona, no para leerla uno mismo: el chino no se parte a media palabra, la pantalla no se apaga mientras está abierta y solo se cierra con ✕, Escape o el gesto de volver, nunca con un roce.
+Pantalla completa en blanco y tinta fijos en ambos temas, con la petición en chino, el nombre en chino a min(17vw, 20vh, 112 px) y la dirección a min(7vw, 9vh, 34 px), de modo que cabe entera también en horizontal. Es para enseñarla a otra persona, no para leerla uno mismo: el chino no se parte a media palabra, la pantalla no se apaga mientras está abierta, el resto de la app queda inerte (el foco no se escapa) y solo se cierra con ✕, Escape o el gesto de volver, nunca con un roce; el foco vuelve al botón que la abrió.
 
 ## Do's and Don'ts
 
@@ -408,6 +413,7 @@ Pantalla completa en blanco y tinta fijos en ambos temas, con la petición en ch
 - **Do** autoalojar fuentes, texturas e iconos dentro de la app.
 - **Do** respetar `prefers-reduced-motion`: sin trazos, sellos ni pulsos.
 - **Do** separar el directo del repaso: cualquier movimiento de la hora pasa a repaso y siempre hay «Volver a ahora».
+- **Do** dejar que el plan decida «ahora» y que las marcas solo lo corrijan: no marcar nunca es un error.
 - **Do** dar 44 px de toque a todo lo que se pulsa en la calle, aunque se vea más pequeño.
 
 ### Don't:
@@ -417,5 +423,7 @@ Pantalla completa en blanco y tinta fijos en ambos temas, con la petición en ch
 - **Don't** convertir las filas del itinerario en tarjetas elevadas.
 - **Don't** imitar un GPS (punto azul que late, diana de «mi ubicación»): la app no sabe dónde estás.
 - **Don't** cambiar la hora al leer una parada.
+- **Don't** teñir de rojo la cifra de la cuenta atrás: el retraso lo dice la etiqueta «Tarde».
+- **Don't** enseñar controles de reproducción en directo.
 - **Don't** cargar Google Fonts ni recursos de CDN.
 - **Don't** escribir en la interfaz nada propio de un destino; eso vive en los datos.

@@ -4,16 +4,16 @@ Web para móvil que sirve para revisar el itinerario de un viaje a Shanghái (co
 
 ## Qué hace
 
-- **En directo durante el viaje:** los días del viaje la app se abre en el día de hoy, con la hora real (avanza sola) y lo que tú has marcado. Lo grande del panel es lo que hay que hacer: «39 min · para salir · 18:20», o «+12 min» si vas tarde.
-- **Marcas a mano:** en «Ahora» tienes «Hecho» y «Saltar»; «ahora» pasa a la siguiente parada cuando la marcas, aunque vayas con retraso. Si se te olvidó marcar, «Ponerme al día» marca de un toque lo que ya pasó. Todo se puede deshacer y corregir en la ficha de cada parada. Las marcas se guardan en tu móvil.
-- **Repaso:** reproducir, arrastrar la línea de tiempo, saltar de parada o mirar otro día es un repaso del plan: la hora sale en contorno y la píldora «Volver a ahora» te devuelve al directo. Antes del viaje dice cuántos días faltan.
+- **En directo durante el viaje:** los días del viaje la app se abre en el día de hoy y sigue el horario del plan con la hora real (avanza sola). Lo grande del panel es lo que hay que hacer: «39 min · para salir · 18:20» o «para llegar · 18:30»; al acabar el día, la salida de mañana. Si vas tarde sale «+15 min» con la etiqueta roja «Tarde», y en lo siguiente te dice a qué hora llegarías saliendo ya, con la opción de saltártelo.
+- **Marcas solo para corregir:** no hace falta marcar nada; si no marcas, la app da por hecho que vas según el plan. Si no coincide, díselo: «Hecha» (terminaste antes), «Saltar», «Llegué» (de camino) o «Sigo aquí» (cuando el plan ya te ha movido, sale «¿Sigues en…?» unos minutos). Todo se puede deshacer y corregir en la ficha de cada parada. Las marcas se guardan en tu móvil.
+- **Repaso:** «Repasar el día», arrastrar la línea de tiempo, saltar de parada o mirar otro día es un repaso del plan: la hora sale en contorno, aparecen los controles de reproducción y la píldora «Volver a ahora» te devuelve al directo. Antes del viaje dice cuántos días faltan.
 - **Ahora y después:** junto a la hora, lo que toca ahora (subrayado en fluorescente, igual que su tramo en el mapa y su fila en la lista) y lo siguiente, con medio, distancia, minutos y precio.
-- **Taxi a un toque:** botón «Taxi» en lo siguiente (y en lo de ahora si vas de camino) y la píldora «Hotel» siempre arriba. La tarjeta enseña el nombre y la dirección en chino a pantalla completa, no se apaga la pantalla y solo se cierra con ✕ o el gesto de volver.
+- **Taxi a un toque:** botón «Taxi» en lo siguiente si se va en taxi («En chino» si se va a pie o en metro, para preguntar) y la píldora «Hotel» abajo, junto al pulgar. La tarjeta enseña el nombre y la dirección en chino a pantalla completa (también en horizontal), no se apaga la pantalla y solo se cierra con ✕ o el gesto de volver.
 - **Distancias:** cada trayecto muestra la distancia en línea recta, el medio de transporte y la duración (real o estimada con `~`). Cada parada indica también a qué distancia está del hotel.
 - **Itinerario en lista:** desliza el panel hacia arriba para ver el día entero. Al tocar una parada se abren sus notas, la reserva y botones para abrirla en Amap, Apple Maps o Google Maps (leerla no cambia la hora).
-- **Todo el viaje:** la pestaña «Todo» enseña todos los días a la vez, cada uno de un color, con la lista de pendientes («3 de 7») y la fecha del plan que lleva tu móvil.
-- **Sin conexión:** el botón «Mapas» guarda la app y los mapas de todas las zonas del viaje (unos 30 MB). Si te quedas sin internet, una franja lo avisa bajo las pestañas.
-- **Día o noche:** el botón «Noche» cambia a modo noche (y «Día», de vuelta). Se recuerda en el móvil.
+- **Todo el viaje:** la pestaña «Todo» enseña todos los días a la vez, cada uno de un color, con la lista de pendientes («3 de 7») y la fecha del plan que lleva tu móvil. Antes del viaje la app se abre aquí, con «Antes de salir»: lo pendiente por comprobar y el botón para guardar los mapas.
+- **Sin conexión:** el botón «Mapas» guarda la app y los mapas de todas las zonas del viaje (unos 30 MB). Si te quedas sin internet, una píldora lo avisa junto a «Hotel».
+- **Claro o noche:** el botón «Noche» cambia a modo noche (y «Claro», de vuelta). Se recuerda en el móvil.
 
 ## Cambiar el itinerario
 

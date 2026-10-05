@@ -9,7 +9,8 @@
   --tinta: #14213d;
   --tinta-suave: #4f5b73;
   --borde: rgba(20, 33, 61, 0.14);
-  --borde-fuerte: rgba(20, 33, 61, 0.32);
+  --borde-fuerte: rgba(20, 33, 61, 0.55);
+  --tarde: #b8323a;
   --margen: #e0454d;
   --fluor: #ddf94a;
   --fluor-suave: #ebfaaa;
@@ -44,7 +45,7 @@
   --tinta: #e8ecf2;
   --tinta-suave: #a5b0c3;
   --borde: rgba(232, 236, 242, 0.14);
-  --borde-fuerte: rgba(232, 236, 242, 0.34);
+  --borde-fuerte: rgba(232, 236, 242, 0.5);
   --margen: #ff6b72;
   --etiqueta: #1f2a3a;
   --etiqueta-texto: #c3cfe1;
@@ -158,53 +159,6 @@ mark {
   mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent);
 }
 
-/* «Llévame al hotel»: siempre en la tapa, a un toque. */
-#btn-hotel {
-  flex: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 40px;
-  margin: 0 8px 7px 4px;
-  padding: 0 12px 0 10px;
-  border: none;
-  border-radius: 20px;
-  background: var(--pestana-todo);
-  color: var(--tinta);
-  font-size: 14px;
-  font-weight: 700;
-  box-shadow: 0 1px 3px rgba(20, 16, 10, 0.3);
-}
-#btn-hotel[hidden] {
-  display: none;
-}
-#btn-hotel svg {
-  width: 21px;
-  height: 21px;
-  fill: none;
-  stroke: currentColor;
-  stroke-width: 2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-#btn-hotel .relleno {
-  fill: currentColor;
-  stroke: none;
-}
-
-/* Aviso de que no hay conexión: solo aparece cuando falta. */
-#red {
-  margin: 0;
-  padding: 6px 14px;
-  background: var(--tinta);
-  color: var(--papel);
-  font-size: 13.5px;
-  font-weight: 600;
-}
-#red[hidden] {
-  display: none;
-}
-
 .pestana {
   flex: none;
   display: flex;
@@ -289,13 +243,13 @@ mark {
 }
 /* Rótulo bajo cada botón: el icono solo no basta para quien la mira de vez en cuando. */
 .btn-redondo .rotulo {
+  padding: 2px 6px;
+  border-radius: 20px;
+  background: var(--boton-mapa);
   font-size: 12px;
   font-weight: 700;
-  line-height: 1;
-  text-shadow:
-    0 0 3px var(--papel),
-    0 0 3px var(--papel),
-    0 0 6px var(--papel);
+  line-height: 1.1;
+  box-shadow: 0 1px 2px rgba(20, 33, 61, 0.2);
 }
 .btn-redondo svg {
   width: 23px;
@@ -347,6 +301,7 @@ mark {
   pointer-events: auto;
 }
 
+#btn-hotel,
 #btn-ahora,
 #btn-seguir {
   display: flex;
@@ -374,9 +329,40 @@ mark {
   border-radius: 50%;
   background: var(--fluor);
 }
+body.vista-todo #btn-hotel,
+#btn-hotel[hidden],
 #btn-ahora[hidden],
-#btn-seguir[hidden] {
+#btn-seguir[hidden],
+#red[hidden] {
   display: none;
+}
+/* «Llévame al hotel»: siempre a mano, junto al pulgar. */
+#btn-hotel svg {
+  width: 21px;
+  height: 21px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+#btn-hotel .relleno {
+  fill: currentColor;
+  stroke: none;
+}
+/* Sin conexión: una píldora de tinta que solo aparece cuando falta la red. */
+#red {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  margin: 0;
+  padding: 0 14px;
+  border-radius: 20px;
+  background: var(--tinta);
+  color: var(--papel);
+  font-size: 13.5px;
+  font-weight: 600;
+  box-shadow: var(--sombra-boton);
 }
 #btn-seguir svg {
   width: 18px;
@@ -413,7 +399,7 @@ body.panel-abierto #botones-mapa {
   flex: none;
   display: grid;
   place-items: center;
-  height: 28px;
+  height: 32px;
   padding: 0;
   border: none;
   background: none;
@@ -426,10 +412,20 @@ body.panel-abierto #botones-mapa {
 }
 
 #cabecera {
+  position: relative;
+  z-index: 1;
   flex: none;
   display: grid;
   grid-template-columns: 156px minmax(0, 1fr);
   padding: 0 16px 4px;
+  transition: box-shadow 0.2s ease;
+}
+/* Al bajar por la lista, la cabecera se separa con una sombra corta. */
+#panel.desplazado #cabecera {
+  box-shadow: 0 7px 8px -7px rgba(20, 33, 61, 0.35);
+}
+#panel.desplazado #contenido {
+  border-top-color: var(--borde-fuerte);
 }
 
 #reloj {
@@ -448,13 +444,36 @@ body.panel-abierto #botones-mapa {
 #hora.largo {
   font-size: 42px;
 }
-#hora.tarde {
-  color: var(--margen);
+/* Ir tarde: las cifras siguen en tinta (se leen al sol) y una etiqueta roja maciza lo dice. */
+.tarde-etiqueta {
+  display: inline-block;
+  margin-right: 4px;
+  padding: 1px 7px;
+  border-radius: 5px;
+  background: var(--tarde);
+  color: #fff;
+  font-weight: 750;
 }
-/* En el repaso la hora va en contorno: no es la de verdad. */
+/* En el repaso la hora va en contorno (con el papel dentro): no es la de verdad. */
 body.repaso #hora {
-  color: transparent;
+  color: var(--papel);
   -webkit-text-stroke: 1.6px var(--tinta);
+}
+/* En directo, el repaso se esconde: la cuenta atrás, una tira fina y «Repasar el día». */
+#btn-repasar {
+  display: none;
+  margin: 2px 0 0 -6px;
+}
+body:not(.repaso) #btn-repasar {
+  display: inline-flex;
+}
+body:not(.repaso) #controles,
+body:not(.repaso) #extremos {
+  display: none;
+}
+body:not(.repaso) #pista {
+  height: 40px;
+  margin-top: 4px;
 }
 #cuenta {
   margin: 5px 0 0;
@@ -765,7 +784,7 @@ body.reproduciendo .icono-pausa {
 
 /* Subrayado fluorescente: trazo de rotulador con los extremos irregulares. */
 .bloque mark,
-li.tramo.actual > span {
+li.tramo.actual .via {
   padding: 0 3px;
   margin-left: -3px;
   border-radius: 0.5em 0.2em 0.6em 0.3em;
@@ -773,6 +792,30 @@ li.tramo.actual > span {
   color: var(--tinta-fija);
   -webkit-box-decoration-break: clone;
   box-decoration-break: clone;
+}
+/* En el repaso no es «ahora» de verdad: el rotulador solo subraya. */
+body.repaso .bloque mark,
+body.repaso li.actual .nombre {
+  background: linear-gradient(transparent 58%, var(--fluor) 58%) 0 0 / 100% 100% no-repeat;
+}
+/* ¿Sigues en…? y cómo recuperar si se va tarde. */
+.pregunta {
+  margin: 0 0 10px;
+  padding: 0 0 8px;
+  border-bottom: 1.5px dashed var(--borde-fuerte);
+}
+.pregunta p {
+  margin: 0 0 4px;
+  color: var(--tinta-suave);
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.25;
+}
+.recuperar {
+  margin: 0;
+  color: var(--tinta);
+  font-size: 14px;
+  line-height: 1.3;
 }
 .detalle-ahora {
   color: var(--tinta-suave);
@@ -805,6 +848,12 @@ li.tramo.actual > span {
 
 /* ---------- Lista del día ---------- */
 
+/* Plegado, la lista solo asoma: se funde abajo en vez de dejar media fila cortada. */
+#panel:not(.expandido) #contenido {
+  -webkit-mask-image: linear-gradient(#000 calc(100% - 36px), transparent);
+  mask-image: linear-gradient(#000 calc(100% - 36px), transparent);
+  padding-bottom: 44px;
+}
 #contenido {
   position: relative;
   flex: 1 1 auto;
@@ -1251,6 +1300,30 @@ body.vista-todo .lista {
 .seccion .enlaces {
   margin-top: 4px;
 }
+/* Antes de salir: dos tareas, cada una en su renglón y con su acción. */
+.tareas {
+  padding-left: 0 !important;
+  list-style: none;
+}
+.tareas li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+}
+.tareas li + li {
+  margin-top: 10px;
+}
+.tareas a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--tinta);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1.5px;
+  text-underline-offset: 3px;
+}
 .pendientes {
   padding-left: 0 !important;
   list-style: none;
@@ -1441,9 +1514,10 @@ body.vista-todo .lista {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
-  gap: 18px;
-  padding: calc(var(--arriba) + 24px) 24px calc(var(--abajo) + 24px);
+  justify-content: safe center;
+  gap: min(18px, 2.5vh);
+  overflow-y: auto;
+  padding: calc(var(--arriba) + 24px) 64px calc(var(--abajo) + 24px);
   background: #fff;
   color: #14213d;
   text-align: center;
@@ -1455,7 +1529,7 @@ body.vista-todo .lista {
   margin: 0;
 }
 #taxi-pedir {
-  font-size: 28px;
+  font-size: min(28px, 7vh);
 }
 #taxi-pedir small {
   display: block;
@@ -1472,17 +1546,28 @@ body.vista-todo .lista {
   text-wrap: balance;
 }
 #taxi-texto {
-  font-size: min(17vw, 112px);
+  font-size: min(17vw, 20vh, 112px);
   font-weight: 700;
   line-height: 1.15;
 }
 #taxi-direccion {
-  font-size: min(7vw, 34px);
+  font-size: min(7vw, 9vh, 34px);
   line-height: 1.3;
 }
 #taxi-nombre {
   color: #4f5b73;
   font-size: 16px;
+}
+/* Apaisado: menos aire para que la tarjeta entera quepa sin desplazar. */
+@media (max-height: 500px) {
+  #taxi {
+    padding-top: calc(var(--arriba) + 10px);
+    padding-bottom: calc(var(--abajo) + 10px);
+  }
+  #taxi-pedir small {
+    display: inline;
+    margin-left: 10px;
+  }
 }
 #taxi-cerrar {
   position: absolute;
@@ -1509,23 +1594,23 @@ body.vista-todo .lista {
 #toast {
   position: fixed;
   z-index: 40;
-  left: 50%;
-  bottom: calc(var(--alto-panel) + 68px);
+  left: 12px;
+  right: 76px;
+  bottom: calc(var(--alto-panel) + 64px);
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 12px;
-  width: max-content;
-  max-width: calc(100vw - 32px);
-  padding: 8px 8px 8px 14px;
+  padding: 6px 6px 6px 14px;
   border-radius: 8px;
   background: var(--tinta);
   color: var(--papel);
   font-size: 14.5px;
-  transform: translateX(-50%);
   box-shadow: var(--sombra-boton);
 }
 #toast-accion {
-  min-height: 36px;
+  flex: none;
+  min-height: 44px;
   padding: 0 10px;
   border: 1.5px solid currentColor;
   border-radius: 8px;
@@ -1686,8 +1771,11 @@ body.reproduciendo li.hecha .marca {
   #cabecera {
     padding: 18px 20px 6px;
   }
-  #contenido {
+  #contenido,
+  #panel:not(.expandido) #contenido {
     padding: 0 20px 28px;
+    -webkit-mask-image: none;
+    mask-image: none;
   }
   #ahora::before {
     top: -16px;
@@ -1697,6 +1785,9 @@ body.reproduciendo li.hecha .marca {
     bottom: 16px;
   }
   #toast {
+    left: 512px;
+    right: auto;
+    width: min(420px, calc(100vw - 528px));
     bottom: 76px;
   }
   .maplibregl-ctrl-bottom-right,
