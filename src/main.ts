@@ -152,35 +152,63 @@ function verTodo() {
 
 // ---------- Línea de tiempo ----------
 
+/**
+ * Escala de la línea de tiempo: cada parada a la misma distancia de la siguiente (como en un
+ * cuaderno), y el tiempo se reparte de forma lineal dentro de cada tramo. Así las paradas no se
+ * amontonan aunque el día dure 16 horas.
+ */
+let escala: number[] = [];
+const RESOLUCION = 1000;
+
+function prepararEscala(dia: DiaC) {
+  const marcas = [dia.desde, ...(dia.origen ? [dia.origen.fin] : []), ...dia.paradas.map((p) => p.inicio), dia.hasta];
+  escala = [...new Set(marcas.map((m) => Math.min(Math.max(m, dia.desde), dia.hasta)))].sort((a, b) => a - b);
+}
+
 /** Posición (0–100 %) de un instante en la línea de tiempo del día. */
-function pct(dia: DiaC, m: number): number {
-  return ((Math.min(Math.max(m, dia.desde), dia.hasta) - dia.desde) / (dia.hasta - dia.desde)) * 100;
+function pct(m: number): number {
+  const n = escala.length - 1;
+  if (n < 1) return 0;
+  let i = 0;
+  while (i < n - 1 && m > escala[i + 1]) i++;
+  const f = Math.min(Math.max((m - escala[i]) / (escala[i + 1] - escala[i]), 0), 1);
+  return ((i + f) / n) * 100;
+}
+
+/** Instante que corresponde a una posición del deslizador. */
+function instanteEn(valor: number): number {
+  const n = escala.length - 1;
+  if (n < 1) return escala[0] ?? 0;
+  const x = (valor / RESOLUCION) * n;
+  const i = Math.min(Math.floor(x), n - 1);
+  return escala[i] + (x - i) * (escala[i + 1] - escala[i]);
 }
 
 function prepararLineaTiempo(dia: DiaC) {
-  el.deslizador.min = String(dia.desde);
-  el.deslizador.max = String(dia.hasta);
+  prepararEscala(dia);
+  el.deslizador.min = '0';
+  el.deslizador.max = String(RESOLUCION);
   el.horaDesde.textContent = hora(dia.desde);
   el.horaHasta.textContent = hora(dia.hasta);
   // Un punto por parada (y la salida del hotel), a su hora de llegada.
   const marcas = [...(dia.origen ? [dia.origen.fin] : []), ...dia.paradas.map((p) => p.inicio)];
-  el.puntos.innerHTML = marcas.map((m) => `<span data-t="${m}" style="left:${pct(dia, m)}%"></span>`).join('');
+  el.puntos.innerHTML = marcas.map((m) => `<span data-t="${m}" style="left:${pct(m)}%"></span>`).join('');
 }
 
 /** Puntos ya pasados rellenos y el fluorescente sobre lo que pasa ahora (la estancia o el trayecto). */
-function pintarLineaTiempo(dia: DiaC, m: Momento) {
+function pintarLineaTiempo(m: Momento) {
   for (const punto of el.puntos.children as HTMLCollectionOf<HTMLElement>) {
     punto.classList.toggle('pasado', Number(punto.dataset.t) <= estado.t);
   }
   const [desde, hasta] = m.tipo === 'camino' ? [m.tramo.salida, m.tramo.llegada] : [m.parada.inicio, m.parada.fin];
-  const izquierda = pct(dia, desde);
+  const izquierda = pct(desde);
   el.tramoAhora.style.left = `${izquierda}%`;
-  el.tramoAhora.style.width = `${Math.max(pct(dia, hasta) - izquierda, 1.5)}%`;
+  el.tramoAhora.style.width = `${Math.max(pct(hasta) - izquierda, 1.5)}%`;
 }
 
 el.deslizador.addEventListener('input', () => {
   pausar();
-  estado.t = Number(el.deslizador.value);
+  estado.t = instanteEn(Number(el.deslizador.value));
   estado.abierta = null;
   pintar(true);
 });
@@ -269,14 +297,13 @@ el.velocidad.addEventListener('click', () => {
 
 function pintar(moverCamara: boolean) {
   if (estado.vista !== 'dia') return;
-  const dia = diaActual();
   const t = estado.t;
   const momento = momentoEn(modelo, t);
   vista.actualizar(t, momento);
   if (estado.seguir) vista.seguir(momento, moverCamara);
-  el.deslizador.value = String(t);
+  el.deslizador.value = String(Math.round((pct(t) / 100) * RESOLUCION));
   el.reloj.textContent = hora(t);
-  pintarLineaTiempo(dia, momento);
+  pintarLineaTiempo(momento);
 
   const clave = claveDe(momento);
   if (clave !== estado.claveMomento) {
@@ -308,23 +335,22 @@ function pintarAhora(m: Momento) {
 }
 
 function bloqueAhora(id: number, titulo: string, detalle: string, hasta = ''): string {
-  return `<button type="button" class="bloque" data-abrir="${id}">
-    <span class="etiqueta">Ahora${hasta ? ` <b>${esc(hasta)}</b>` : ''}</span>
+  return `<button type="button" class="bloque" data-abrir="${id}" aria-label="Ahora: ${esc(titulo)}">
     <span class="titulo"><mark>${esc(titulo)}</mark></span>
     ${detalle ? `<span class="detalle-ahora">${esc(detalle)}</span>` : ''}
+    ${hasta ? `<span class="hasta">${esc(hasta)}</span>` : ''}
   </button>`;
 }
 
 function bloqueDespues(q: ParadaC | undefined, m: Momento): string {
-  if (!q) return `<p class="bloque fin"><span class="etiqueta">Después</span><span class="titulo">Fin del viaje</span></p>`;
+  if (!q) return `<p class="bloque fin"><span class="titulo">Fin del viaje</span></p>`;
   const dia = diaActual();
   const cuando = q.dia === dia.idx ? hora(q.inicio) : `${fechaCorta(modelo.dias[q.dia].d.fecha)} ${hora(q.inicio)}`;
   // Parado: cómo se llega a lo siguiente. De camino: el nombre local del destino, que es lo útil al llegar.
   const tramo = m.tipo === 'parada' ? modelo.tramos.find((t) => t.hasta === q && !t.nulo) : undefined;
   const pie = tramo ? `${TRANSPORTE[tramo.modo]} · ${km(tramo.km)}` : (q.p.local ?? '');
-  return `<button type="button" class="bloque" data-abrir="${q.id}">
-    <span class="etiqueta">Después <b>${esc(cuando)}</b></span>
-    <span class="titulo">${esc(q.p.nombre)}</span>
+  return `<button type="button" class="bloque siguiente" data-abrir="${q.id}" aria-label="Después: ${esc(q.p.nombre)} a las ${esc(cuando)}">
+    <span class="titulo"><span class="cuando">${esc(cuando)}</span> ${esc(q.p.nombre)}</span>
     <span class="pie"><span>${esc(pie)}</span>${precioCorto(q)}</span>
   </button>`;
 }
@@ -454,8 +480,8 @@ function pintarLista(dia: DiaC) {
     <h2 class="titulo-lista"><span>Itinerario del día</span><small>${paradas(visitas)} · ${esc(km(dia.km))}</small></h2>
     <ol class="lista">${filas.join('')}</ol>
     <section class="sobre-dia">
-      <h3>Día ${dia.idx + 1} · ${esc(fechaLarga(dia.d.fecha))}</h3>
-      <p class="titulo-dia">${esc(dia.d.titulo)}</p>
+      <h3>${esc(dia.d.titulo)}</h3>
+      <p class="cifras">Día ${dia.idx + 1} · ${esc(fechaLarga(dia.d.fecha))}</p>
       ${lineaGasto(dia.paradas)}
       ${dia.d.notas ? `<div class="notas-dia">${parrafos(dia.d.notas, '')}</div>` : ''}
     </section>`;
@@ -755,13 +781,19 @@ if (modelo.ejemplo || modelo.avisos.length) {
 // ---------- Arranque ----------
 
 // Si hoy es un día del viaje (hora de China), se abre ese día a la hora actual.
+// Durante el viaje el mapa arranca sobre el tramo de ahora; antes, con el día entero.
 const hoy = ahoraEnChina();
 const hoyIdx = modelo.dias.findIndex((d) => d.d.fecha === hoy.fecha);
-if (hoyIdx >= 0) seleccionarDia(hoyIdx, hoy.min);
-else seleccionarDia(0);
+function arrancar() {
+  if (estado.vista === 'todo') return verTodo();
+  if (hoyIdx < 0) return seleccionarDia(estado.dia, estado.t);
+  seleccionarDia(estado.dia, estado.t, false);
+  ajustarMargenes();
+  vista.seguir(momentoEn(modelo, estado.t), true, true);
+}
+estado.dia = Math.max(hoyIdx, 0);
+estado.t = hoyIdx >= 0 ? hoy.min : modelo.dias[0].desde;
+arrancar();
 // La lista y la línea de tiempo funcionan desde el principio; la ruta se dibuja cuando carga el mapa.
-vista.listo.then(() => {
-  if (estado.vista === 'todo') verTodo();
-  else seleccionarDia(estado.dia, estado.t);
-});
+vista.listo.then(arrancar);
 registrarServiceWorker();

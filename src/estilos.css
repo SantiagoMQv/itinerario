@@ -12,6 +12,7 @@
   --borde-fuerte: rgba(20, 33, 61, 0.32);
   --margen: #e0454d;
   --fluor: #ddf94a;
+  --fluor-suave: #ebfaaa;
   --tinta-fija: #14213d;
   --etiqueta: #e2ecf6;
   --etiqueta-texto: #33415c;
@@ -43,6 +44,7 @@
   --etiqueta: #1f2a3a;
   --etiqueta-texto: #c3cfe1;
   --kraft-velo: rgba(22, 16, 10, 0.72);
+  --fluor-suave: #d3ec4a;
   --pestana-todo: #4a3d2e;
   --boton-mapa: #1b2330;
   --sombra-boton: 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.35);
@@ -327,13 +329,6 @@ body.panel-abierto #botones-mapa {
   padding-right: 12px;
 }
 
-#fila-hora {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 6px;
-}
-
 #hora {
   margin: 0;
   font-size: 50px;
@@ -390,22 +385,23 @@ body.reproduciendo .icono-pausa {
   display: block;
 }
 
+/* Velocidad de reproducción, entre las horas de inicio y fin de la línea de tiempo. */
 #btn-velocidad {
-  flex: none;
-  min-width: 40px;
-  height: 30px;
-  padding: 0 8px;
+  min-width: 36px;
+  height: 26px;
+  padding: 0 7px;
   border: 1.5px solid var(--borde-fuerte);
-  border-radius: 15px;
+  border-radius: 13px;
   background: var(--papel);
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
+  pointer-events: auto;
 }
 
 /* Línea de tiempo: un punto por parada y el fluorescente sobre lo que pasa ahora. */
 #pista {
   position: relative;
-  height: 44px;
+  height: 50px;
 }
 #linea {
   position: absolute;
@@ -418,8 +414,9 @@ body.reproduciendo .icono-pausa {
 }
 #tramo-ahora {
   position: absolute;
-  top: -5px;
-  height: 13px;
+  top: -7px;
+  min-width: 12px;
+  height: 17px;
   border-radius: 3px 5px 4px 3px;
   background: var(--fluor);
   transition:
@@ -429,9 +426,9 @@ body.reproduciendo .icono-pausa {
 #puntos span {
   position: absolute;
   top: 1.5px;
-  width: 10px;
-  height: 10px;
-  border: 2px solid var(--tono);
+  width: 8px;
+  height: 8px;
+  border: 1.5px solid var(--tono);
   border-radius: 50%;
   background: var(--papel);
   transform: translate(-50%, -50%);
@@ -442,10 +439,10 @@ body.reproduciendo .icono-pausa {
 
 #deslizador {
   position: absolute;
-  left: -4px;
-  right: -4px;
+  left: 2px;
+  right: 2px;
   top: 0;
-  width: calc(100% + 8px);
+  width: calc(100% - 4px);
   height: 30px;
   margin: 0;
   background: none;
@@ -460,29 +457,31 @@ body.reproduciendo .icono-pausa {
 #deslizador::-moz-range-track {
   background: none;
 }
+/* La aguja de la hora: una raya de tinta fina para no tapar el fluorescente. */
 #deslizador::-webkit-slider-thumb {
   -webkit-appearance: none;
-  width: 20px;
-  height: 20px;
-  margin-top: 4.5px;
-  border: 3px solid var(--tinta);
-  border-radius: 50%;
-  background: var(--papel);
+  width: 6px;
+  height: 26px;
+  margin-top: 1.5px;
+  border: 1.5px solid var(--papel);
+  border-radius: 4px;
+  background: var(--tinta);
 }
 #deslizador::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border: 3px solid var(--tinta);
-  border-radius: 50%;
-  background: var(--papel);
+  width: 4px;
+  height: 20px;
+  border: 2px solid var(--papel);
+  border-radius: 4px;
+  background: var(--tinta);
 }
 
 #extremos {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 2px;
+  bottom: 0;
   display: flex;
+  align-items: center;
   justify-content: space-between;
   color: var(--tinta-suave);
   font-size: 12.5px;
@@ -524,16 +523,18 @@ body.reproduciendo .icono-pausa {
   background: none;
   text-align: left;
 }
-.etiqueta {
-  color: var(--tinta-suave);
-  font-size: 12px;
-  font-weight: 750;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+/* Hasta cuándo dura lo de ahora (o cuándo se llega) y a qué hora es lo siguiente. */
+.hasta,
+.cuando {
+  font-weight: 700;
+  font-stretch: 88%;
 }
-.etiqueta b {
+.hasta {
   color: var(--tinta);
-  font-weight: 750;
+  font-size: 14.5px;
+}
+.cuando {
+  margin-right: 2px;
 }
 .bloque .titulo {
   display: -webkit-box;
@@ -546,9 +547,9 @@ body.reproduciendo .icono-pausa {
   -webkit-box-orient: vertical;
   -webkit-line-clamp: 3;
 }
-.bloque + hr + .bloque .titulo {
+.bloque.siguiente .titulo {
   font-size: 16px;
-  -webkit-line-clamp: 2;
+  -webkit-line-clamp: 3;
 }
 .bloque.fin .titulo {
   color: var(--tinta-suave);
@@ -644,7 +645,7 @@ li.tramo.actual > span {
   padding: 7px 6px;
   border: none;
   border-radius: 0.5em 0.2em 0.6em 0.3em;
-  background: linear-gradient(var(--fluor), var(--fluor)) 0 0 / 0% 100% no-repeat;
+  background: linear-gradient(var(--fluor-suave), var(--fluor-suave)) 0 0 / 0% 100% no-repeat;
   text-align: left;
   transition: background-size 0.45s cubic-bezier(0.16, 1, 0.3, 1);
 }
@@ -737,7 +738,7 @@ li.hecha .hora-fila {
 }
 
 li.tramo {
-  padding: 0 0 4px 94px;
+  padding: 6px 0 0 94px;
   color: var(--tinta-suave);
   font-size: 13.5px;
   font-stretch: 90%;
@@ -846,16 +847,10 @@ li.abierta > .detalle {
 }
 .sobre-dia h3 {
   margin: 0;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-.titulo-dia {
-  margin: 4px 0 6px;
-  font-size: 17px;
-  font-weight: 650;
-  line-height: 1.3;
+  font-size: 18px;
+  font-weight: 700;
+  font-stretch: 92%;
+  line-height: 1.25;
 }
 .cifras {
   margin: 4px 0 0;
@@ -1040,6 +1035,22 @@ body.vista-todo .lista {
 }
 .marcador.hecha > span {
   rotate: -8deg;
+}
+.marcador.oculto {
+  display: none;
+}
+.marcador.racimo > span {
+  width: auto;
+  min-width: 34px;
+  padding: 0 8px;
+  border-radius: 15px;
+  border-style: double;
+  border-width: 4px;
+  rotate: 0deg;
+}
+/* Si el grupo cae bajo la parada actual, se aparta a su izquierda. */
+.marcador.junto-actual > span {
+  translate: calc(-50% - 22px) 0;
 }
 .marcador.varios > span {
   width: auto;

@@ -105,11 +105,19 @@ const RETOQUES: Record<string, { claro: Record<string, string>; oscuro: Record<s
   water_name_line_label: { claro: { 'text-color': '#3a5f9f' }, oscuro: { 'text-color': '#8db3ea' } },
 };
 
+/** [2, 3, 7] → «2·3·7»; si son más de tres, solo los extremos: «2–8». */
+function rango(numeros: number[]): string {
+  const n = [...new Set(numeros)].sort((a, b) => a - b);
+  return n.length > 3 ? `${n[0]}–${n[n.length - 1]}` : n.join('·');
+}
+
 export class VistaMapa {
   readonly mapa: Mapa;
   readonly listo: Promise<void>;
   /** Un marcador por sitio: si se pasa dos veces por el mismo lugar, comparten marcador. */
-  private marcadores: { m: Marker; grupo: ParadaC[] }[] = [];
+  private marcadores: { m: Marker; grupo: ParadaC[]; etiqueta: string }[] = [];
+  /** Marcadores que, a este zoom, representan a otros que se pisarían con ellos. */
+  private racimos = new Map<Marker, ParadaC[]>();
   private pastillas: { m: Marker; t: TramoC }[] = [];
   private posicion: Marker;
   private dia: DiaC | null = null;
@@ -291,6 +299,7 @@ export class VistaMapa {
     for (const { m } of this.marcadores) m.remove();
     for (const { m } of this.pastillas) m.remove();
     this.marcadores = [];
+    this.racimos.clear();
     this.pastillas = [];
     this.posicion.remove();
   }
@@ -320,9 +329,12 @@ export class VistaMapa {
       el.classList.toggle('opcional', grupo.every((p) => p.p.opcional));
       el.style.setProperty('--color', this.colorDe(dia));
       el.setAttribute('aria-label', grupo[0].p.nombre);
-      el.innerHTML = `<span>${numeros.length ? numeros.join('·') : 'H'}</span>`;
+      const etiqueta = numeros.length ? numeros.join('·') : 'H';
+      el.innerHTML = `<span>${etiqueta}</span>`;
       el.addEventListener('click', (e) => {
         e.stopPropagation();
+        const racimo = this.racimos.get(m);
+        if (racimo) return this.encuadrar(racimo.map((p) => p.pos), true, 17);
         // De las visitas a ese sitio, la que se está haciendo, la siguiente o la última.
         const elegida =
           grupo.find((p) => p.inicio <= this.t && this.t < p.fin) ??
@@ -331,7 +343,7 @@ export class VistaMapa {
         this.eventos.alPulsarParada(elegida);
       });
       const m = new Marker({ element: el }).setLngLat(grupo[0].pos).addTo(this.mapa);
-      this.marcadores.push({ m, grupo });
+      this.marcadores.push({ m, grupo, etiqueta });
     }
 
     for (const t of dia.tramos) {
@@ -351,6 +363,7 @@ export class VistaMapa {
    * y las que se pisarían con otra (tienen preferencia el tramo de ahora y los más largos).
    */
   private ajustarPastillas() {
+    this.agruparMarcadores();
     const puestas: { x: number; y: number; w: number; h: number }[] = [];
     const ahora = this.tramoResaltado();
     const orden = [...this.pastillas].sort((a, b) => Number(b.t === ahora) - Number(a.t === ahora) || b.t.km - a.t.km);
@@ -366,6 +379,37 @@ export class VistaMapa {
       const corto = Math.hypot(a.x - b.x, a.y - b.y) < 110;
       el.classList.toggle('oculta', corto || pisa);
       if (!corto && !pisa) puestas.push(caja);
+    }
+  }
+
+  /**
+   * Las paradas que en pantalla quedan casi encima unas de otras se juntan en un solo marcador
+   * con su rango («2–8»); al tocarlo se acerca el mapa. La parada actual nunca se agrupa.
+   */
+  private agruparMarcadores() {
+    this.racimos.clear();
+    const puntos = this.marcadores.map((x) => {
+      const el = x.m.getElement();
+      el.classList.remove('oculto', 'racimo', 'junto-actual');
+      el.querySelector('span')!.textContent = x.etiqueta;
+      return { x, el, p: this.mapa.project(x.grupo[0].pos), actual: el.classList.contains('actual') };
+    });
+    const usados = new Set<(typeof puntos)[number]>();
+    for (const a of puntos) {
+      if (a.actual || usados.has(a)) continue;
+      const cerca = puntos.filter((b) => b !== a && !b.actual && !usados.has(b) && Math.hypot(a.p.x - b.p.x, a.p.y - b.p.y) < 26);
+      if (!cerca.length) continue;
+      const todas = [a, ...cerca].flatMap((c) => c.x.grupo);
+      usados.add(a);
+      for (const b of cerca) {
+        usados.add(b);
+        b.el.classList.add('oculto');
+      }
+      a.el.classList.add('racimo');
+      const actual = puntos.find((c) => c.actual);
+      a.el.classList.toggle('junto-actual', !!actual && Math.hypot(a.p.x - actual.p.x, a.p.y - actual.p.y) < 40);
+      a.el.querySelector('span')!.textContent = rango(todas.map((p) => p.n).filter((n) => n !== null)) || 'H';
+      this.racimos.set(a.x.m, todas);
     }
   }
 
@@ -509,8 +553,11 @@ export class VistaMapa {
       const punto = puntoEnArco(momento.tramo.arco, momento.f);
       if (cambio) this.encuadrar(momento.tramo.arco.coords, true, 15);
       else if (!this.visible(punto) && !this.mapa.isMoving()) this.centrar(punto, undefined, 500);
-    } else if (cambio && (forzar || !this.visible(momento.parada.pos))) {
-      this.centrar(momento.parada.pos);
+    } else if (cambio) {
+      // Parado: se encuadra la parada con la siguiente, que es el tramo subrayado.
+      const siguiente = this.dia?.tramos.find((t) => t.desde === momento.parada && !t.nulo);
+      if (siguiente) this.encuadrar([siguiente.desde.pos, siguiente.hasta.pos], true, 15);
+      else if (forzar || !this.visible(momento.parada.pos)) this.centrar(momento.parada.pos);
     }
   }
 

@@ -45,10 +45,7 @@
 
       <div id="cabecera">
         <div id="reloj">
-          <div id="fila-hora">
-            <p id="hora"></p>
-            <button id="btn-velocidad" type="button" aria-label="Velocidad de reproducción">×1</button>
-          </div>
+          <p id="hora"></p>
           <div id="controles">
             <button id="btn-anterior" class="btn-control" type="button" aria-label="Parada anterior">
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6.5 5v14M18 5.5 9 12l9 6.5z" /></svg>
@@ -64,7 +61,11 @@
           <div id="pista">
             <div id="linea"><span id="tramo-ahora"></span><span id="puntos"></span></div>
             <input id="deslizador" type="range" min="0" max="1" step="1" value="0" aria-label="Hora del día" />
-            <div id="extremos"><span id="hora-desde"></span><span id="hora-hasta"></span></div>
+            <div id="extremos">
+              <span id="hora-desde"></span>
+              <button id="btn-velocidad" type="button" aria-label="Velocidad de reproducción">×1</button>
+              <span id="hora-hasta"></span>
+            </div>
           </div>
         </div>
         <div id="ahora"></div>
