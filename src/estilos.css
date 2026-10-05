@@ -131,6 +131,7 @@ mark {
   height: 54px;
   padding: 0 8px;
   overflow-x: auto;
+  overflow-y: hidden;
   scrollbar-width: none;
 }
 #dias::-webkit-scrollbar {
@@ -143,8 +144,8 @@ mark {
   flex-direction: column;
   justify-content: center;
   min-width: 78px;
-  height: 44px;
-  padding: 2px 12px 0;
+  height: 50px;
+  padding: 0 12px 6px;
   border: none;
   border-radius: 9px 9px 0 0;
   background: var(--color, var(--pestana-todo));
@@ -153,7 +154,8 @@ mark {
   text-align: center;
   white-space: nowrap;
   box-shadow: inset 0 -1px 0 rgba(0, 0, 0, 0.18);
-  transition: height 0.25s cubic-bezier(0.2, 0.8, 0.2, 1);
+  transform: translateY(6px);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
 }
 .pestana b {
   font-size: 15px;
@@ -169,7 +171,8 @@ mark {
   color: var(--tinta);
 }
 .pestana.activa {
-  height: 50px;
+  padding-bottom: 0;
+  transform: none;
   box-shadow: 0 -2px 6px rgba(20, 16, 10, 0.28);
 }
 
@@ -289,7 +292,6 @@ mark {
   padding-bottom: var(--abajo);
   border-radius: 14px 14px 0 0;
   box-shadow: 0 -2px 14px rgba(20, 33, 61, 0.18);
-  transition: height 0.32s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 #panel.expandido {
   height: 80dvh;
@@ -1193,7 +1195,7 @@ body.vista-todo .lista {
   animation: trazo 0.5s cubic-bezier(0.16, 1, 0.3, 1);
 }
 body.reproduciendo li.hecha .marca {
-  animation: sello 0.34s cubic-bezier(0.2, 0.9, 0.25, 1.15);
+  animation: sello 0.36s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
 @keyframes trazo {

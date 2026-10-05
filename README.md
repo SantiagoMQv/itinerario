@@ -4,12 +4,14 @@ Web para móvil que sirve para revisar el itinerario de un viaje a Shanghái (co
 
 ## Qué hace
 
-- **Línea de tiempo por día:** arrastra el control o pulsa ▶ y la ruta se va dibujando, con un punto que avanza entre paradas. ⏮ ⏭ saltan de parada en parada y ×1…×8 cambia la velocidad.
+- **Línea de tiempo por día:** arrastra el control o pulsa reproducir y la ruta se va dibujando, con un punto que avanza entre paradas. Los botones de los lados saltan de parada en parada y ×1…×8 cambia la velocidad.
+- **Ahora y después:** junto a la hora, lo que toca ahora (subrayado en fluorescente, igual que su tramo en el mapa y su fila en la lista) y lo siguiente, con cómo se llega y cuánto cuesta. Las paradas hechas salen como sellos; las pendientes, como anillos; las opcionales, con trazo discontinuo.
 - **Distancias:** cada trayecto muestra la distancia en línea recta, el medio de transporte y la duración (real o estimada con `~`). Cada parada indica también a qué distancia está del hotel.
 - **Itinerario en lista:** desliza el panel hacia arriba para ver el día entero. Al tocar una parada se abren sus notas, la reserva y botones para abrirla en Amap, Apple Maps o Google Maps.
 - **Enseñar al taxista:** muestra el nombre en chino a pantalla completa.
 - **Todo el viaje:** la pestaña «Todo» enseña todos los días a la vez, cada uno de un color.
-- **Sin conexión:** el botón ⬇ guarda la app y los mapas de todas las zonas del viaje (unos 30 MB).
+- **Sin conexión:** el botón de descarga guarda la app y los mapas de todas las zonas del viaje (unos 30 MB).
+- **Día o noche:** el botón de la luna cambia a modo noche (y el del sol, de vuelta). Se recuerda en el móvil.
 
 Si hoy es un día del viaje (hora de China), la app se abre directamente en ese día y a esa hora.
 
@@ -27,7 +29,7 @@ Todo el itinerario está en [`src/datos/itinerario.ts`](src/datos/itinerario.ts)
 | `llegada` | `{ modo: 'metro', detalle: 'Línea 10', min: 20 }` | Cómo se llega desde la parada anterior: `a_pie`, `metro`, `taxi`, `bus`, `tren`, `maglev`, `ferry`, `avion`, `bici`. |
 | `notas`, `direccion`, `direccionLocal`, `reserva` | | Opcionales. |
 
-Los hoteles no llevan número en el mapa (salen como 🏨). Si hay algo incoherente (una hora anterior a la de la parada previa, por ejemplo), la app lo avisa arriba.
+Los hoteles no llevan número en el mapa (salen con una H). Si hay algo incoherente (una hora anterior a la de la parada previa, por ejemplo), la app lo avisa arriba.
 
 ## Desarrollo
 
