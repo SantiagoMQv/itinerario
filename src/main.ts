@@ -512,8 +512,11 @@ function mostrarFila(li: HTMLElement | null, suave = true) {
   const arriba = li.offsetTop;
   const abajo = arriba + li.offsetHeight;
   if (arriba >= c.scrollTop && abajo <= c.scrollTop + c.clientHeight) return;
+  // Contexto: la parada anterior con el trayecto que lleva a ella, para no cortar ninguna línea.
   let previa = li.previousElementSibling as HTMLElement | null;
   while (previa && !previa.classList.contains('parada')) previa = previa.previousElementSibling as HTMLElement | null;
+  const encima = previa?.previousElementSibling as HTMLElement | null;
+  if (previa && encima?.classList.contains('tramo')) previa = encima;
   const conContexto = previa && abajo - previa.offsetTop <= c.clientHeight ? previa.offsetTop : arriba;
   c.scrollTo({ top: Math.max(0, conContexto - 6), behavior: suave ? 'smooth' : 'auto' });
 }

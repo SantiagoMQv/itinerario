@@ -20,13 +20,21 @@ interface Elemento<G, P> {
 }
 type Linea = Elemento<{ type: 'LineString'; coordinates: LngLat[] }, { hecho: boolean; color: string }>;
 type Punto = Elemento<{ type: 'Point'; coordinates: LngLat }, { id: number; color: string }>;
+type Hueco = Elemento<{ type: 'Point'; coordinates: LngLat }, { img: string }>;
+const hueco = (pos: LngLat, img: string): Hueco => ({ type: 'Feature', geometry: { type: 'Point', coordinates: pos }, properties: { img } });
 
 const linea = (coords: LngLat[], hecho: boolean, color: string): Linea => ({
   type: 'Feature',
   geometry: { type: 'LineString', coordinates: coords },
   properties: { hecho, color },
 });
-const coleccion = (features: (Linea | Punto)[]) => ({ type: 'FeatureCollection' as const, features });
+const coleccion = (features: (Linea | Punto | Hueco)[]) => ({ type: 'FeatureCollection' as const, features });
+
+/**
+ * Huecos transparentes (ancho × alto en px) que se colocan donde van los marcadores y las
+ * pastillas: los rótulos del mapa base chocan con ellos y se apartan en vez de quedar debajo.
+ */
+const HUECOS: Record<string, [number, number]> = { marcador: [40, 40], pastilla: [66, 26], punto: [16, 16] };
 
 export interface Margenes {
   top: number;
@@ -105,10 +113,17 @@ const RETOQUES: Record<string, { claro: Record<string, string>; oscuro: Record<s
   water_name_line_label: { claro: { 'text-color': '#3a5f9f' }, oscuro: { 'text-color': '#8db3ea' } },
 };
 
-/** [2, 3, 7] → «2·3·7»; si son más de tres, solo los extremos: «2–8». */
+/** [2, 3, 5, 6, 7, 8] → «2–3·5–8»: solo los números que de verdad hay en el grupo. */
 function rango(numeros: number[]): string {
   const n = [...new Set(numeros)].sort((a, b) => a - b);
-  return n.length > 3 ? `${n[0]}–${n[n.length - 1]}` : n.join('·');
+  const tramos: string[] = [];
+  for (let i = 0; i < n.length; i++) {
+    let j = i;
+    while (j + 1 < n.length && n[j + 1] === n[j] + 1) j++;
+    tramos.push(j > i + 1 ? `${n[i]}–${n[j]}` : n.slice(i, j + 1).join('·'));
+    i = j;
+  }
+  return tramos.join('·');
 }
 
 export class VistaMapa {
@@ -182,6 +197,10 @@ export class VistaMapa {
     m.addSource('tinta', { type: 'geojson', data: vacio });
     m.addSource('todo', { type: 'geojson', data: vacio });
     m.addSource('todo-puntos', { type: 'geojson', data: vacio });
+    m.addSource('huecos', { type: 'geojson', data: vacio });
+    for (const [nombre, [w, h]] of Object.entries(HUECOS)) {
+      m.addImage(`hueco-${nombre}`, { width: w, height: h, data: new Uint8Array(w * h * 4) });
+    }
 
     const redondo = { 'line-cap': 'round', 'line-join': 'round' } as const;
     // El trazo fluorescente va debajo de todo: subraya el tramo que toca ahora.
@@ -233,6 +252,14 @@ export class VistaMapa {
         'circle-stroke-color': '#ffffff',
         'circle-stroke-width': 2,
       },
+    });
+    // Encima de todo para colocarse antes que los rótulos del mapa base.
+    m.addLayer({
+      id: 'huecos',
+      type: 'symbol',
+      source: 'huecos',
+      layout: { 'icon-image': ['concat', 'hueco-', ['get', 'img']], 'icon-allow-overlap': true },
+      paint: { 'icon-opacity': 0 },
     });
     m.on('click', 'todo-puntos', (e) => {
       const id = e.features?.[0]?.properties?.id;
@@ -355,6 +382,12 @@ export class VistaMapa {
       const m = new Marker({ element: el }).setLngLat(puntoEnArco(t.arco, 0.5)).addTo(this.mapa);
       this.pastillas.push({ m, t });
     }
+    this.fuente('huecos')?.setData(
+      coleccion([
+        ...[...grupos.values()].map((g) => hueco(g[0].pos, 'marcador')),
+        ...dia.tramos.filter((t) => !t.nulo).map((t) => hueco(puntoEnArco(t.arco, 0.5), 'pastilla')),
+      ]),
+    );
     this.ajustarPastillas();
   }
 
@@ -390,26 +423,39 @@ export class VistaMapa {
     this.racimos.clear();
     const puntos = this.marcadores.map((x) => {
       const el = x.m.getElement();
-      el.classList.remove('oculto', 'racimo', 'junto-actual');
+      el.classList.remove('oculto', 'racimo', 'junto-actual', 'junto-actual-dcha');
       el.querySelector('span')!.textContent = x.etiqueta;
       return { x, el, p: this.mapa.project(x.grupo[0].pos), actual: el.classList.contains('actual') };
     });
-    const usados = new Set<(typeof puntos)[number]>();
-    for (const a of puntos) {
-      if (a.actual || usados.has(a)) continue;
-      const cerca = puntos.filter((b) => b !== a && !b.actual && !usados.has(b) && Math.hypot(a.p.x - b.p.x, a.p.y - b.p.y) < 26);
-      if (!cerca.length) continue;
-      const todas = [a, ...cerca].flatMap((c) => c.x.grupo);
-      usados.add(a);
-      for (const b of cerca) {
-        usados.add(b);
-        b.el.classList.add('oculto');
+    const actual = puntos.find((c) => c.actual);
+    const otros = puntos.filter((c) => !c.actual);
+    const cerca = (a: (typeof puntos)[number], b: (typeof puntos)[number], d: number) =>
+      Math.hypot(a.p.x - b.p.x, a.p.y - b.p.y) < d;
+    // Grupos encadenados: si A pisa a B y B pisa a C, van los tres juntos. Lo que queda bajo la
+    // parada actual también se junta, para apartarlo a un lado.
+    const raiz = otros.map((_, i) => i);
+    const buscar = (i: number): number => (raiz[i] === i ? i : (raiz[i] = buscar(raiz[i])));
+    const bajoActual = otros.map((o) => !!actual && cerca(o, actual, 34));
+    for (let i = 0; i < otros.length; i++) {
+      for (let j = i + 1; j < otros.length; j++) {
+        if (cerca(otros[i], otros[j], 26) || (bajoActual[i] && bajoActual[j])) raiz[buscar(j)] = buscar(i);
       }
-      a.el.classList.add('racimo');
-      const actual = puntos.find((c) => c.actual);
-      a.el.classList.toggle('junto-actual', !!actual && Math.hypot(a.p.x - actual.p.x, a.p.y - actual.p.y) < 40);
-      a.el.querySelector('span')!.textContent = rango(todas.map((p) => p.n).filter((n) => n !== null)) || 'H';
-      this.racimos.set(a.x.m, todas);
+    }
+    const grupos = new Map<number, number[]>();
+    otros.forEach((_, i) => grupos.set(buscar(i), [...(grupos.get(buscar(i)) ?? []), i]));
+    for (const indices of grupos.values()) {
+      const miembros = indices.map((i) => otros[i]);
+      const lider = miembros[0];
+      if (miembros.length > 1) {
+        for (const m of miembros.slice(1)) m.el.classList.add('oculto');
+        const todas = miembros.flatMap((c) => c.x.grupo);
+        lider.el.classList.add('racimo');
+        lider.el.querySelector('span')!.textContent = rango(todas.map((p) => p.n).filter((n) => n !== null)) || 'H';
+        this.racimos.set(lider.x.m, todas);
+      }
+      if (indices.some((i) => bajoActual[i]) || (actual && cerca(lider, actual, 40))) {
+        lider.el.classList.add(lider.p.x < 120 ? 'junto-actual-dcha' : 'junto-actual');
+      }
     }
   }
 
@@ -433,6 +479,7 @@ export class VistaMapa {
     this.fuente('todo')?.setData(
       coleccion(dias.flatMap((d) => d.tramos.filter((t) => !t.nulo).map((t) => linea(t.arco.coords, true, this.colorDe(d))))),
     );
+    this.fuente('huecos')?.setData(coleccion(paradas.map((p) => hueco(p.pos, 'punto'))));
     this.fuente('todo-puntos')?.setData(
       coleccion(
         paradas.map(

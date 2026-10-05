@@ -737,8 +737,9 @@ li.hecha .hora-fila {
   vertical-align: 1px;
 }
 
+/* El trayecto va pegado a la parada a la que lleva y separado de la anterior. */
 li.tramo {
-  padding: 6px 0 0 94px;
+  padding: 14px 0 0 94px;
   color: var(--tinta-suave);
   font-size: 13.5px;
   font-stretch: 90%;
@@ -747,6 +748,10 @@ li.tramo {
 li.tramo small {
   display: block;
   font-size: 13px;
+}
+li.tramo + li.parada > .fila {
+  min-height: 42px;
+  padding-top: 2px;
 }
 li.tramo.actual {
   color: var(--tinta-fija);
@@ -1048,9 +1053,12 @@ body.vista-todo .lista {
   border-width: 4px;
   rotate: 0deg;
 }
-/* Si el grupo cae bajo la parada actual, se aparta a su izquierda. */
+/* Si el grupo cae bajo la parada actual, se aparta a un lado (a la derecha si no cabe). */
 .marcador.junto-actual > span {
-  translate: calc(-50% - 22px) 0;
+  translate: calc(-50% - 30px) 0;
+}
+.marcador.junto-actual-dcha > span {
+  translate: calc(50% + 30px) 0;
 }
 .marcador.varios > span {
   width: auto;
