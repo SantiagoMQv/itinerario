@@ -1,0 +1,890 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-05T17:33:20.491Z",
+  "title": "Design System: Itinerario",
+  "extensions": {
+    "colorMeta": {
+      "papel": {
+        "role": "neutral",
+        "displayName": "Papel blanco",
+        "canonical": "#ffffff",
+        "oklch": "oklch(100.0% 0.000 89.9)",
+        "tonalRamp": [
+          "#0b0b0b",
+          "#242424",
+          "#424242",
+          "#636363",
+          "#868686",
+          "#ababab",
+          "#cecece",
+          "#eeeeee"
+        ]
+      },
+      "reticula": {
+        "role": "neutral",
+        "displayName": "Retícula azul pálida",
+        "canonical": "#dce7f2",
+        "oklch": "oklch(92.3% 0.019 -112.0)",
+        "tonalRamp": [
+          "#050c13",
+          "#1d252d",
+          "#3b434c",
+          "#5b646e",
+          "#7d8791",
+          "#a2acb7",
+          "#c4cfda",
+          "#e5f0fb"
+        ]
+      },
+      "tinta": {
+        "role": "neutral",
+        "displayName": "Tinta azul casi negra",
+        "canonical": "#14213d",
+        "oklch": "oklch(25.2% 0.056 -96.0)",
+        "tonalRamp": [
+          "#020922",
+          "#16233f",
+          "#334261",
+          "#536384",
+          "#7586a9",
+          "#99abcf",
+          "#bbcef4",
+          "#e7effe"
+        ]
+      },
+      "tinta-suave": {
+        "role": "neutral",
+        "displayName": "Tinta suave",
+        "canonical": "#4f5b73",
+        "oklch": "oklch(47.0% 0.042 -96.0)",
+        "tonalRamp": [
+          "#040a1d",
+          "#1a2438",
+          "#374259",
+          "#57637c",
+          "#7986a0",
+          "#9eabc6",
+          "#c0ceea",
+          "#e7effe"
+        ]
+      },
+      "margen": {
+        "role": "tertiary",
+        "displayName": "Rojo de margen",
+        "canonical": "#e0454d",
+        "oklch": "oklch(61.4% 0.191 22.1)",
+        "tonalRamp": [
+          "#1f0002",
+          "#4b000a",
+          "#810018",
+          "#b7152c",
+          "#e2474f",
+          "#fe7e7d",
+          "#ffb9b6",
+          "#fee9e7"
+        ]
+      },
+      "fluor": {
+        "role": "secondary",
+        "displayName": "Fluorescente de rotulador",
+        "canonical": "#ddf94a",
+        "oklch": "oklch(93.2% 0.193 118.3)",
+        "tonalRamp": [
+          "#0a0d00",
+          "#212800",
+          "#3e4800",
+          "#5e6b05",
+          "#7f9107",
+          "#a2b80a",
+          "#c3de1d",
+          "#e3ff5a"
+        ]
+      },
+      "fluor-suave": {
+        "role": "secondary",
+        "displayName": "Fluorescente pálido",
+        "canonical": "#ebfaaa",
+        "oklch": "oklch(95.6% 0.103 117.0)",
+        "tonalRamp": [
+          "#0a0d00",
+          "#222701",
+          "#3f4801",
+          "#5f6a1a",
+          "#828e41",
+          "#a6b366",
+          "#c9d788",
+          "#e9f8a8"
+        ]
+      },
+      "etiqueta": {
+        "role": "neutral",
+        "displayName": "Etiqueta azul hielo",
+        "canonical": "#e2ecf6",
+        "oklch": "oklch(93.8% 0.017 -112.0)",
+        "tonalRamp": [
+          "#060c12",
+          "#1e252c",
+          "#3b434b",
+          "#5c646d",
+          "#7e8790",
+          "#a3acb5",
+          "#c5cfd9",
+          "#e6f0fa"
+        ]
+      },
+      "etiqueta-texto": {
+        "role": "neutral",
+        "displayName": "Texto de etiqueta",
+        "canonical": "#33415c",
+        "oklch": "oklch(37.5% 0.050 -96.9)",
+        "tonalRamp": [
+          "#020920",
+          "#17233c",
+          "#34425d",
+          "#546380",
+          "#7687a5",
+          "#9aabcb",
+          "#bdceef",
+          "#e7effe"
+        ]
+      },
+      "kraft": {
+        "role": "tertiary",
+        "displayName": "Cartón kraft",
+        "canonical": "#a8804f",
+        "oklch": "oklch(62.8% 0.082 71.0)",
+        "tonalRamp": [
+          "#130800",
+          "#351e00",
+          "#5d3a02",
+          "#815b29",
+          "#a67e4d",
+          "#cca271",
+          "#f0c592",
+          "#ffebd5"
+        ]
+      },
+      "pestana-todo": {
+        "role": "neutral",
+        "displayName": "Cartulina",
+        "canonical": "#efe3d2",
+        "oklch": "oklch(92.1% 0.026 76.8)",
+        "tonalRamp": [
+          "#110a01",
+          "#2b2215",
+          "#4a4133",
+          "#6c6253",
+          "#8f8475",
+          "#b4a999",
+          "#d8ccbb",
+          "#f9eddc"
+        ]
+      },
+      "dia-cobalto": {
+        "role": "primary",
+        "displayName": "Cobalto (día 1)",
+        "canonical": "#2453d1",
+        "oklch": "oklch(49.3% 0.201 -95.6)",
+        "tonalRamp": [
+          "#000035",
+          "#010078",
+          "#072dab",
+          "#2655d3",
+          "#477cfd",
+          "#80a9ff",
+          "#b6ceff",
+          "#e7efff"
+        ]
+      },
+      "dia-verde-hoja": {
+        "role": "primary",
+        "displayName": "Verde hoja (día 2)",
+        "canonical": "#1e7f3e",
+        "oklch": "oklch(52.6% 0.132 149.7)",
+        "tonalRamp": [
+          "#001003",
+          "#002d0f",
+          "#025121",
+          "#117737",
+          "#419c59",
+          "#68c27d",
+          "#8be69f",
+          "#c8ffd1"
+        ]
+      },
+      "dia-magenta": {
+        "role": "primary",
+        "displayName": "Magenta (día 3)",
+        "canonical": "#c8327e",
+        "oklch": "oklch(57.0% 0.196 -5.5)",
+        "tonalRamp": [
+          "#1d000d",
+          "#470027",
+          "#7b0047",
+          "#b0126a",
+          "#da448d",
+          "#ff74b1",
+          "#ffb5d1",
+          "#fee8ef"
+        ]
+      },
+      "dia-naranja": {
+        "role": "primary",
+        "displayName": "Naranja (día 4)",
+        "canonical": "#c45200",
+        "oklch": "oklch(57.8% 0.163 45.8)",
+        "tonalRamp": [
+          "#190500",
+          "#3f1500",
+          "#6e2b00",
+          "#a14200",
+          "#d25f1b",
+          "#fc8549",
+          "#ffbc9e",
+          "#feeae1"
+        ]
+      },
+      "dia-verde-azulado": {
+        "role": "primary",
+        "displayName": "Verde azulado (día 5)",
+        "canonical": "#00777a",
+        "oklch": "oklch(51.7% 0.088 -162.1)",
+        "tonalRamp": [
+          "#000e0f",
+          "#002a2c",
+          "#024c4e",
+          "#057274",
+          "#369699",
+          "#60bcbf",
+          "#84e0e2",
+          "#b9fdff"
+        ]
+      },
+      "dia-ciruela": {
+        "role": "primary",
+        "displayName": "Ciruela (día 6)",
+        "canonical": "#7a2e8e",
+        "oklch": "oklch(45.2% 0.162 -41.4)",
+        "tonalRamp": [
+          "#17001e",
+          "#3b0149",
+          "#641578",
+          "#893d9d",
+          "#ae61c4",
+          "#d587ec",
+          "#eeb5ff",
+          "#f9e7ff"
+        ]
+      },
+      "dia-rojo": {
+        "role": "primary",
+        "displayName": "Rojo (día 7)",
+        "canonical": "#b3261e",
+        "oklch": "oklch(50.1% 0.178 28.7)",
+        "tonalRamp": [
+          "#1f0000",
+          "#4b0001",
+          "#810203",
+          "#b3251e",
+          "#dd5043",
+          "#ff7f6f",
+          "#febab0",
+          "#ffe9e5"
+        ]
+      },
+      "dia-oliva": {
+        "role": "primary",
+        "displayName": "Oliva (día 8)",
+        "canonical": "#5c6b12",
+        "oklch": "oklch(49.8% 0.110 119.3)",
+        "tonalRamp": [
+          "#0a0d00",
+          "#212800",
+          "#3d4900",
+          "#5c6b13",
+          "#7f8f3d",
+          "#a3b562",
+          "#c5d885",
+          "#e6faa5"
+        ]
+      },
+      "dia-tabaco": {
+        "role": "primary",
+        "displayName": "Tabaco (día 9)",
+        "canonical": "#8a4b1f",
+        "oklch": "oklch(48.1% 0.102 52.3)",
+        "tonalRamp": [
+          "#170600",
+          "#3c1900",
+          "#693001",
+          "#905025",
+          "#b77449",
+          "#de986d",
+          "#ffbd96",
+          "#ffeadd"
+        ]
+      },
+      "dia-indigo": {
+        "role": "primary",
+        "displayName": "Índigo (día 10)",
+        "canonical": "#3949ab",
+        "oklch": "oklch(45.1% 0.157 -88.4)",
+        "tonalRamp": [
+          "#040033",
+          "#12086e",
+          "#283394",
+          "#4558bb",
+          "#657de4",
+          "#8da5ff",
+          "#bcccfe",
+          "#e9eeff"
+        ]
+      },
+      "mapa-agua": {
+        "role": "neutral",
+        "displayName": "Agua del plano",
+        "canonical": "#c8ddf2",
+        "oklch": "oklch(88.8% 0.037 -111.8)",
+        "tonalRamp": [
+          "#010c1a",
+          "#152535",
+          "#334455",
+          "#536578",
+          "#75899c",
+          "#99adc1",
+          "#bcd0e5",
+          "#e2f0ff"
+        ]
+      },
+      "mapa-parque": {
+        "role": "neutral",
+        "displayName": "Parque del plano",
+        "canonical": "#deecd6",
+        "oklch": "oklch(92.7% 0.033 133.9)",
+        "tonalRamp": [
+          "#060e02",
+          "#1d2817",
+          "#3b4635",
+          "#5c6855",
+          "#7e8b77",
+          "#a2b09b",
+          "#c5d3bd",
+          "#e6f4de"
+        ]
+      },
+      "papel-noche": {
+        "role": "neutral",
+        "displayName": "Papel de noche",
+        "canonical": "#121820",
+        "oklch": "oklch(20.7% 0.018 -104.3)",
+        "tonalRamp": [
+          "#060b13",
+          "#1e252d",
+          "#3c434c",
+          "#5c646e",
+          "#7f8791",
+          "#a3acb7",
+          "#c6cfda",
+          "#e7effb"
+        ]
+      },
+      "tinta-noche": {
+        "role": "neutral",
+        "displayName": "Tinta clara de noche",
+        "canonical": "#e8ecf2",
+        "oklch": "oklch(94.2% 0.009 -101.7)",
+        "tonalRamp": [
+          "#090b0f",
+          "#212429",
+          "#3f4347",
+          "#606369",
+          "#83868c",
+          "#a7abb1",
+          "#caced4",
+          "#ebeff5"
+        ]
+      },
+      "tinta-suave-noche": {
+        "role": "neutral",
+        "displayName": "Tinta suave de noche",
+        "canonical": "#a5b0c3",
+        "oklch": "oklch(75.5% 0.030 -98.5)",
+        "tonalRamp": [
+          "#050b18",
+          "#1c2433",
+          "#3a4353",
+          "#5a6475",
+          "#7c8799",
+          "#a0abbe",
+          "#c3cee2",
+          "#e6effe"
+        ]
+      },
+      "margen-noche": {
+        "role": "tertiary",
+        "displayName": "Rojo de margen de noche",
+        "canonical": "#ff6b72",
+        "oklch": "oklch(71.3% 0.181 20.1)",
+        "tonalRamp": [
+          "#1f0002",
+          "#4b000d",
+          "#80001d",
+          "#b32035",
+          "#de4c57",
+          "#ff7d80",
+          "#feb9b8",
+          "#ffe8e8"
+        ]
+      },
+      "fluor-suave-noche": {
+        "role": "secondary",
+        "displayName": "Fluorescente pálido de noche",
+        "canonical": "#d3ec4a",
+        "oklch": "oklch(89.6% 0.182 117.9)",
+        "tonalRamp": [
+          "#0a0d00",
+          "#222800",
+          "#3f4800",
+          "#5e6b01",
+          "#7f9100",
+          "#a2b800",
+          "#c4dd35",
+          "#e4fe5f"
+        ]
+      },
+      "etiqueta-noche": {
+        "role": "neutral",
+        "displayName": "Etiqueta de noche",
+        "canonical": "#1f2a3a",
+        "oklch": "oklch(28.2% 0.033 -102.3)",
+        "tonalRamp": [
+          "#040b19",
+          "#1a2434",
+          "#374354",
+          "#576477",
+          "#7a879b",
+          "#9eacc0",
+          "#c0cfe4",
+          "#e5efff"
+        ]
+      },
+      "etiqueta-texto-noche": {
+        "role": "neutral",
+        "displayName": "Texto de etiqueta de noche",
+        "canonical": "#c3cfe1",
+        "oklch": "oklch(85.1% 0.028 -101.6)",
+        "tonalRamp": [
+          "#050b17",
+          "#1c2432",
+          "#394352",
+          "#596474",
+          "#7c8798",
+          "#a0acbd",
+          "#c3cfe1",
+          "#e6effe"
+        ]
+      },
+      "kraft-noche": {
+        "role": "tertiary",
+        "displayName": "Kraft velado de noche",
+        "canonical": "#2a2119",
+        "oklch": "oklch(25.6% 0.020 63.4)",
+        "tonalRamp": [
+          "#110904",
+          "#2b221a",
+          "#4a4038",
+          "#6c6158",
+          "#8f847a",
+          "#b4a89e",
+          "#d8cbc1",
+          "#f9ece1"
+        ]
+      },
+      "pestana-todo-noche": {
+        "role": "neutral",
+        "displayName": "Cartulina de noche",
+        "canonical": "#4a3d2e",
+        "oklch": "oklch(36.9% 0.030 70.7)",
+        "tonalRamp": [
+          "#130900",
+          "#2d2213",
+          "#4d4031",
+          "#6f6151",
+          "#928373",
+          "#b7a897",
+          "#dbcbb9",
+          "#fcecd9"
+        ]
+      },
+      "boton-mapa-noche": {
+        "role": "neutral",
+        "displayName": "Botón de mapa de noche",
+        "canonical": "#1b2330",
+        "oklch": "oklch(25.5% 0.027 -100.0)",
+        "tonalRamp": [
+          "#050b17",
+          "#1c2431",
+          "#3a4351",
+          "#5a6473",
+          "#7d8797",
+          "#a1acbd",
+          "#c4cee0",
+          "#e6efff"
+        ]
+      },
+      "mapa-agua-noche": {
+        "role": "neutral",
+        "displayName": "Agua de noche",
+        "canonical": "#16304d",
+        "oklch": "oklch(30.4% 0.062 -107.3)",
+        "tonalRamp": [
+          "#000b1e",
+          "#0b2541",
+          "#294462",
+          "#4a6586",
+          "#6c89ab",
+          "#8faed1",
+          "#b2d1f6",
+          "#e4f0ff"
+        ]
+      },
+      "mapa-parque-noche": {
+        "role": "neutral",
+        "displayName": "Parque de noche",
+        "canonical": "#1a2a24",
+        "oklch": "oklch(26.9% 0.024 169.1)",
+        "tonalRamp": [
+          "#020e09",
+          "#182822",
+          "#364740",
+          "#566861",
+          "#798b84",
+          "#9db0a8",
+          "#bfd3cb",
+          "#e0f4ec"
+        ]
+      }
+    },
+    "themes": {
+      "oscuro": {
+        "selector": ":root[data-tema='oscuro']",
+        "note": "Tema noche manual. --tono = color-mix(in srgb, var(--color-dia) 62%, #ffffff); en el mapa los colores de día se aclaran un 38 % hacia blanco y el estilo base se recolorea en sitio (suelo y calles a azul noche hsl 216, rótulos claros, halos hsla(216, 30%, 12%)). La textura kraft se vela con rgba(22, 16, 10, 0.72). fluor no cambia."
+      }
+    },
+    "translucent": [
+      {
+        "name": "borde",
+        "value": "rgba(20, 33, 61, 0.14)",
+        "night": "rgba(232, 236, 242, 0.14)",
+        "purpose": "Divisores de lista y de contenido."
+      },
+      {
+        "name": "borde-fuerte",
+        "value": "rgba(20, 33, 61, 0.32)",
+        "night": "rgba(232, 236, 242, 0.34)",
+        "purpose": "Contornos de botones, asa, separador ahora/después."
+      },
+      {
+        "name": "reticula-noche",
+        "value": "rgba(126, 156, 196, 0.13)",
+        "purpose": "Retícula de la página de noche."
+      }
+    ],
+    "typographyMeta": {
+      "display": {
+        "displayName": "Hora",
+        "purpose": "La hora del viaje en la cabecera del panel; una por pantalla."
+      },
+      "headline": {
+        "displayName": "Título del viaje",
+        "purpose": "Vista «Todo»."
+      },
+      "title": {
+        "displayName": "Título de ahora",
+        "purpose": "Título de «ahora», hasta tres líneas; resumen del día a 18 px."
+      },
+      "title-sm": {
+        "displayName": "Título de después",
+        "purpose": "Siguiente parada en gramática de fila."
+      },
+      "body": {
+        "displayName": "Cuerpo de lista",
+        "purpose": "Nombre de cada parada."
+      },
+      "body-prose": {
+        "displayName": "Notas",
+        "purpose": "Notas de parada y de día."
+      },
+      "meta": {
+        "displayName": "Meta",
+        "purpose": "Trayectos, detalles, cifras, nombre local."
+      },
+      "numeral": {
+        "displayName": "Hora de fila",
+        "purpose": "Horas tabulares de la lista."
+      },
+      "label": {
+        "displayName": "Encabezado de lista",
+        "purpose": "Solo para nombrar una lista o sección y para términos de la ficha; nunca como antetítulo."
+      },
+      "tab": {
+        "displayName": "Pestaña",
+        "purpose": "«Día N» en las pestañas; fecha a 12,5 px/500."
+      }
+    },
+    "fonts": [
+      {
+        "family": "Archivo Variable",
+        "source": "@fontsource-variable/archivo (wdth.css), autoalojada",
+        "axes": {
+          "wdth": "62–125",
+          "wght": "100–900"
+        }
+      }
+    ],
+    "plates": [
+      {
+        "name": "kraft",
+        "path": "assets/plates/kraft.png",
+        "use": "Solo la barra de días, en mosaico a 231 px de ancho.",
+        "provenance": "Recorte de la región kraft del boceto aprobado .impeccable/mocks/cuaderno-a.png, en espejo 4×4; procedencia incrustada en el PNG (tEXt impeccable:prompt)."
+      }
+    ],
+    "shadows": [
+      {
+        "name": "sombra-boton",
+        "value": "0 1px 2px rgba(20, 33, 61, 0.2), 0 4px 12px rgba(20, 33, 61, 0.14)",
+        "night": "0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.35)",
+        "purpose": "Botones sobre el mapa, «Seguir recorrido», panel en escritorio."
+      },
+      {
+        "name": "panel-movil",
+        "value": "0 -2px 14px rgba(20, 33, 61, 0.18)",
+        "purpose": "La página que sube desde abajo."
+      },
+      {
+        "name": "pestana-activa",
+        "value": "0 -2px 6px rgba(20, 16, 10, 0.28)",
+        "purpose": "Pestaña de día activa sobre la tapa."
+      },
+      {
+        "name": "pestana-hundida",
+        "value": "inset 0 -1px 0 rgba(0, 0, 0, 0.18)",
+        "purpose": "Pestañas inactivas."
+      },
+      {
+        "name": "marcador",
+        "value": "0 0 0 2px var(--papel), 0 2px 5px rgba(20, 33, 61, 0.3)",
+        "purpose": "Paradas en el mapa."
+      },
+      {
+        "name": "marcador-actual",
+        "value": "0 0 0 5px var(--fluor), 0 3px 8px rgba(20, 33, 61, 0.35)",
+        "purpose": "Parada actual en el mapa."
+      },
+      {
+        "name": "play",
+        "value": "0 2px 6px color-mix(in srgb, var(--color-dia) 40%, transparent)",
+        "purpose": "Solo el botón de reproducir."
+      },
+      {
+        "name": "sello-filo",
+        "value": "inset 0 0 0 2px var(--tono), inset 0 0 0 3.5px color-mix(in srgb, var(--papel) 60%, transparent)",
+        "purpose": "Filo interior del sello relleno."
+      }
+    ],
+    "motion": [
+      {
+        "name": "ease-tinta",
+        "value": "cubic-bezier(0.16, 1, 0.3, 1)",
+        "purpose": "Curva de todas las transiciones y marcas."
+      },
+      {
+        "name": "trazo",
+        "value": "0.5s",
+        "purpose": "El rotulador se traza bajo el título de ahora."
+      },
+      {
+        "name": "banda-fila",
+        "value": "0.45s",
+        "purpose": "La banda pálida recorre la fila activa (background-size)."
+      },
+      {
+        "name": "sello",
+        "value": "0.36s",
+        "purpose": "El sello cae (scale 1.45 → 1, rotate 6deg) al reproducir."
+      },
+      {
+        "name": "pestana",
+        "value": "0.25s",
+        "purpose": "La pestaña activa sube."
+      },
+      {
+        "name": "tramo-linea",
+        "value": "0.2s",
+        "purpose": "Segmento fluorescente de la línea de tiempo (left, width)."
+      },
+      {
+        "name": "pulso",
+        "value": "1.6s infinite",
+        "purpose": "Posición del usuario: anillo fluorescente que se expande 16 px."
+      },
+      {
+        "name": "reduced-motion",
+        "value": "animation: none; transition: none",
+        "purpose": "Con prefers-reduced-motion se anulan todas."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "escritorio",
+        "value": "760px",
+        "purpose": "El panel pasa a página flotante de 440 px a la izquierda."
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Pestañas de día",
+      "kind": "nav",
+      "refersTo": "pestana-dia",
+      "description": "Separadores de cartón sobre la tapa kraft; la activa sube en su color.",
+      "html": "<nav class=\"ds-barra\"><button class=\"ds-pestana ds-todo\"><b>Todo</b></button><button class=\"ds-pestana ds-activa\" style=\"--color:#2453d1\"><b>Día 1</b><small>mié 21</small></button><button class=\"ds-pestana\" style=\"--color:#1e7f3e\"><b>Día 2</b><small>jue 22</small></button><button class=\"ds-pestana\" style=\"--color:#c8327e\"><b>Día 3</b><small>vie 23 · Nankín</small></button></nav>",
+      "css": ".ds-barra{display:flex;align-items:flex-end;gap:4px;height:54px;padding:0 8px;background:#a8804f;box-shadow:0 1px 0 rgba(20,33,61,.25);font-family:var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif);font-variant-numeric:tabular-nums}.ds-pestana{display:flex;flex-direction:column;justify-content:center;min-width:78px;height:50px;padding:0 12px 6px;border:none;border-radius:9px 9px 0 0;background:var(--color,#efe3d2);color:#fff;line-height:1.12;white-space:nowrap;box-shadow:inset 0 -1px 0 rgba(0,0,0,.18);transform:translateY(6px);transition:transform .25s cubic-bezier(.16,1,.3,1);cursor:pointer;font-family:inherit}.ds-pestana b{font-size:15px;font-weight:700}.ds-pestana small{font-size:12.5px;font-weight:500;font-stretch:92%}.ds-todo{min-width:70px;color:#14213d}.ds-pestana:hover{transform:translateY(3px)}.ds-activa,.ds-activa:hover{padding-bottom:0;transform:none;box-shadow:0 -2px 6px rgba(20,16,10,.28)}.ds-pestana:focus-visible{outline:2.5px solid #2453d1;outline-offset:2px}"
+    },
+    {
+      "name": "Botón de reproducir",
+      "kind": "button",
+      "refersTo": "boton-play",
+      "description": "Acción principal del panel: círculo de 48 px en el color del día, entre anterior y siguiente.",
+      "html": "<div class=\"ds-controles\"><button class=\"ds-ctrl\" aria-label=\"Anterior\"><svg viewBox=\"0 0 24 24\"><path d=\"M6.5 5v14M18 5.5 9 12l9 6.5z\"/></svg></button><button class=\"ds-ctrl ds-play\" aria-label=\"Reproducir\"><svg viewBox=\"0 0 24 24\"><path d=\"M8 5.5v13L18.5 12z\"/></svg></button><button class=\"ds-ctrl\" aria-label=\"Siguiente\"><svg viewBox=\"0 0 24 24\"><path d=\"M17.5 5v14M6 5.5 15 12l-9 6.5z\"/></svg></button></div>",
+      "css": ".ds-controles{display:flex;align-items:center;gap:10px}.ds-ctrl{display:grid;place-items:center;width:40px;height:40px;padding:0;border:none;border-radius:50%;background:none;color:#14213d;cursor:pointer}.ds-ctrl svg{width:19px;height:19px;fill:currentColor;stroke:currentColor;stroke-width:2;stroke-linejoin:round}.ds-ctrl:hover{background:rgba(20,33,61,.08)}.ds-play{width:48px;height:48px;background:#2453d1;color:#fff;box-shadow:0 2px 6px color-mix(in srgb,#2453d1 40%,transparent)}.ds-play:hover{background:#1d44ad}.ds-play svg{width:22px;height:22px;stroke:none}.ds-ctrl:focus-visible{outline:2.5px solid #2453d1;outline-offset:2px}"
+    },
+    {
+      "name": "Botón sobre el mapa",
+      "kind": "button",
+      "refersTo": "boton-mapa",
+      "description": "Círculo de papel de 44 px con icono de trazo y sombra de botón.",
+      "html": "<button class=\"ds-redondo\" aria-label=\"Ver todo el día\"><svg viewBox=\"0 0 24 24\"><circle cx=\"12\" cy=\"12\" r=\"6.5\"/><circle cx=\"12\" cy=\"12\" r=\"2\" fill=\"currentColor\" stroke=\"none\"/><path d=\"M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3\"/></svg></button>",
+      "css": ".ds-redondo{display:grid;place-items:center;width:44px;height:44px;padding:0;border:none;border-radius:50%;background:#fff;color:#14213d;box-shadow:0 1px 2px rgba(20,33,61,.2),0 4px 12px rgba(20,33,61,.14);cursor:pointer}.ds-redondo svg{width:23px;height:23px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}.ds-redondo:hover{box-shadow:0 1px 2px rgba(20,33,61,.25),0 6px 16px rgba(20,33,61,.2)}.ds-redondo:focus-visible{outline:2.5px solid #2453d1;outline-offset:2px}"
+    },
+    {
+      "name": "Botón de texto",
+      "kind": "button",
+      "refersTo": "boton",
+      "description": "Botón de la ficha de parada (Amap, Apple Maps, Google Maps).",
+      "html": "<button class=\"ds-boton\">Amap</button>",
+      "css": ".ds-boton{display:inline-flex;align-items:center;min-height:42px;padding:0 14px;border:1.5px solid rgba(20,33,61,.32);border-radius:8px;background:#fff;color:#14213d;font:650 14.5px var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif);cursor:pointer}.ds-boton:hover{border-color:#14213d}.ds-boton:focus-visible{outline:2.5px solid #2453d1;outline-offset:2px}"
+    },
+    {
+      "name": "Botón de tinta",
+      "kind": "button",
+      "refersTo": "boton-tinta",
+      "description": "Acción principal de la ficha: «Enseñar al taxista».",
+      "html": "<button class=\"ds-boton-tinta\">Enseñar al taxista</button>",
+      "css": ".ds-boton-tinta{display:inline-flex;align-items:center;min-height:42px;padding:0 14px;border:1.5px solid #14213d;border-radius:8px;background:#14213d;color:#fff;font:650 14.5px var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif);cursor:pointer}.ds-boton-tinta:hover{background:#25335a;border-color:#25335a}.ds-boton-tinta:focus-visible{outline:2.5px solid #2453d1;outline-offset:2px}"
+    },
+    {
+      "name": "Precio y opcional",
+      "kind": "chip",
+      "refersTo": "precio",
+      "description": "Pastilla de precio y etiqueta discontinua de plan opcional.",
+      "html": "<span class=\"ds-precio\">¥120–180</span> <span class=\"ds-opcional\">opcional</span>",
+      "css": ".ds-precio{display:inline-block;padding:2px 7px;border-radius:5px;background:#e2ecf6;color:#33415c;font:600 13px var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif);font-stretch:90%;white-space:nowrap}.ds-opcional{display:inline-block;padding:0 6px;border:1.5px dashed rgba(20,33,61,.32);border-radius:5px;color:#4f5b73;font:600 12px var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif)}"
+    },
+    {
+      "name": "Fila del itinerario",
+      "kind": "custom",
+      "refersTo": "fila-actual",
+      "description": "Número en anillo, hora tabular, nombre y precio; la activa con banda de rotulador pálido y sello de tinta.",
+      "html": "<ol class=\"ds-lista\"><li><button class=\"ds-fila\"><span class=\"ds-marca ds-hecha\"><span>3</span></span><span class=\"ds-hora\">16:05</span><span class=\"ds-texto\">Nanjing Road: People’s Square <span class=\"ds-local\">(南京路步行街)</span></span></button></li><li class=\"ds-tramo\">A pie · 800 m · ~15 min</li><li><button class=\"ds-fila ds-actual\"><span class=\"ds-marca ds-ahora\"><span>4</span></span><span class=\"ds-hora\">17:20</span><span class=\"ds-texto\">Nanjing Road: tramo hacia el Bund</span><span class=\"ds-precio\">Gratis</span></button></li><li><button class=\"ds-fila\"><span class=\"ds-marca ds-opc\"><span>5</span></span><span class=\"ds-hora\">18:30</span><span class=\"ds-texto\">The Bund al encenderse las luces</span></button></li></ol>",
+      "css": ".ds-lista{margin:0;padding:12px;list-style:none;font-family:var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif);font-variant-numeric:tabular-nums;color:#14213d;background-color:#fff;background-image:linear-gradient(#dce7f2 1px,transparent 1px),linear-gradient(90deg,#dce7f2 1px,transparent 1px);background-size:12px 12px}.ds-fila{display:grid;grid-template-columns:28px 46px minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;min-height:50px;padding:7px 6px;border:none;border-radius:.5em .2em .6em .3em;background:linear-gradient(#ebfaaa,#ebfaaa) 0 0/0% 100% no-repeat;color:inherit;font:inherit;text-align:left;cursor:pointer;transition:background-size .45s cubic-bezier(.16,1,.3,1)}.ds-fila:hover{background-size:100% 100%;background-image:linear-gradient(rgba(20,33,61,.05),rgba(20,33,61,.05))}.ds-fila.ds-actual{background-size:100% 100%;background-image:linear-gradient(#ebfaaa,#ebfaaa)}.ds-fila:focus-visible{outline:2.5px solid #2453d1;outline-offset:2px}.ds-marca{display:grid;place-items:center;width:28px;height:28px;border:2px solid #2453d1;border-radius:50%;background:#fff;color:#2453d1;font-size:13.5px;font-weight:800;line-height:1}.ds-hecha{background:#2453d1;color:#fff;rotate:-8deg;box-shadow:inset 0 0 0 2px #2453d1,inset 0 0 0 3.5px rgba(255,255,255,.6)}.ds-opc{border-style:dashed}.ds-ahora{border-color:#14213d;background:#14213d;color:#ddf94a}.ds-hora{font-size:15.5px;font-weight:650;font-stretch:88%}.ds-texto{font-size:15.5px;font-weight:500;line-height:1.3}.ds-local{color:#4f5b73;font-size:14px}.ds-tramo{padding:14px 0 0 94px;color:#4f5b73;font-size:13.5px;font-stretch:90%}.ds-precio{padding:2px 7px;border-radius:5px;background:rgba(255,255,255,.6);font-size:13px;font-weight:600}"
+    },
+    {
+      "name": "Ahora y después",
+      "kind": "custom",
+      "refersTo": "titulo-ahora",
+      "description": "A la derecha del margen rojo: título de ahora con rotulador saturado y siguiente parada en gramática de fila, sin antetítulos.",
+      "html": "<div class=\"ds-ahora-col\"><button class=\"ds-bloque\"><span class=\"ds-titulo\"><mark>Nanjing Road: tramo hacia el Bund</mark></span><span class=\"ds-det\">南京东路步行街</span><span class=\"ds-hasta\">hasta 18:20</span></button><hr><button class=\"ds-bloque\"><span class=\"ds-titulo ds-sig\"><b class=\"ds-cuando\">18:30</b> The Bund al encenderse las luces</span><span class=\"ds-det\">A pie · 1,1 km</span></button></div>",
+      "css": ".ds-ahora-col{position:relative;max-width:300px;padding:2px 0 0 14px;font-family:var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif);color:#14213d;background:#fff}.ds-ahora-col::before{content:'';position:absolute;left:0;top:-8px;bottom:-4px;width:1.5px;background:#e0454d}.ds-ahora-col hr{height:1px;margin:10px 0 9px;border:none;background:rgba(20,33,61,.32)}.ds-bloque{display:flex;flex-direction:column;gap:3px;width:100%;padding:0;border:none;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}.ds-bloque:focus-visible{outline:2.5px solid #2453d1;outline-offset:2px}.ds-titulo{font-size:17px;font-weight:700;font-stretch:92%;line-height:1.24}.ds-sig{font-size:16px}.ds-cuando{font-stretch:88%}.ds-titulo mark{padding:0 3px;margin-left:-3px;border-radius:.3em .12em .36em .2em;background:linear-gradient(#ddf94a,#ddf94a) 0 0/100% 100% no-repeat;color:#14213d;-webkit-box-decoration-break:clone;box-decoration-break:clone;animation:ds-trazo .5s cubic-bezier(.16,1,.3,1)}.ds-det{color:#4f5b73;font-size:14.5px;line-height:1.3}.ds-hasta{font-size:14.5px;font-weight:700;font-stretch:88%}@keyframes ds-trazo{from{background-size:0% 100%}}@media (prefers-reduced-motion:reduce){.ds-titulo mark{animation:none}}"
+    },
+    {
+      "name": "Marcadores del mapa",
+      "kind": "custom",
+      "refersTo": "marcador-mapa-actual",
+      "description": "Pendiente, hecha, opcional, actual (con anillo fluorescente) y pastilla de distancia.",
+      "html": "<div class=\"ds-mapa\"><span class=\"ds-mk\">5</span><span class=\"ds-mk ds-mk-hecha\">3</span><span class=\"ds-mk ds-mk-opc\">6</span><span class=\"ds-mk ds-mk-actual\">4</span><span class=\"ds-pastilla\">1,1 km</span></div>",
+      "css": ".ds-mapa{display:flex;align-items:center;gap:18px;padding:16px;background:#eef0f2;font-family:var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif)}.ds-mk{display:grid;place-items:center;width:30px;height:30px;border:2.5px solid #2453d1;border-radius:50%;background:#fff;color:#2453d1;box-shadow:0 0 0 2px #fff,0 2px 5px rgba(20,33,61,.3);font-size:14px;font-weight:800;line-height:1}.ds-mk-hecha{background:#2453d1;color:#fff;rotate:-8deg}.ds-mk-opc{border-style:dashed}.ds-mk-actual{width:36px;height:36px;border-color:#14213d;background:#14213d;color:#ddf94a;font-size:16px;box-shadow:0 0 0 5px #ddf94a,0 3px 8px rgba(20,33,61,.35)}.ds-pastilla{padding:2px 7px;border-radius:5px;background:#fff;color:#14213d;box-shadow:0 0 0 1.5px #14213d,0 1px 3px rgba(20,33,61,.3);font-size:12.5px;font-weight:700;font-stretch:90%}"
+    }
+  ],
+  "narrative": {
+    "northStar": "El cuaderno de campo",
+    "overview": "El día es una página de cuaderno que se va marcando mientras se vive. Mapa y hora comparten una sola pantalla: arriba, la tapa de cartón kraft con una pestaña de separador por día; en medio, el mapa real; abajo, una página blanca de papel cuadriculado con margen rojo. Lo que pasa ahora se resalta con el mismo rotulador fluorescente a la vez en el mapa, en la lista y en la línea de tiempo. Cada día tiene su color de pestaña, que tiñe la ruta, los números y el botón de reproducir.\n\nEl sistema se diseña para la calle: de pie, con una mano, al sol. Por eso el texto va unas 1,4 veces más grande que en el boceto aprobado, la densidad es la de un cuaderno (filas de 50 px, no tarjetas) y una sola familia grotesca variable cubre todo, de la hora enorme y estrecha a las cifras tabulares de la lista. Los estados son marcas de tinta, no colores de interfaz: sello relleno (hecho), rotulador (ahora), anillo abierto (pendiente), anillo discontinuo (opcional).\n\nRechaza la app de mapas genérica (mapa gris, una sola ruta azul para todo, hoja blanca de tarjetas) y el cuaderno nostálgico de papel crema: la página es blanca y la tinta, azul casi negra. Nada propio de un destino vive en la interfaz; los colores de día y las pestañas salen de los datos para que el sistema sirva para cualquier viaje.",
+    "keyCharacteristics": [
+      "Tapa kraft solo en la barra de días; el resto es papel blanco con retícula azul pálida de 12 px.",
+      "Un color saturado por día, repetido en pestaña, ruta, sellos, línea de tiempo y botón de reproducir.",
+      "Fluorescente único para «ahora», presente en mapa, lista y reloj a la vez.",
+      "Una sola familia, Archivo Variable, con anchura (wdth 62–125) como eje de jerarquía y cifras tabulares siempre.",
+      "Tema noche manual que oscurece la tapa y la página, aclara la tinta y recolorea el mapa base sin conexión."
+    ],
+    "rules": [
+      {
+        "name": "La Regla del Rotulador Único",
+        "body": "El fluorescente saturado marca una sola cosa: lo que pasa ahora. Solo lo llevan el título de «ahora», el tramo del mapa y el segmento de la línea de tiempo (y el anillo y número del marcador actual). La fila activa de la lista usa la banda pálida, nunca el saturado.",
+        "section": "colors"
+      },
+      {
+        "name": "La Regla del Color de Pestaña",
+        "body": "El color de un día viene de los datos y se repite en todo lo que pertenece a ese día. Nunca se escribe un color de día a mano en un componente: se lee de `--color-dia` (o `--tono` de noche).",
+        "section": "colors"
+      },
+      {
+        "name": "La Regla de la Tinta Fija",
+        "body": "Sobre fluorescente, el texto va siempre en tinta oscura fija, también de noche.",
+        "section": "colors"
+      },
+      {
+        "name": "La Regla de la Calle",
+        "body": "El texto va aproximadamente 1,4 veces más grande que las alturas de mayúscula medidas en el boceto. Ningún texto de lectura baja de 12 px y el cuerpo de la lista no baja de 15,5 px. El criterio de fallo del usuario es «Difícil de leer».",
+        "section": "typography"
+      },
+      {
+        "name": "La Regla de la Anchura",
+        "body": "La jerarquía se construye con el eje de anchura: cuanto más importante y numérico, más estrecho (62 % la hora, 75 % el título del viaje, 88–92 % títulos y horas); el cuerpo va a anchura normal.",
+        "section": "typography"
+      },
+      {
+        "name": "La Regla Sin Red",
+        "body": "Las fuentes van dentro de la app. Nunca Google Fonts ni CDN: están bloqueados en China y la app debe funcionar sin conexión.",
+        "section": "typography"
+      },
+      {
+        "name": "La Regla de la Línea de Tiempo por Paradas",
+        "body": "Las paradas se reparten a distancias iguales en la línea de tiempo y el tiempo es lineal dentro de cada intervalo, para que un día con mañanas largas no apriete las paradas de la tarde. La velocidad de reproducción (×1–×8) se sitúa entre las horas de inicio y fin.",
+        "section": "layout"
+      },
+      {
+        "name": "La Regla del Papel Plano",
+        "body": "Nada dentro de la página proyecta sombra salvo el sello de tinta; la jerarquía dentro del panel se hace con tinta, rotulador y retícula, no con tarjetas elevadas.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "Do tomar el color de cualquier elemento de un día de `--color-dia` / `--tono`, nunca de un valor escrito a mano.",
+      "Do reservar `fluor` para lo de ahora y usar `fluor-suave` en la banda de la fila activa.",
+      "Do poner tinta fija (#14213d) sobre cualquier fluorescente, también de noche.",
+      "Do expresar el estado con marcas de tinta: anillo, anillo discontinuo, sello relleno, sello de tinta con número fluorescente.",
+      "Do mantener el cuerpo de la lista a 15,5 px o más y las cifras tabulares en toda la interfaz.",
+      "Do autoalojar fuentes, texturas e iconos dentro de la app.",
+      "Do respetar `prefers-reduced-motion`: sin trazos, sellos ni pulsos."
+    ],
+    "donts": [
+      "Don't usar la textura kraft fuera de la barra de días ni teñir la página de crema: la página es blanca con retícula azul pálida.",
+      "Don't pintar todas las rutas de un mismo azul de interfaz; cada día lleva su propio color de pestaña.",
+      "Don't poner etiquetas o antetítulos encima de «ahora» o «después», ni encima de otros títulos.",
+      "Don't convertir las filas del itinerario en tarjetas elevadas.",
+      "Don't cargar Google Fonts ni recursos de CDN.",
+      "Don't escribir en la interfaz nada propio de un destino; eso vive en los datos."
+    ]
+  }
+}

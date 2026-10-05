@@ -295,7 +295,7 @@ export class VistaMapa {
     }
     if (this.mapa.getLayer('ruta-tinta')) {
       this.mapa.setPaintProperty('ruta-tinta', 'line-color', this.tinta);
-      this.mapa.setPaintProperty('todo-puntos', 'circle-stroke-color', this.oscuro ? '#141a22' : '#ffffff');
+      this.mapa.setPaintProperty('todo-puntos', 'circle-stroke-color', this.oscuro ? '#121820' : '#ffffff');
     }
   }
 

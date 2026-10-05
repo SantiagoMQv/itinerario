@@ -14,6 +14,10 @@
   --fluor: #ddf94a;
   --fluor-suave: #ebfaaa;
   --tinta-fija: #14213d;
+  /* Tinta secundaria sobre el fluorescente (igual de día y de noche). */
+  --tinta-fija-suave: #3a4660;
+  /* Estado «hecho» fuera del panel (mapas guardados). */
+  --hecho: #1e7f3e;
   --etiqueta: #e2ecf6;
   --etiqueta-texto: #33415c;
   --kraft: url('../assets/plates/kraft.png');
@@ -237,7 +241,7 @@ mark {
   height: 11px;
   border: 2px solid var(--boton-mapa);
   border-radius: 50%;
-  background: #1e7f3e;
+  background: var(--hecho);
 }
 .btn-redondo.cargando svg {
   animation: latido 1s ease-in-out infinite;
@@ -460,6 +464,7 @@ body.reproduciendo .icono-pausa {
 /* La aguja de la hora: una raya de tinta fina para no tapar el fluorescente. */
 #deslizador::-webkit-slider-thumb {
   -webkit-appearance: none;
+  box-sizing: border-box;
   width: 6px;
   height: 26px;
   margin-top: 1.5px;
@@ -468,9 +473,10 @@ body.reproduciendo .icono-pausa {
   background: var(--tinta);
 }
 #deslizador::-moz-range-thumb {
-  width: 4px;
-  height: 20px;
-  border: 2px solid var(--papel);
+  box-sizing: border-box;
+  width: 6px;
+  height: 26px;
+  border: 1.5px solid var(--papel);
   border-radius: 4px;
   background: var(--tinta);
 }
@@ -710,7 +716,7 @@ li.actual .marca {
 }
 li.actual .local,
 li.actual .salida {
-  color: #3a4660;
+  color: var(--tinta-fija-suave);
 }
 li.actual .precio {
   background: rgba(255, 255, 255, 0.6);
