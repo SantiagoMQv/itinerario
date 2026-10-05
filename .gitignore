@@ -11,3 +11,5 @@ dist
 .impeccable/build/scaffold/
 .impeccable/build/comp-grid.png
 .impeccable/review/diff/
+# Impeccable: estado del servidor en vivo (temporal)
+.impeccable/live/
