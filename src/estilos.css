@@ -1525,8 +1525,8 @@ body.vista-todo .lista {
   color: #fff;
 }
 /* De noche el color del día va aclarado: el número, en tinta oscura para que se lea. */
-:root[data-tema='oscuro'] .marcador.hecha > span,
-:root[data-tema='oscuro'] .marcador.hotel > span {
+:root[data-tema='oscuro'] .marcador.hecha:not(.actual) > span,
+:root[data-tema='oscuro'] .marcador.hotel:not(.actual) > span {
   color: #121820;
 }
 .marcador.hecha > span {
