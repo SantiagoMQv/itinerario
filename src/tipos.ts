@@ -59,6 +59,11 @@ export interface Parada {
   /** Hora de salida "HH:MM". Si falta, se calcula a partir de la siguiente parada. */
   fin?: string;
   nombre: string;
+  /**
+   * Nombre corto, con artículo si lo lleva («el Bund», «la noria»), para botones y líneas de una
+   * palabra («Saltar el Bund», «a la noria»). Si falta, se saca del nombre (lo de antes de «:» o «(»).
+   */
+  corto?: string;
   /** Nombre en chino, para enseñárselo al taxista. */
   local?: string;
   categoria: Categoria;

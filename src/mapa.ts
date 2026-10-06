@@ -202,6 +202,8 @@ export class VistaMapa {
     this.mapa.on('dragstart', (e) => {
       if ('originalEvent' in e && e.originalEvent) this.eventos.alArrastrar();
     });
+    // Con teclado solo se recorren los marcadores que se ven: los de fuera no reciben el foco.
+    this.mapa.on('moveend', () => this.ajustarTabulacion());
     this.mapa.on('zoom', () => {
       this.ajustarPastillas();
       this.ajustarSubs();
@@ -623,8 +625,20 @@ export class VistaMapa {
     const caja = cajaDe(puntos) as LngLatBoundsLike;
     const { top, bottom, left, right } = this.margenes;
     const extra = 36;
+    const padding = { top: top + extra, bottom: bottom + extra, left: left + extra, right: right + extra };
+    // Si los márgenes no dejan sitio (cabecera alta en un móvil pequeño), se encogen hasta dejar
+    // 80 px de mapa: mejor un encuadre apretado que una cámara que no se mueve.
+    const c = this.mapa.getContainer();
+    for (const [a, b, total] of [['top', 'bottom', c.clientHeight], ['left', 'right', c.clientWidth]] as const) {
+      const ocupado = padding[a] + padding[b];
+      if (total - ocupado < 80 && ocupado > 0) {
+        const f = Math.max(0, total - 80) / ocupado;
+        padding[a] *= f;
+        padding[b] *= f;
+      }
+    }
     this.mapa.fitBounds(caja, {
-      padding: { top: top + extra, bottom: bottom + extra, left: left + extra, right: right + extra },
+      padding,
       maxZoom,
       duration: animar ? 800 : 0,
       linear: true,
@@ -665,10 +679,23 @@ export class VistaMapa {
       if (cambio) this.encuadrar(momento.tramo.arco.coords, true, 15);
       else if (!this.visible(punto) && !this.mapa.isMoving()) this.centrar(punto, undefined, 500);
     } else if (cambio) {
-      // Parado: se encuadra la parada con la siguiente, que es el tramo subrayado.
-      const siguiente = this.dia?.tramos.find((t) => t.desde === momento.parada && !t.nulo);
-      if (siguiente) this.encuadrar([siguiente.desde.pos, siguiente.hasta.pos], true, 15);
-      else if (forzar || !this.visible(momento.parada.pos)) this.centrar(momento.parada.pos);
+      // Parado: se encuadra la parada con la siguiente, que es el tramo subrayado, y con sus sitios
+      // de dentro. Sin tramo que dibujar (lo siguiente está en el mismo sitio), de cerca.
+      const p = momento.parada;
+      const siguiente = this.dia?.tramos.find((t) => t.desde === p && !t.nulo);
+      const subs = p.subs.flatMap((x) => (x.pos ? [x.pos] : []));
+      if (siguiente) this.encuadrar([siguiente.desde.pos, siguiente.hasta.pos, ...subs], true, 15);
+      else if (subs.length) this.encuadrar([p.pos, ...subs], true, 16);
+      else if (forzar || !this.visible(p.pos) || this.mapa.getZoom() < 14) this.centrar(p.pos, Math.max(this.mapa.getZoom(), 15));
+    }
+  }
+
+  private ajustarTabulacion() {
+    const caja = this.mapa.getContainer().getBoundingClientRect();
+    for (const el of [...this.marcadores.map((x) => x.m.getElement()), ...this.subMarcadores.map((x) => x.m.getElement())]) {
+      const r = el.getBoundingClientRect();
+      const dentro = r.right > caja.left && r.left < caja.right && r.bottom > caja.top && r.top < caja.bottom;
+      el.tabIndex = dentro && !el.classList.contains('oculto') ? 0 : -1;
     }
   }
 

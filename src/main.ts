@@ -11,13 +11,14 @@ import {
   type SubC,
   type TramoC,
   construirModelo,
+  estimarMinutos,
   gastoTotal,
   hotelDe,
   momentoEn,
   trayectosApretados,
 } from './modelo';
 import { descargaAnterior, descargarMapas, registrarServiceWorker } from './offline';
-import type { Enlace, Gasto } from './tipos';
+import type { Enlace, Gasto, Transporte } from './tipos';
 
 const modelo = construirModelo(itinerario);
 const ultimoHotel = [...modelo.paradas].reverse().find((p) => p.p.categoria === 'hotel') ?? null;
@@ -676,9 +677,14 @@ function pintar(moverCamara: boolean) {
   // En directo, «ahora» y «después» cambian también con la hora (preguntas, ir tarde): cada 5 min.
   const clave = `${claveDe(momento)}|${estado.modo === 'directo' ? Math.floor(t / 5) : ''}`;
   if (clave !== estado.claveMomento) {
+    const deNuevo = !estado.claveMomento;
     estado.claveMomento = clave;
     pintarAhora(momento);
-    marcarLista(momento);
+    // El repintado de cada 5 min no mueve la lista (se puede estar leyendo); cuando cambia lo de
+    // ahora, la lista lo sigue solo si lo de antes estaba a la vista.
+    const ahora = claveDe(momento);
+    marcarLista(momento, deNuevo ? 'si' : ahora === claveListaAhora ? 'no' : 'si-se-veia');
+    claveListaAhora = ahora;
     // Se anuncia al cambiar lo de ahora, no cada vez que avanza la cuenta atrás.
     const anuncio = claveDe(momento);
     if (!estado.reproduciendo && anuncio !== ultimoAnuncio) {
@@ -688,6 +694,7 @@ function pintar(moverCamara: boolean) {
   }
 }
 let ultimoAnuncio = '';
+let claveListaAhora = '';
 
 /** Texto de un bloque para leerlo en voz alta: sin el chino, que una voz en castellano destroza. */
 function textoParaLeer(e: HTMLElement): string {
@@ -740,7 +747,7 @@ function pintarReloj(m: Momento) {
     const salida = modelo.tramos.find((tr) => tr.hasta === sig)?.salida ?? sig.inicio;
     grande = hora(salida);
     el.cuenta.textContent = `salida ${otroDia(salida, estado.t) ? 'mañana' : 'hoy'} · en ${cuantoQueda(salida - estado.t)}`;
-    lugar = `hacia ${sig.p.nombre}`;
+    lugar = `hacia ${corto(sig)}`;
   } else {
     let objetivo: number;
     let accion: string;
@@ -748,14 +755,14 @@ function pintarReloj(m: Momento) {
     if (diaTerminado(m)) {
       const sig = siguienteDe(m.parada!)!;
       [objetivo, accion] = [modelo.tramos.find((tr) => tr.hasta === sig)?.salida ?? sig.inicio, 'salir'];
-      lugar = `hacia ${sig.p.nombre}`;
+      lugar = `hacia ${corto(sig)}`;
     } else if (m.tipo === 'camino') {
       [objetivo, accion] = [m.llegada, 'llegar'];
       estimada = m.llegada !== m.tramo.llegada;
-      lugar = `a ${m.tramo.hasta.p.nombre}`;
+      lugar = con('a', corto(m.tramo.hasta));
     } else {
       [objetivo, accion] = [m.parada.fin, 'salir'];
-      lugar = `de ${m.parada.p.nombre}`;
+      lugar = con('de', corto(m.parada));
     }
     const resta = objetivo - estado.t;
     tarde = resta < 0;
@@ -765,6 +772,8 @@ function pintarReloj(m: Momento) {
       ? `<span class="tarde-etiqueta">Tarde</span> ${accion === 'salir' ? 'salida' : 'llegada'} prevista ${esc(cuando)}`
       : `para ${accion} · ${esc(cuando)}`;
   }
+  // En el móvil de quien solo mira, «ahora» es el del plan: dicho, una diferencia con el otro móvil se entiende.
+  if (lugar && !marcador) el.cuenta.insertAdjacentHTML('beforeend', '<span class="segun"> · según el plan</span>');
   if (lugar) el.cuenta.insertAdjacentHTML('beforeend', `<span class="lugar">${esc(lugar)}</span>`);
   el.reloj.textContent = grande;
   el.reloj.classList.toggle('largo', grande.length > 6);
@@ -791,6 +800,7 @@ function pintarAhora(m: Momento) {
   let despues: ParadaC | undefined;
   let recuperar = '';
   let saltarlaPrimero = false;
+  let taxiPrimero = false;
   if (diaTerminado(m)) {
     const visitas = dia.paradas.filter((p) => p.n !== null);
     const resumen = `día terminado · ${resumenParadas(visitas)}`;
@@ -816,20 +826,31 @@ function pintarAhora(m: Momento) {
     const acciones =
       directo && !esOrigen && !previa ? botonMarca(p, 'hecha') + (ultimaDelViaje ? '' : botonMarca(p, 'saltada')) : '';
     ahora = bloqueAhora(p, p.p.nombre, '', cuando, acciones, p.p.local);
-    // Se va tarde: cuándo se llegaría a lo siguiente saliendo ya, cuánto se podría estar allí y,
-    // si no da tiempo, saltárselo pasa a ser lo primero.
+    // Se va tarde: cuándo se llegaría a lo siguiente saliendo ya y cuánto se podría estar allí. Si
+    // el plan va a pie o en transporte público y un taxi gana tiempo, se dice; si solo en taxi da
+    // tiempo, el taxi va primero; si ni así, saltárselo pasa a ser lo primero.
     if (directo && despues && estado.t > p.fin + 5) {
       const tramo = modelo.tramos.find((tr) => tr.hasta === despues);
       const llegaria = estado.t + (tramo?.minutos ?? 0);
       if (llegaria > despues.inicio) {
-        const queda = despues.fin - llegaria;
         const esHotel = despues.p.categoria === 'hotel';
-        saltarlaPrimero = !esHotel && queda < 10;
-        recuperar = saltarlaPrimero
-          ? `<p class="recuperar"><b>No da tiempo:</b> llegarías a las ${hora(llegaria)} y acaba a las ${hora(despues.fin)}.</p>`
-          : `<p class="recuperar">Saliendo ya llegas a las <b>${hora(llegaria)}</b> (plan ${hora(despues.inicio)})${
-              esHotel ? '' : ` y te quedan ${duracion(queda)} allí`
-            }.</p>`;
+        const conTaxi = tramo && !tramo.nulo && TAXI_ACORTA.includes(tramo.modo) ? estado.t + estimarMinutos('taxi', tramo.km) : null;
+        const taxi = conTaxi !== null && conTaxi <= llegaria - 5 ? conTaxi : null;
+        const cabe = (t: number) => esHotel || despues!.fin - t >= 10;
+        const quedan = (t: number) => (esHotel ? '' : ` y te quedan ${duracion(despues!.fin - t)} allí`);
+        if (cabe(llegaria)) {
+          recuperar = `<p class="recuperar">Saliendo ya llegas a las <b>${hora(llegaria)}</b> (plan ${hora(despues.inicio)})${quedan(llegaria)}.${
+            taxi !== null ? ` En taxi, ~${hora(taxi)}.` : ''
+          }</p>`;
+        } else if (taxi !== null && cabe(taxi)) {
+          taxiPrimero = true;
+          recuperar = `<p class="recuperar">Como en el plan llegarías a las ${hora(llegaria)}. <b>En taxi, ~${hora(taxi)}</b>${quedan(taxi)}.</p>`;
+        } else {
+          saltarlaPrimero = true;
+          recuperar = `<p class="recuperar"><b>No da tiempo:</b> llegarías a las ${hora(llegaria)}${
+            taxi !== null ? ` (en taxi, ~${hora(taxi)})` : ''
+          } y acaba a las ${hora(despues.fin)}.</p>`;
+        }
       }
     }
   }
@@ -838,7 +859,7 @@ function pintarAhora(m: Momento) {
         <button type="button" class="mini tinta" data-marcar="aqui" data-id="${previa.id}">Sigo aquí</button>
         <button type="button" class="mini" data-marcar="hecha" data-id="${previa.id}">Ya salí</button></div></div>`
     : '';
-  const html = `${pregunta}${ahora}<hr />${bloqueDespues(despues, recuperar, saltarlaPrimero)}`;
+  const html = `${pregunta}${ahora}<hr />${bloqueDespues(despues, recuperar, saltarlaPrimero, taxiPrimero)}`;
   // Igual que estaba: no se toca (ni se pierde el foco ni lo que se esté leyendo).
   if (html === ultimoAhora) return;
   ultimoAhora = html;
@@ -858,7 +879,10 @@ function resumenParadas(lista: ParadaC[]): string {
   return `${visitas.length - saltadas} de ${paradas(visitas.length)}${saltadas ? ` (${saltadas} saltada${saltadas === 1 ? '' : 's'})` : ''}`;
 }
 
-const chino = (texto?: string) => (texto ? `<span lang="zh-Hans">${esc(texto)}</span>` : '');
+const segmentador = 'Segmenter' in Intl ? new Intl.Segmenter('zh', { granularity: 'word' }) : null;
+const esHan = (t: string) => /^\p{Script=Han}+$/u.test(t);
+/** El chino, partido solo entre palabras (nunca «外/滩»). */
+const chino = (texto?: string) => (texto ? `<span lang="zh-Hans">${enTrozos(texto)}</span>` : '');
 
 function comoSeLlega(t: TramoC): string {
   return t.nulo ? TRANSPORTE[t.modo] : `${TRANSPORTE[t.modo]} · ${km(t.km)} · ${t.estimado ? '~' : ''}${duracion(t.minutos)}`;
@@ -892,7 +916,7 @@ function lineaSubs(p: ParadaC): string {
   return `<span class="subs-ahora">${texto}</span>`;
 }
 
-function bloqueDespues(q: ParadaC | undefined, recuperar = '', saltarlaPrimero = false): string {
+function bloqueDespues(q: ParadaC | undefined, recuperar = '', saltarlaPrimero = false, taxiPrimero = false): string {
   if (!q) {
     return `<div class="bloque fin"><span class="titulo">Fin del viaje</span>
       <span class="detalle-ahora">${esc(modelo.titulo)} · ${modelo.dias.length} días</span></div>`;
@@ -901,9 +925,10 @@ function bloqueDespues(q: ParadaC | undefined, recuperar = '', saltarlaPrimero =
   const cuando = q.dia === dia.idx ? hora(q.inicio) : `${fechaCorta(modelo.dias[q.dia].d.fecha)} ${hora(q.inicio)}`;
   const tramo = modelo.tramos.find((t) => t.hasta === q);
   const pie = tramo ? comoSeLlega(tramo) : '';
-  // «Saltarla» (lo siguiente) no se confunde con «Saltar» (lo de ahora).
+  // «Saltar el Bund» (lo siguiente, con su nombre) no se confunde con «Saltar» (lo de ahora).
   const saltar = recuperar ? botonSaltarla(q, saltarlaPrimero) : '';
-  const acciones = saltarlaPrimero ? `${saltar}${botonChino(q, tramo)}` : `${botonChino(q, tramo)}${saltar}`;
+  const chinoOTaxi = botonChino(q, tramo, taxiPrimero);
+  const acciones = saltarlaPrimero ? `${saltar}${chinoOTaxi}` : `${chinoOTaxi}${saltar}`;
   return `<div class="bloque siguiente">
     <button type="button" class="abrir" data-abrir="${q.id}">
       <span class="sr">Después: </span>
@@ -915,10 +940,34 @@ function bloqueDespues(q: ParadaC | undefined, recuperar = '', saltarlaPrimero =
   </div>`;
 }
 
+/**
+ * Saltar lo siguiente, con su nombre corto («Saltar el Bund»). Nunca en tinta: en la cabecera solo hay
+ * un botón en tinta a la vez (el de lo de ahora); si no da tiempo, va primero y con contorno.
+ */
 function botonSaltarla(q: ParadaC, principal: boolean): string {
-  return `<button type="button" class="mini ${principal ? 'tinta' : 'suave'}" data-marcar="saltada" data-id="${q.id}"
-    aria-label="${esc(`Saltar ${q.p.nombre}`)}">Saltarla</button>`;
+  return `<button type="button" class="mini${principal ? '' : ' suave'}" data-marcar="saltada" data-id="${q.id}"
+    aria-label="${esc(`Saltar ${q.p.nombre}`)}">Saltar ${esc(corto(q))}</button>`;
 }
+
+/** Medios a los que un taxi puede ganar tiempo dentro de la ciudad. */
+const TAXI_ACORTA: Transporte[] = ['a_pie', 'metro', 'bus', 'bici'];
+
+/** «el Bund», «Joy City»: el nombre corto de una parada (el suyo, o lo de antes de «:» o «(»). */
+function corto(p: ParadaC): string {
+  if (p.p.corto) return p.p.corto;
+  const nombre = p.p.nombre.split(/:|\s\(/)[0].trim();
+  if (nombre.length <= 24) return nombre;
+  let r = '';
+  for (const w of nombre.split(' ')) {
+    if (`${r} ${w}`.trim().length > 22) break;
+    r = `${r} ${w}`.trim();
+  }
+  return `${r}…`;
+}
+
+/** «a» + «el Bund» → «al Bund»; «de» + «el museo» → «del museo». */
+const con = (prep: 'a' | 'de', nombre: string) =>
+  nombre.startsWith('el ') ? `${prep === 'a' ? 'al' : 'del'} ${nombre.slice(3)}` : `${prep} ${nombre}`;
 
 const ICONO_TAXI = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16V11l2-5h10l2 5v5M3.5 11h17M5 16h14v2.5H5zM7.5 13.5h.01M16.5 13.5h.01" /></svg>`;
 const ICONO_CHINO = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v11H9l-5 4zM8 9h8M12 9v4" /></svg>`;
@@ -927,9 +976,9 @@ const ICONO_CHINO = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h1
  * Enseñar el destino en chino. Si se va en taxi (o no se sabe), «Taxi»; si se va en tren, metro o a
  * pie, «En chino» (para preguntar a alguien), que abre la misma tarjeta.
  */
-function botonChino(p: ParadaC, tramo?: TramoC): string {
+function botonChino(p: ParadaC, tramo?: TramoC, enTaxi = false): string {
   if (!p.p.local) return '';
-  const taxi = !tramo || tramo.modo === 'taxi';
+  const taxi = enTaxi || !tramo || tramo.modo === 'taxi';
   const etiqueta = taxi ? `Taxi a ${p.p.nombre}: enseñar al taxista` : `Preguntar cómo llegar a ${p.p.nombre}: enseñar en chino`;
   return `<button type="button" class="mini" data-taxi="${p.id}"${taxi ? '' : ' data-pie'} aria-label="${esc(etiqueta)}">${
     taxi ? ICONO_TAXI : ICONO_CHINO
@@ -1166,7 +1215,14 @@ function pintarLista(dia: DiaC) {
   estado.claveMomento = '';
 }
 
-function marcarLista(m: Momento) {
+/**
+ * Marca en la lista lo de ahora, lo hecho y la ficha abierta, y la desplaza para enseñarlo: siempre
+ * («si»), nunca («no»), o solo si la fila de ahora se estaba viendo («si-se-veia»: con la hoja arriba,
+ * quien ha bajado a leer otra cosa no pierde el sitio).
+ */
+function marcarLista(m: Momento, desplazar: 'si' | 'no' | 'si-se-veia' = 'si') {
+  const previa = el.contenido.querySelector<HTMLElement>('li.actual');
+  const seVeia = !previa || filaALaVista(previa);
   const actual = m.parada?.id ?? null;
   const abierta = estado.abierta ?? -1;
   for (const li of el.contenido.querySelectorAll<HTMLLIElement>('li.parada')) {
@@ -1186,7 +1242,8 @@ function marcarLista(m: Momento) {
   }
   vista.mostrarSubparadas(paradaMirada(m));
   // Con la página corrida de una pieza, desplazarla sola escondería la cabecera con lo de ahora.
-  if (estado.abierta !== null || panelCorrido.matches) return;
+  if (estado.abierta !== null || panelCorrido.matches || desplazar === 'no') return;
+  if (desplazar === 'si-se-veia' && estado.expandido && !seVeia) return;
   const fila = el.contenido.querySelector<HTMLElement>('li.actual');
   // Plegado y en directo, la lista asoma por lo que viene después (lo de ahora ya está arriba).
   if (estado.expandido || estado.modo !== 'directo') mostrarFila(fila);
@@ -1197,15 +1254,25 @@ function marcarLista(m: Momento) {
 const rollo = () => (panelCorrido.matches ? el.panel : el.contenido);
 /** Altura de una fila dentro de lo que se desplaza. */
 const alturaEnRollo = (e: HTMLElement) => e.offsetTop + (panelCorrido.matches ? el.contenido.offsetTop : 0);
+/** Si se ve algo de la fila en lo que se desplaza. */
+function filaALaVista(li: HTMLElement): boolean {
+  const c = rollo();
+  const arriba = alturaEnRollo(li);
+  return arriba + li.offsetHeight > c.scrollTop && arriba < c.scrollTop + c.clientHeight;
+}
 
 /**
- * Pone arriba de la lista lo que viene detrás de «Después» (que ya está en la cabecera), empezando
- * por su trayecto; si no hay nada más, lo de después.
+ * Pone arriba de la lista la parada que viene detrás de «Después» (que ya está en la cabecera), con
+ * su nombre arriba; si no hay nada más, lo de después.
  */
 function mostrarSiguientes(actual: HTMLElement | null) {
-  let despues = actual?.nextElementSibling as HTMLElement | null;
-  while (despues && !despues.classList.contains('parada')) despues = despues.nextElementSibling as HTMLElement | null;
-  const sig = (despues?.nextElementSibling ?? actual?.nextElementSibling) as HTMLElement | null;
+  const siguienteParada = (desde: Element | null | undefined) => {
+    let e = desde?.nextElementSibling ?? null;
+    while (e && !e.classList.contains('parada')) e = e.nextElementSibling;
+    return e as HTMLElement | null;
+  };
+  const despues = siguienteParada(actual);
+  const sig = siguienteParada(despues) ?? (actual?.nextElementSibling as HTMLElement | null);
   if (!sig) return mostrarFila(actual);
   rollo().scrollTo({ top: alturaEnRollo(sig), behavior: 'smooth' });
 }
@@ -1292,15 +1359,15 @@ function paradaMirada(m: Momento): ParadaC | null {
   return m.tipo === 'parada' ? m.parada : m.tramo.hasta;
 }
 
-/** Desde la ficha: la hoja baja a media, el mapa va al sitio y queda su ficha corta. */
+/** Desde la ficha: la hoja baja, el mapa va al sitio y queda su ficha corta. */
 function verSubparada(p: ParadaC, i: number) {
   const sub = p.subs[i];
   estado.seguir = false;
   el.seguir.hidden = estado.vista !== 'dia';
   if (esMovil()) {
     estado.abierta = null;
-    if (hoja.destino === 'alta') animarHoja('media');
     mostrarFichaCorta(p, sub);
+    bajarParaFicha();
   }
   vista.mostrarSubparadas(p);
   vista.resaltarSub(sub.pos ? i : null);
@@ -1310,8 +1377,8 @@ function verSubparada(p: ParadaC, i: number) {
 /** Al tocar el sello de un sitio en el mapa: su ficha corta, con el mapa a la vista. */
 function pulsarSubparada(p: ParadaC, i: number) {
   vista.resaltarSub(i);
-  if (esMovil() && hoja.destino === 'alta') animarHoja('media');
   mostrarFichaCorta(p, p.subs[i]);
+  bajarParaFicha();
 }
 
 // ---------- Ficha corta (lo que se toca en el mapa) ----------
@@ -1321,6 +1388,19 @@ function pulsarSubparada(p: ParadaC, i: number) {
  * nombre, la hora o la nota, la tarjeta en chino y «Ver ficha» para la entera.
  */
 let fichaCorta: { p: ParadaC; sub?: SubC } | null = null;
+/** Si lo último fue el teclado (y no el dedo o el ratón), para mover el foco a lo que se abre. */
+let conTeclado = false;
+addEventListener('keydown', () => (conTeclado = true), true);
+addEventListener('pointerdown', () => (conTeclado = false), true);
+/** Altura de la hoja antes de la ficha corta, para volver a ella al cerrarla (null: no se toca). */
+let alturaAntesDeFicha: AlturaHoja | null = null;
+
+/** Lo que se ha tocado es el mapa: la hoja baja del todo y la ficha queda encima, junto al pulgar. */
+function bajarParaFicha() {
+  if (!esMovil()) return;
+  if (alturaAntesDeFicha === null) alturaAntesDeFicha = hoja.destino === 'alta' ? 'media' : hoja.destino;
+  if (hoja.destino !== 'baja') animarHoja('baja');
+}
 
 function mostrarFichaCorta(p: ParadaC, sub?: SubC) {
   fichaCorta = { p, sub };
@@ -1360,18 +1440,27 @@ function mostrarFichaCorta(p: ParadaC, sub?: SubC) {
   el.fichaCortaContenido.innerHTML = html;
   el.fichaCorta.setAttribute('aria-label', sub ? sub.s.nombre : p.p.nombre);
   el.fichaCorta.hidden = false;
+  // Para quien no la ve aparecer: se anuncia, y con teclado el foco entra en ella (está al final de la página).
+  el.anuncio.textContent = textoParaLeer(el.fichaCortaContenido.querySelector('.fc-texto')!);
+  if (conTeclado) el.fichaCorta.querySelector<HTMLElement>('button')?.focus();
   document.body.classList.add('con-ficha');
   document.documentElement.style.setProperty('--alto-ficha', `${el.fichaCorta.offsetHeight}px`);
   margenesMapa();
 }
 
-function cerrarFichaCorta() {
+/** Cierra la ficha corta y, si `volver` y nadie ha movido la hoja, la deja como estaba antes. */
+function cerrarFichaCorta(volver = true) {
   if (!fichaCorta) return;
   fichaCorta = null;
+  const teniaFoco = el.fichaCorta.contains(document.activeElement);
   el.fichaCorta.hidden = true;
+  if (teniaFoco) el.ahora.focus();
   document.body.classList.remove('con-ficha');
   vista.resaltarSub(null);
-  margenesMapa();
+  const antes = alturaAntesDeFicha;
+  alturaAntesDeFicha = null;
+  if (volver && antes && antes !== 'baja' && esMovil() && hoja.destino === 'baja') animarHoja(antes);
+  else margenesMapa();
 }
 
 $('ficha-corta-cerrar').addEventListener('click', () => cerrarFichaCorta());
@@ -1384,7 +1473,7 @@ el.fichaCorta.addEventListener('click', (e) => {
   const chinoSub = objetivo.closest<HTMLElement>('[data-fc-chino]');
   if (chinoSub && sub) return mostrarTaxi(sub.s, chinoSub, false);
   if (!objetivo.closest('[data-fc-ficha]')) return;
-  cerrarFichaCorta();
+  cerrarFichaCorta(false);
   abrirFicha(p);
   if (sub) {
     requestAnimationFrame(() => {
@@ -1409,11 +1498,11 @@ function pulsarParada(p: ParadaC) {
     if (p.dia === hoyIdx) volverAhora();
     else seleccionarDia(p.dia, undefined, false);
   }
-  // En el móvil, el mapa se queda a la vista: hoja a media altura y la ficha corta de la parada.
+  // En el móvil, el mapa se queda a la vista: la hoja baja y queda la ficha corta de la parada.
   if (esMovil()) {
-    if (hoja.destino === 'alta') animarHoja('media');
     vista.mostrarSubparadas(p);
     mostrarFichaCorta(p);
+    bajarParaFicha();
     return enfocar(p);
   }
   expandir(true);
@@ -1630,6 +1719,11 @@ function asentarHoja(pos: AlturaHoja) {
   for (const e of [el.pildoras, el.botonesMapa]) e.style.opacity = '';
   document.body.dataset.hoja = pos;
   if (pos === 'media') hoja.fija = { media: hoja.alturas.media, clave: claveHoja() };
+  // Arriba, venga del asa o del dedo, a la vista lo de ahora (o la ficha abierta), con contexto.
+  // (Si el foco del teclado está en la lista, manda lo enfocado.)
+  if (cambio && pos === 'alta' && estado.vista === 'dia' && !el.contenido.contains(document.activeElement)) {
+    mostrarFila(el.contenido.querySelector('li.abierta, li.actual'), false);
+  }
   // Una ficha abierta que ha quedado fuera de la vista no sigue «abierta» a escondidas.
   if (pos !== 'alta' && esMovil() && estado.abierta !== null && estado.abierta >= 0) {
     estado.abierta = null;
@@ -1683,7 +1777,7 @@ function animarHoja(pos: AlturaHoja, velocidad = 0) {
 function fijarDestino(pos: AlturaHoja) {
   hoja.destino = pos;
   const alta = pos === 'alta';
-  if (alta) cerrarFichaCorta();
+  if (alta) cerrarFichaCorta(false);
   estado.expandido = alta;
   el.panel.classList.toggle('expandido', alta);
   el.asa.setAttribute('aria-expanded', String(alta));
@@ -1792,7 +1886,8 @@ function soltarHoja(e: TouchEvent) {
   const t = toque;
   toque = null;
   if (!t?.arrastrando) return;
-  // Tras arrastrar, el dedo no «pulsa» lo que haya debajo.
+  // Tras arrastrar, el dedo no «pulsa» lo que haya debajo; y la hoja queda donde la deje el dedo.
+  alturaAntesDeFicha = null;
   ignorarClic = true;
   setTimeout(() => (ignorarClic = false), 350);
   const ultima = t.muestras[t.muestras.length - 1];
@@ -1807,6 +1902,13 @@ function soltarHoja(e: TouchEvent) {
   animarHoja(destino, velocidad);
 }
 el.panel.addEventListener('touchend', soltarHoja);
+// Con teclado, lo enfocado nunca queda bajo el borde de la pantalla: la hoja sube lo que haga falta.
+el.panel.addEventListener('focusin', (e) => {
+  const objetivo = e.target as HTMLElement;
+  if (!esMovil() || !conTeclado || toque || objetivo.getBoundingClientRect().bottom <= innerHeight - 8) return;
+  if (hoja.destino === 'baja') animarHoja('media');
+  else if (hoja.destino === 'media' && el.contenido.contains(objetivo)) expandir(true);
+});
 el.panel.addEventListener('touchcancel', soltarHoja);
 el.panel.addEventListener(
   'click',
@@ -1846,11 +1948,12 @@ function margenesMapa() {
   const visible = hoja.destino === 'alta' ? hoja.alturas.media : hoja.alturas[hoja.destino];
   // Encima de la hoja están las píldoras y los avisos (o la ficha corta): no cuentan como mapa.
   const encima = fichaCorta ? el.fichaCorta.offsetHeight + 20 : 60;
-  // En móviles bajos los botones del mapa van en fila arriba: el mapa empieza debajo de ellos.
+  // En móviles bajos los botones del mapa van en fila arriba a la derecha: se les deja medio sitio
+  // (en esas pantallas el mapa es una franja y no se puede regalar entera).
   const botones = el.botonesMapa.getBoundingClientRect();
   const enFila = botones.width > botones.height && botones.height > 0;
   vista.fijarMargenes({
-    top: enFila ? botones.bottom + 8 : el.barra.offsetHeight + 8,
+    top: el.barra.offsetHeight + 8 + (enFila ? 32 : 0),
     bottom: ancha ? 16 : (visible || hoja.visible) + encima,
     left: ancha ? el.panel.getBoundingClientRect().right + 12 : 16,
     right: enFila ? 16 : 68,
@@ -1866,7 +1969,7 @@ function ajustarMargenes() {
 new ResizeObserver(recolocarHoja).observe(el.panel);
 // Al girar el móvil se pasa de hoja abajo a página a un lado (y vuelta): la ficha corta es de la hoja.
 pantallaAncha.addEventListener('change', () => {
-  cerrarFichaCorta();
+  cerrarFichaCorta(false);
   recolocarHoja();
 });
 new ResizeObserver(recolocarHoja).observe(el.cabecera);
@@ -1925,18 +2028,27 @@ el.offline.addEventListener('click', async () => {
 const ICONO_SIN_RED =
   '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.8 16a5 5 0 0 1 6.4 0M12 19.5h.01M4 4l16 16" /></svg>';
 
+/** Lo que sigue funcionando sin conexión (lo que dice la píldora al tocarla). */
+function textoSinRed(): string {
+  const previa = descargaAnterior();
+  return previa
+    ? `Sin conexión, pero todo sigue funcionando: la lista, las fichas, la tarjeta del taxista y los mapas guardados el ${fechaCortaLocal(previa)}.`
+    : 'Sin conexión. La lista, las fichas y la tarjeta del taxista funcionan; el mapa solo enseña las zonas que ya has visto. Guarda los mapas cuando vuelvas a tener wifi.';
+}
+
 function pintarRed() {
   const sinRed = !navigator.onLine;
+  const antes = !el.red.hidden;
   el.red.hidden = !sinRed;
   if (!sinRed) return;
   const previa = descargaAnterior();
   el.red.innerHTML = `${ICONO_SIN_RED}Sin conexión · ${previa ? 'mapas guardados' : 'sin mapas guardados'}`;
-  el.red.title = previa
-    ? `Mapas guardados el ${fechaCortaLocal(previa)}`
-    : 'Solo se ven las zonas del mapa ya visitadas';
+  el.red.setAttribute('aria-label', `Sin conexión · ${previa ? 'mapas guardados' : 'sin mapas guardados'}: qué sigue funcionando`);
+  if (!antes) el.anuncio.textContent = 'Sin conexión';
 }
 addEventListener('online', pintarRed);
 addEventListener('offline', pintarRed);
+el.red.addEventListener('click', () => aviso(textoSinRed(), 9000));
 pintarRed();
 
 // ---------- Día / noche ----------
@@ -1971,7 +2083,6 @@ temaDelMovil.addEventListener('change', (e) => temaElegido() === null && fijarTe
 let bloqueoPantalla: WakeLockSentinel | null = null;
 let abridorTaxi: HTMLElement | null = null;
 
-const segmentador = 'Segmenter' in Intl ? new Intl.Segmenter('zh', { granularity: 'word' }) : null;
 
 /**
  * El chino partido en trozos que no se cortan al cambiar de línea: las palabras, y cada número con
@@ -1982,7 +2093,13 @@ function enTrozos(texto: string): string {
   const trozos: string[] = [];
   for (const pieza of piezas) {
     const previo = trozos[trozos.length - 1];
-    const pegar = previo !== undefined && (/[0-9A-Za-z]$/.test(previo) ? /^[0-9A-Za-z.\-#]/.test(pieza) || pieza.length === 1 : false);
+    // Pegados: un número con lo que le sigue, la puntuación con lo de antes y una sílaba suelta con
+    // una palabra corta («怎么» + «走»), para que «怎么走？» no se parta.
+    const pegar =
+      previo !== undefined &&
+      (/[0-9A-Za-z]$/.test(previo)
+        ? /^[0-9A-Za-z.\-#]/.test(pieza) || pieza.length === 1
+        : /^[，。、？！：；）」』]/.test(pieza) || (pieza.length === 1 && esHan(pieza) && esHan(previo) && previo.length <= 2));
     if (pegar) trozos[trozos.length - 1] += pieza;
     else trozos.push(pieza);
   }
@@ -2000,7 +2117,7 @@ const PEDIR = {
  */
 function mostrarTaxi(d: { nombre: string; local?: string; direccionLocal?: string }, abridor?: HTMLElement, taxi = true) {
   const pedir = PEDIR[taxi ? 'taxi' : 'pie'];
-  $('taxi-pedir').innerHTML = `<span lang="zh-Hans">${esc(pedir.zh)}</span><small>${esc(pedir.es)}</small>`;
+  $('taxi-pedir').innerHTML = `<span lang="zh-Hans">${enTrozos(pedir.zh)}</span><small>${esc(pedir.es)}</small>`;
   $('taxi-texto').innerHTML = enTrozos(d.local ?? d.direccionLocal ?? d.nombre);
   $('taxi-direccion').innerHTML = d.direccionLocal && d.local ? enTrozos(d.direccionLocal) : '';
   $('taxi-nombre').textContent = d.nombre;

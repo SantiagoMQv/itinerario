@@ -100,7 +100,7 @@ export const COLORES_DIA = [
 ];
 
 /** Duración aproximada (min) de un trayecto según el medio y la distancia en línea recta. */
-function estimarMinutos(modo: Transporte, km: number): number {
+export function estimarMinutos(modo: Transporte, km: number): number {
   const porModo: Record<Transporte, number> = {
     a_pie: ((km * 1.3) / 4.5) * 60,
     bici: ((km * 1.3) / 12) * 60,

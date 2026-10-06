@@ -370,6 +370,7 @@ mark {
 }
 /* Sin conexión: una píldora de papel, de una línea, que informa sin alarmar. */
 #red {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 6px;
@@ -384,6 +385,12 @@ mark {
   font-weight: 650;
   white-space: nowrap;
   box-shadow: var(--sombra-boton);
+}
+/* Se ve de 36 px y se toca con 44: dice qué sigue funcionando. */
+#red::after {
+  content: '';
+  position: absolute;
+  inset: -4px 0;
 }
 #red svg {
   flex: none;
@@ -550,9 +557,16 @@ mark {
   body.panel-abierto #toast {
     bottom: calc(var(--abajo) + 72px);
   }
-  /* Arriba del todo, el asa no se mete en las pestañas de los días. */
+  /* Arriba del todo, el asa no se mete en las pestañas: su zona de agarre crece hacia abajo. */
+  #panel.expandido #asa {
+    z-index: 2;
+  }
   #panel.expandido #asa::after {
-    inset: 0;
+    inset: 0 0 -12px;
+  }
+  /* En el repaso, al pie bastan «Mapa» y «Volver a ahora» (en una fila); «Hotel» está a media altura. */
+  body.panel-abierto.repaso #btn-hotel {
+    display: none;
   }
 }
 
@@ -680,7 +694,7 @@ body:not(.repaso) #ahora {
 body:not(.repaso) #ahora::before {
   top: 2px;
 }
-/* Móviles bajos: lo de ahora sin el nombre en chino (está en su tarjeta) y lo siguiente en una línea. */
+/* Móviles bajos: lo de ahora sin el nombre en chino (está en su tarjeta) y lo siguiente en una fila. */
 @media (max-height: 700px) and (max-width: 759px) and (orientation: portrait), (max-height: 700px) and (max-width: 559px) {
   body:not(.repaso) #hora {
     font-size: 44px;
@@ -690,11 +704,6 @@ body:not(.repaso) #ahora::before {
   }
   body:not(.repaso) #ahora hr {
     margin: 7px 0 6px;
-  }
-  body:not(.repaso) .bloque.siguiente .titulo {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
   }
   /* Lo siguiente en una fila: el nombre y cómo se llega a la izquierda, su botón a la derecha. */
   body:not(.repaso) #ahora .bloque.siguiente {
@@ -709,6 +718,15 @@ body:not(.repaso) #ahora::before {
   body:not(.repaso) #ahora .bloque.siguiente .acciones-bloque {
     grid-area: 1 / 2;
     flex-wrap: nowrap;
+  }
+  /* Yendo tarde hay que leer la propuesta y elegir: los botones van debajo, a lo ancho. */
+  body:not(.repaso) #ahora .bloque.siguiente:has(.recuperar) .acciones-bloque {
+    grid-area: auto;
+    grid-column: 1 / -1;
+    flex-wrap: wrap;
+  }
+  body:not(.repaso) .bloque.siguiente .titulo {
+    -webkit-line-clamp: 2;
   }
   body:not(.repaso) #ahora .bloque.siguiente .precio {
     display: none;
@@ -729,6 +747,10 @@ body:not(.repaso) #ahora::before {
 }
 #cuenta .lugar {
   display: none;
+}
+#cuenta .segun {
+  color: var(--tinta-suave);
+  font-weight: 600;
 }
 @media (max-width: 759px) and (orientation: portrait), (max-width: 559px) {
   body[data-hoja='baja']:not(.vista-todo) #cuenta .lugar {
@@ -1059,6 +1081,12 @@ li.tramo.actual .via {
 body.repaso .bloque mark,
 body.repaso li.actual .nombre {
   background: linear-gradient(transparent 58%, var(--fluor) 58%) 0 0 / 100% 100% no-repeat;
+}
+/* De noche la tinta fija no se lee sobre el papel oscuro: el texto vuelve a tinta clara y el trazo baja al pie de las letras. */
+:root[data-tema='oscuro'] body.repaso .bloque mark,
+:root[data-tema='oscuro'] body.repaso li.actual .nombre {
+  color: var(--tinta);
+  background: linear-gradient(transparent 86%, var(--fluor) 86%) 0 0 / 100% 100% no-repeat;
 }
 /* ¿Sigues en…? y cómo recuperar si se va tarde. */
 .pregunta {
@@ -1925,6 +1953,17 @@ body.vista-todo .lista {
 .maplibregl-ctrl-attrib {
   font-family: var(--fuente);
 }
+/* El ⓘ de los créditos se ve de 24 px y se toca con 44. */
+#mapa .maplibregl-ctrl-attrib-button::after {
+  content: '';
+  position: absolute;
+  inset: -10px;
+}
+/* El mapa ocupa toda la pantalla: su anillo de foco va por dentro para que se vea. */
+#mapa .maplibregl-canvas:focus-visible {
+  outline: 2.5px solid var(--tono);
+  outline-offset: -4px;
+}
 
 /* ---------- Tarjeta para el taxista ---------- */
 
@@ -1966,7 +2005,7 @@ body.vista-todo .lista {
   line-break: strict;
   text-wrap: balance;
 }
-#taxi .trozo {
+.trozo {
   white-space: nowrap;
 }
 #taxi-texto {
@@ -2375,7 +2414,7 @@ body.reproduciendo li.hecha .marca {
   #toast {
     left: calc(var(--ancho-panel) + 32px + var(--izq));
     right: auto;
-    width: min(420px, calc(100vw - var(--ancho-panel) - 48px - var(--izq) - var(--der)));
+    width: min(420px, calc(100vw - var(--ancho-panel) - 112px - var(--izq) - var(--der)));
     bottom: calc(76px + var(--abajo));
   }
   #mapa .maplibregl-ctrl-bottom-right,
