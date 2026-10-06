@@ -400,13 +400,51 @@ body.vista-todo #btn-hotel,
   border-radius: 14px 14px 0 0;
   box-shadow: 0 -2px 14px rgba(20, 33, 61, 0.18);
 }
-#panel.expandido {
-  height: 80dvh;
-}
-/* Plegado, el panel crece lo justo para que quepa la cabecera entera (más un poco de lista). */
+/*
+ * En el móvil, una hoja de altura fija que se desliza con transform (lo mueve el código): baja,
+ * media o alta. Lleva papel de sobra por debajo para que un rebote nunca enseñe el mapa.
+ * Mientras no está alta, la lista no se desplaza: arrastrarla mueve la hoja.
+ */
 @media (max-width: 759px) {
-  #panel:not(.expandido) {
-    height: max(50dvh, min(var(--alto-plegado, 0px), 76dvh));
+  #panel {
+    bottom: -60px;
+    height: calc(80dvh + 60px);
+    padding-bottom: calc(var(--abajo) + 60px);
+    touch-action: none;
+    will-change: transform;
+  }
+  #panel:not(.expandido) #contenido {
+    overflow: hidden;
+  }
+  #panel.expandido #contenido {
+    touch-action: pan-y;
+  }
+}
+/* Donde la hoja se corta con el borde de la pantalla, la lista se funde con el papel. */
+#pie-hoja {
+  display: none;
+}
+@media (max-width: 759px) {
+  #pie-hoja {
+    position: fixed;
+    z-index: 11;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: block;
+    height: calc(30px + var(--abajo));
+    background: linear-gradient(rgba(255, 255, 255, 0), var(--papel) 30px);
+    pointer-events: none;
+  }
+  :root[data-tema='oscuro'] #pie-hoja {
+    background: linear-gradient(rgba(18, 24, 32, 0), var(--papel) 30px);
+  }
+  body[data-hoja='baja'] #pie-hoja {
+    height: var(--abajo);
+    background: var(--papel);
+  }
+  body.panel-abierto #pie-hoja {
+    display: none;
   }
 }
 /* Desplegado (en el móvil), el mapa es una franja: sin botones, píldoras ni créditos encima. */
@@ -930,12 +968,6 @@ body.repaso li.actual .nombre {
 
 /* ---------- Lista del día ---------- */
 
-/* Plegado, la lista solo asoma: se funde abajo en vez de dejar media fila cortada. */
-#panel:not(.expandido) #contenido {
-  -webkit-mask-image: linear-gradient(#000 calc(100% - 36px), transparent);
-  mask-image: linear-gradient(#000 calc(100% - 36px), transparent);
-  padding-bottom: 44px;
-}
 #contenido {
   position: relative;
   flex: 1 1 auto;
@@ -1910,11 +1942,8 @@ body.reproduciendo li.hecha .marca {
   #cabecera {
     padding: 18px 20px 6px;
   }
-  #contenido,
-  #panel:not(.expandido) #contenido {
+  #contenido {
     padding: 0 20px 28px;
-    -webkit-mask-image: none;
-    mask-image: none;
   }
   #ahora::before {
     top: -16px;

@@ -49,6 +49,10 @@ const el = {
   offline: $<HTMLButtonElement>('btn-offline'),
   volverAhora: $<HTMLButtonElement>('btn-ahora'),
   seguir: $<HTMLButtonElement>('btn-seguir'),
+  pildoras: $('pildoras'),
+  botonesMapa: $('botones-mapa'),
+  pista: $('pista'),
+  controles: $('controles'),
   tema: $<HTMLButtonElement>('btn-tema'),
   anuncio: $('anuncio'),
   taxi: $('taxi'),
@@ -1271,55 +1275,278 @@ el.contenido.addEventListener('change', (e) => {
   contarPendientes();
 });
 
-// ---------- Panel desplegable ----------
+// ---------- Hoja deslizable ----------
 
-function expandir(abrir = !estado.expandido) {
-  estado.expandido = abrir;
-  el.panel.classList.toggle('expandido', abrir);
-  el.asa.setAttribute('aria-expanded', String(abrir));
-  document.body.classList.toggle('panel-abierto', abrir);
+/*
+ * En el móvil el panel es una hoja con tres alturas: baja (solo la cuenta atrás: casi todo es mapa),
+ * media (la cabecera entera y un poco de lista) y alta (la lista). Sigue al dedo, conserva la
+ * inercia al soltar y se asienta con un muelle. Se mueve con transform (sin recalcular la página en
+ * cada fotograma) y el mapa solo cambia sus márgenes al empezar a moverse hacia una altura.
+ */
+type AlturaHoja = 'baja' | 'media' | 'alta';
+const ORDEN_HOJA: AlturaHoja[] = ['baja', 'media', 'alta'];
+/** Papel de más bajo la hoja: si al soltar rebota hacia arriba, no se ve el mapa por debajo. */
+const SOBRANTE_HOJA = 60;
+const hoja = {
+  pos: 'media' as AlturaHoja,
+  destino: 'media' as AlturaHoja,
+  visible: 0,
+  /** Altura visible la última vez que se paró: la que conocen las píldoras y el mapa. */
+  asentada: 0,
+  alturas: { baja: 0, media: 0, alta: 0 } as Record<AlturaHoja, number>,
+  animacion: 0,
+};
+const pantallaAncha = matchMedia('(min-width: 760px)');
+const reducirMovimiento = matchMedia('(prefers-reduced-motion: reduce)');
+const esMovil = () => !pantallaAncha.matches;
+const seguidores = () => [
+  el.pildoras,
+  el.toast,
+  ...document.querySelectorAll<HTMLElement>('#mapa .maplibregl-ctrl-bottom-right, #mapa .maplibregl-ctrl-bottom-left'),
+];
+
+/** Las tres alturas visibles de la hoja, medidas sobre lo que lleva dentro ahora mismo. */
+function medirHoja() {
+  const r = el.panel.getBoundingClientRect();
+  const alta = el.panel.offsetHeight - SOBRANTE_HOJA;
+  const abajo = (parseFloat(getComputedStyle(el.panel).paddingBottom) || 0) - SOBRANTE_HOJA;
+  const fin = (e: Element | null) => (e ? e.getBoundingClientRect().bottom - r.top : 0);
+  const media = Math.min(Math.max(fin(el.cabecera) + 56 + abajo, innerHeight * 0.5), innerHeight * 0.76, alta);
+  // Baja: el asa y la primera línea de la cabecera (la cuenta atrás, o la hora del repaso, o el viaje).
+  const corte =
+    estado.vista === 'todo'
+      ? fin(el.ahora.querySelector('.titulo-viaje')) + 14
+      : estado.modo === 'repaso'
+        ? el.controles.getBoundingClientRect().top - r.top
+        : el.pista.getBoundingClientRect().top - r.top + 6;
+  hoja.alturas = { baja: Math.min(corte + abajo, media - 40), media, alta };
+}
+
+function moverHoja(v: number) {
+  hoja.visible = v;
+  el.panel.style.transform = `translateY(${hoja.alturas.alta - v}px)`;
+  // Las píldoras y los avisos acompañan al borde de la hoja; de media a alta se van apagando.
+  const d = hoja.asentada - v;
+  const { media, alta } = hoja.alturas;
+  const apagar = alta > media ? Math.min(Math.max((v - media) / (alta - media), 0), 1) : 0;
+  for (const e of seguidores()) e.style.transform = d ? `translateY(${d}px)` : '';
+  for (const e of [el.pildoras, el.botonesMapa]) e.style.opacity = apagar ? String(1 - apagar) : '';
+}
+
+function asentarHoja(pos: AlturaHoja) {
+  const cambio = pos !== hoja.pos;
+  hoja.animacion = 0;
+  hoja.pos = pos;
+  hoja.asentada = hoja.visible;
+  for (const e of seguidores()) e.style.transform = '';
+  for (const e of [el.pildoras, el.botonesMapa]) e.style.opacity = '';
+  document.body.dataset.hoja = pos;
+  ajustarMargenes();
+  // Al bajar la hoja, el mapa ha crecido: se vuelve a encuadrar el viaje o, si se va siguiendo el
+  // recorrido, lo de ahora.
+  if (cambio && pos !== 'alta') {
+    if (estado.vista === 'todo') vista.encuadrarTodo();
+    else if (estado.seguir) vista.seguir(momentoActual(), true, true);
+  }
+  // Si mientras se movía cambió lo que lleva dentro (otra cabecera), se ajusta a la medida nueva.
+  const antes = hoja.alturas[pos];
+  medirHoja();
+  if (Math.abs(hoja.alturas[pos] - antes) > 1) requestAnimationFrame(() => animarHoja(pos));
+}
+
+/** Lleva la hoja a una altura con un muelle casi crítico, partiendo de la velocidad del dedo (px/ms). */
+function animarHoja(pos: AlturaHoja, velocidad = 0) {
+  cancelAnimationFrame(hoja.animacion);
+  fijarDestino(pos);
+  const destino = hoja.alturas[pos];
+  if (reducirMovimiento.matches || Math.abs(hoja.visible - destino) < 1) {
+    moverHoja(destino);
+    return asentarHoja(pos);
+  }
+  const k = 420;
+  const c = 2 * Math.sqrt(k) * 0.9;
+  let x = hoja.visible;
+  let v = velocidad * 1000;
+  let antes = performance.now();
+  const paso = (ahora: number) => {
+    const dt = Math.min((ahora - antes) / 1000, 1 / 30) / 4;
+    antes = ahora;
+    for (let i = 0; i < 4; i++) {
+      v += (-k * (x - destino) - c * v) * dt;
+      x += v * dt;
+    }
+    if (Math.abs(x - destino) < 0.5 && Math.abs(v) < 15) {
+      moverHoja(destino);
+      return asentarHoja(pos);
+    }
+    moverHoja(Math.min(x, hoja.alturas.alta + SOBRANTE_HOJA));
+    hoja.animacion = requestAnimationFrame(paso);
+  };
+  hoja.animacion = requestAnimationFrame(paso);
+}
+
+/** Lo que depende de adónde va la hoja se decide al empezar a moverse, no al llegar. */
+function fijarDestino(pos: AlturaHoja) {
+  hoja.destino = pos;
+  const alta = pos === 'alta';
+  estado.expandido = alta;
+  el.panel.classList.toggle('expandido', alta);
+  el.asa.setAttribute('aria-expanded', String(alta));
+  el.asa.setAttribute('aria-label', alta ? 'Mostrar menos itinerario' : 'Mostrar el itinerario entero');
+  document.body.classList.toggle('panel-abierto', alta);
+  margenesMapa();
+}
+
+/** Abre (alta) o pliega (media) la hoja; en el ordenador solo cambia el estado. */
+function expandir(abrir = hoja.destino !== 'alta') {
+  if (esMovil()) animarHoja(abrir ? 'alta' : 'media');
+  else fijarDestino(abrir ? 'alta' : 'media');
   if (estado.vista !== 'dia') return;
   if (abrir) requestAnimationFrame(() => mostrarFila(el.contenido.querySelector('li.abierta, li.actual'), false));
   else if (estado.abierta === null) requestAnimationFrame(() => marcarLista(momentoActual()));
 }
 
-el.asa.addEventListener('click', () => expandir());
+// Un toque en el asa: de baja a media, y de media a alta y vuelta.
+el.asa.addEventListener('click', () => (hoja.destino === 'baja' ? animarHoja('media') : expandir()));
 
-// Deslizar el panel arriba o abajo desde el asa o la cabecera.
-let inicioToque: number | null = null;
-for (const zona of [el.asa, el.cabecera]) {
-  zona.addEventListener('touchstart', (e) => (inicioToque = e.touches[0].clientY), { passive: true });
-  zona.addEventListener('touchend', (e) => {
-    if (inicioToque === null) return;
-    const dy = e.changedTouches[0].clientY - inicioToque;
-    inicioToque = null;
-    if (Math.abs(dy) > 30) {
-      e.preventDefault();
-      expandir(dy < 0);
+// --- Arrastre con el dedo ---
+
+let toque: {
+  x0: number;
+  y0: number;
+  v0: number;
+  arrastrando: boolean;
+  desdeLista: boolean;
+  muestras: { t: number; y: number }[];
+} | null = null;
+let ignorarClic = false;
+
+/** Resistencia al pasarse de las alturas: cada vez cuesta más y nunca pasa de `max`. */
+const goma = (d: number, max: number) => max * (1 - 1 / ((d / max) * 0.6 + 1));
+
+el.panel.addEventListener(
+  'touchstart',
+  (e) => {
+    if (!esMovil() || e.touches.length > 1) return (toque = null);
+    const objetivo = e.target as HTMLElement;
+    // La línea de tiempo se arrastra de lado: no es para la hoja.
+    if (objetivo.closest('#pista')) return (toque = null);
+    const t = e.touches[0];
+    toque = {
+      x0: t.clientX,
+      y0: t.clientY,
+      v0: hoja.visible,
+      arrastrando: false,
+      desdeLista: !!objetivo.closest('#contenido'),
+      muestras: [{ t: e.timeStamp, y: t.clientY }],
+    };
+  },
+  { passive: true },
+);
+
+el.panel.addEventListener(
+  'touchmove',
+  (e) => {
+    if (!toque) return;
+    const t = e.touches[0];
+    const dx = t.clientX - toque.x0;
+    const dy = t.clientY - toque.y0;
+    if (!toque.arrastrando) {
+      // Con la lista abierta, se desplaza la lista; solo arrastrando hacia abajo desde arriba del
+      // todo se baja la hoja (se decide en el primer movimiento, antes de que el navegador desplace).
+      if (toque.desdeLista && hoja.destino === 'alta') {
+        if (dy < 0 || el.contenido.scrollTop > 0) return (toque = null);
+        if (dy === 0) return;
+      } else if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+      if (Math.abs(dx) > Math.abs(dy)) return (toque = null);
+      cancelAnimationFrame(hoja.animacion);
+      hoja.animacion = 0;
+      toque.arrastrando = true;
+      toque.y0 = t.clientY;
+      toque.v0 = hoja.visible;
     }
-  });
+    e.preventDefault();
+    toque.muestras.push({ t: e.timeStamp, y: t.clientY });
+    if (toque.muestras.length > 8) toque.muestras.shift();
+    const { baja, alta } = hoja.alturas;
+    let v = toque.v0 - (t.clientY - toque.y0);
+    if (v > alta) v = alta + goma(v - alta, SOBRANTE_HOJA);
+    else if (v < baja) v = baja - goma(baja - v, 70);
+    moverHoja(v);
+  },
+  { passive: false },
+);
+
+function soltarHoja(e: TouchEvent) {
+  const t = toque;
+  toque = null;
+  if (!t?.arrastrando) return;
+  // Tras arrastrar, el dedo no «pulsa» lo que haya debajo.
+  ignorarClic = true;
+  setTimeout(() => (ignorarClic = false), 350);
+  const ultima = t.muestras[t.muestras.length - 1];
+  const primera = t.muestras.find((m) => ultima.t - m.t <= 100) ?? ultima;
+  const quieto = e.timeStamp - ultima.t > 120;
+  const velocidad = !quieto && ultima.t > primera.t ? -(ultima.y - primera.y) / (ultima.t - primera.t) : 0;
+  // Se elige la altura más cercana a donde iría la hoja con su impulso.
+  const proyectada = hoja.visible + velocidad * 220;
+  const destino = ORDEN_HOJA.reduce((a, b) =>
+    Math.abs(hoja.alturas[b] - proyectada) < Math.abs(hoja.alturas[a] - proyectada) ? b : a,
+  );
+  animarHoja(destino, velocidad);
+}
+el.panel.addEventListener('touchend', soltarHoja);
+el.panel.addEventListener('touchcancel', soltarHoja);
+el.panel.addEventListener(
+  'click',
+  (e) => {
+    if (!ignorarClic) return;
+    e.stopPropagation();
+    e.preventDefault();
+  },
+  true,
+);
+
+/** Vuelve a medir y deja la hoja en su sitio (al girar el móvil o cambiar lo que lleva dentro). */
+function recolocarHoja() {
+  if (!esMovil()) {
+    el.panel.style.transform = '';
+    for (const e of seguidores()) e.style.transform = '';
+    return ajustarMargenes();
+  }
+  medirHoja();
+  if (toque?.arrastrando || hoja.animacion) return;
+  if (Math.abs(hoja.alturas[hoja.destino] - hoja.visible) < 1) return ajustarMargenes();
+  if (!hoja.asentada) {
+    moverHoja(hoja.alturas[hoja.destino]);
+    return asentarHoja(hoja.destino);
+  }
+  animarHoja(hoja.destino);
 }
 
-// Lo que tapan la barra y el panel no cuenta como mapa visible.
-const pantallaAncha = matchMedia('(min-width: 760px)');
-function ajustarMargenes() {
+// ---------- Márgenes del mapa ----------
+
+/** Lo que tapan la barra y la hoja (en la altura a la que va) no cuenta como mapa visible. */
+function margenesMapa() {
   const ancha = pantallaAncha.matches;
+  if (!ancha && !hoja.alturas.alta) medirHoja();
   vista.fijarMargenes({
     top: el.barra.offsetHeight + 8,
-    bottom: ancha ? 16 : el.panel.offsetHeight + 8,
+    bottom: ancha ? 16 : (hoja.alturas[hoja.destino] || hoja.visible) + 8,
     left: ancha ? el.panel.offsetWidth + 28 : 16,
     right: 68,
   });
-  document.documentElement.style.setProperty('--alto-panel', ancha ? '0px' : `${el.panel.offsetHeight}px`);
+}
+
+function ajustarMargenes() {
+  margenesMapa();
+  const ancha = pantallaAncha.matches;
+  document.documentElement.style.setProperty('--alto-panel', ancha ? '0px' : `${hoja.asentada}px`);
   document.documentElement.style.setProperty('--alto-barra', `${el.barra.offsetHeight}px`);
 }
-new ResizeObserver(ajustarMargenes).observe(el.panel);
+new ResizeObserver(recolocarHoja).observe(el.panel);
+new ResizeObserver(recolocarHoja).observe(el.cabecera);
 new ResizeObserver(ajustarMargenes).observe(el.barra);
-// Lo que necesita el panel plegado: el asa, la cabecera entera y un poco de lista asomando.
-new ResizeObserver(() => {
-  const abajo = parseFloat(getComputedStyle(el.panel).paddingBottom) || 0;
-  el.panel.style.setProperty('--alto-plegado', `${el.asa.offsetHeight + el.cabecera.offsetHeight + abajo + 56}px`);
-}).observe(el.cabecera);
 
 // ---------- Botones del mapa ----------
 
