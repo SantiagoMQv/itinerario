@@ -1192,7 +1192,8 @@ li.abierta > .detalle {
   line-height: 1.35;
 }
 .detalle dt,
-.gastos > span {
+.gastos > span,
+.subs-titulo {
   padding-top: 1px;
   color: var(--tinta-suave);
   font-size: 12px;
@@ -1207,6 +1208,103 @@ li.abierta > .detalle {
 .gastos {
   margin: 0 0 12px;
   font-size: 14.5px;
+}
+
+/*
+ * Sitios de dentro de una parada: «Aquí» (seguros) y «Si da tiempo» (opcionales), cada uno con un
+ * sello pequeño y su letra, la misma que en el mapa. Discontinuo = opcional, como en las paradas.
+ */
+.subparadas {
+  margin: 2px 0 12px;
+}
+.subs-titulo {
+  margin: 0 0 2px;
+}
+.subs {
+  margin: 0 0 8px;
+  padding: 0;
+  list-style: none;
+}
+.sub {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+}
+.sub-fila {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  gap: 10px;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 44px;
+  margin: 0 0 0 -4px;
+  padding: 6px 4px;
+  border: none;
+  border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+}
+.sub-marca {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-top: 1px;
+  border: 2px solid var(--tono);
+  border-radius: 50%;
+  background: var(--papel);
+  color: var(--tono);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+.sub.opcional .sub-marca {
+  border-style: dashed;
+}
+.sub-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  font-size: 15px;
+  line-height: 1.3;
+}
+.sub-nombre {
+  font-weight: 650;
+}
+.sub-texto .local {
+  display: inline;
+}
+.sub-nota {
+  color: var(--tinta-suave);
+  font-size: 14px;
+}
+.sub-chino {
+  flex: none;
+  margin-top: 1px;
+}
+/* El sitio que se acaba de mirar en el mapa: su sello pasa a tinta. */
+.sub.vista .sub-marca {
+  border-color: var(--tinta);
+  background: var(--tinta);
+  color: var(--papel);
+}
+
+/* En «ahora»: los sitios de dentro, en una línea que abre la ficha. */
+.subs-ahora {
+  display: -webkit-box;
+  overflow: hidden;
+  color: var(--tinta-suave);
+  font-size: 14px;
+  line-height: 1.3;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+.subs-ahora b {
+  color: var(--tinta);
+  font-weight: 700;
 }
 .gastos ul {
   margin: 4px 0 0;
@@ -1504,6 +1602,50 @@ body.vista-todo .lista {
   font-size: 15px;
   font-weight: 800;
   line-height: 1;
+}
+/* Sitios de dentro de la parada que se está mirando: un sello pequeño con su letra. */
+.submarcador {
+  z-index: 3;
+  padding: 0;
+  border: none;
+  background: none;
+}
+.submarcador > span {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 26px;
+  padding: 0 6px;
+  border: 2px solid var(--color);
+  border-radius: 13px;
+  background: var(--papel);
+  color: var(--color);
+  box-shadow:
+    0 0 0 2px var(--papel),
+    0 2px 4px rgba(20, 33, 61, 0.25);
+  font-family: var(--fuente);
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+.submarcador > span::after {
+  content: '';
+  position: absolute;
+  inset: -11px;
+  border-radius: 50%;
+}
+.submarcador.opcional > span {
+  border-style: dashed;
+}
+.submarcador.activa {
+  z-index: 4;
+}
+.submarcador.activa > span {
+  border-color: var(--tinta-fija);
+  background: var(--tinta-fija);
+  color: #fff;
+  transform: scale(1.15);
 }
 /* Zona de toque de 44 px aunque el sello se vea más pequeño (el ::after cuenta desde dentro del borde). */
 .marcador > span::after {

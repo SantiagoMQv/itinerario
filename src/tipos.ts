@@ -35,6 +35,24 @@ export interface Llegada {
   min?: number;
 }
 
+/**
+ * Sitio concreto dentro de una parada (una tienda de una calle, un puesto de un mercado…). No
+ * tiene hora propia: se hace dentro del horario de su parada.
+ */
+export interface Subparada {
+  nombre: string;
+  /** Nombre en chino, para enseñarlo y preguntar. */
+  local?: string;
+  /** Segura (por defecto): se va. Opcional: solo si da tiempo. */
+  opcional?: boolean;
+  /** Coordenadas WGS-84. Si faltan, está dentro de la propia parada (mismo edificio o recinto). */
+  lat?: number;
+  lng?: number;
+  notas?: string;
+  /** Dirección en chino. */
+  direccionLocal?: string;
+}
+
 export interface Parada {
   /** "HH:MM". Se admite "24:30" para pasada la medianoche del mismo día de itinerario. */
   hora: string;
@@ -58,6 +76,8 @@ export interface Parada {
   opcional?: boolean;
   enlaces?: Enlace[];
   gastos?: Gasto[];
+  /** Sitios dentro de la parada: los seguros y los de «si da tiempo». */
+  subparadas?: Subparada[];
 }
 
 export interface Dia {

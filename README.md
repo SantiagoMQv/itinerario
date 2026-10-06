@@ -12,6 +12,7 @@ Web para móvil que sirve para revisar el itinerario de un viaje a Shanghái (co
 - **Ahora y después:** junto a la hora, lo que toca ahora (subrayado en fluorescente, igual que su tramo en el mapa y su fila en la lista) y lo siguiente, con medio, distancia, minutos y precio.
 - **Taxi a un toque:** botón «Taxi» en lo siguiente si se va en taxi («En chino» si se va a pie o en metro, con «¿Cómo llego?» en chino para preguntar) y la píldora «Hotel» abajo, junto al pulgar. La tarjeta enseña el nombre y la dirección en chino a pantalla completa (también en horizontal), sin partir nunca un número ni una palabra; no se apaga la pantalla y solo se cierra con ✕ o el gesto de volver.
 - **Distancias:** cada trayecto muestra la distancia en línea recta, el medio de transporte y la duración (real o estimada con `~`). Cada parada indica también a qué distancia está del hotel.
+- **Subparadas:** cada parada puede tener sitios dentro (las tiendas de una calle, los puestos de un mercado, el restaurante de un edificio), seguros o «si da tiempo». En «ahora» salen en una línea («Aquí: No. 1 Department Store, First Food Store · +1 si da tiempo»); en la ficha, en dos grupos con su letra, para verlos en el mapa o enseñarlos en chino; y en el mapa, la parada que se está mirando enseña sus sitios con sellos pequeños (discontinuos los de «si da tiempo»).
 - **Itinerario en lista:** el panel se arrastra con el dedo a tres alturas: abajo del todo (solo la cuenta atrás y casi todo mapa), a media altura o arriba para ver el día entero. Al tocar una parada se abren sus notas, la reserva y botones para abrirla en Amap, Apple Maps o Google Maps (leerla no cambia la hora).
 - **Todo el viaje:** la pestaña «Todo» enseña todos los días a la vez, cada uno de un color, con la lista de pendientes («3 de 7») y la fecha del plan que lleva tu móvil. Antes del viaje la app se abre aquí, con «Antes de salir»: lo pendiente por comprobar y el botón para guardar los mapas.
 - **Sin conexión:** el botón «Mapas» guarda la app y los mapas de todas las zonas del viaje (unos 30 MB). Si te quedas sin internet, una píldora lo avisa junto a «Hotel».
@@ -30,6 +31,7 @@ Todo el itinerario está en [`src/datos/itinerario.ts`](src/datos/itinerario.ts)
 | `lat` / `lng` | `31.2289, 121.4879` | Coordenadas WGS-84 (las de OpenStreetMap o el GPS, **no** las de Amap o Baidu, que van desplazadas unos 500 m). |
 | `llegada` | `{ modo: 'metro', detalle: 'Línea 10', min: 20 }` | Cómo se llega desde la parada anterior: `a_pie`, `metro`, `taxi`, `bus`, `tren`, `maglev`, `ferry`, `avion`, `bici`. |
 | `notas`, `direccion`, `direccionLocal`, `reserva` | | Opcionales. |
+| `subparadas` | `[{ nombre: 'First Food Store', local: '第一食品商店', lat: 31.2375, lng: 121.4722, notas: 'Snacks' }]` | Sitios dentro de la parada (tiendas de una calle, puestos de un mercado…), sin hora propia. Con `opcional: true` van en «Si da tiempo». Sin `lat`/`lng`, están en la misma parada. |
 
 Los hoteles no llevan número en el mapa (salen con una H). Si hay algo incoherente (una hora anterior a la de la parada previa, por ejemplo), la app lo avisa arriba.
 

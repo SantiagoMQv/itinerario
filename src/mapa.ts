@@ -137,6 +137,9 @@ export class VistaMapa {
   /** Marcadores que, a este zoom, representan a otros que se pisarían con ellos. */
   private racimos = new Map<Marker, ParadaC[]>();
   private pastillas: { m: Marker; t: TramoC }[] = [];
+  /** Sitios de dentro de la parada que se está mirando (los que tienen posición propia). */
+  private subMarcadores: { m: Marker; letras: number[] }[] = [];
+  private subsDe: ParadaC | null = null;
   private posicion: Marker;
   private dia: DiaC | null = null;
   private clave = '';
@@ -151,7 +154,11 @@ export class VistaMapa {
   constructor(
     contenedor: HTMLElement,
     private modelo: Modelo,
-    private eventos: { alPulsarParada: (p: ParadaC) => void; alArrastrar: () => void },
+    private eventos: {
+      alPulsarParada: (p: ParadaC) => void;
+      alPulsarSubparada: (p: ParadaC, i: number) => void;
+      alArrastrar: () => void;
+    },
   ) {
     this.mapa = new Mapa({
       container: contenedor,
@@ -314,7 +321,7 @@ export class VistaMapa {
     if (!this.mapa.isStyleLoaded() && !this.originales.size) return;
     this.pintarBase();
     if (this.dia) {
-      for (const { m } of this.marcadores) m.getElement().style.setProperty('--color', this.colorDe(this.dia));
+      for (const { m } of [...this.marcadores, ...this.subMarcadores]) m.getElement().style.setProperty('--color', this.colorDe(this.dia));
       if (this.momento) this.actualizar(this.t, this.momento);
     } else this.mostrarTodo();
   }
@@ -332,6 +339,7 @@ export class VistaMapa {
   }
 
   private limpiarMarcadores() {
+    this.mostrarSubparadas(null);
     for (const { m } of this.marcadores) m.remove();
     for (const { m } of this.pastillas) m.remove();
     this.marcadores = [];
@@ -638,4 +646,50 @@ export class VistaMapa {
     this.clave = `p${p.id}`;
     this.centrar(p.pos, Math.max(this.mapa.getZoom(), 14));
   }
+
+  /**
+   * Sitios de dentro de una parada: un sello pequeño con su letra, discontinuo si es de «si da
+   * tiempo». Los que están en el mismo edificio comparten sello («c·d»); los que no tienen
+   * posición propia están en la parada y no se dibujan.
+   */
+  mostrarSubparadas(p: ParadaC | null) {
+    if (p === this.subsDe) return;
+    for (const { m } of this.subMarcadores) m.remove();
+    this.subMarcadores = [];
+    this.subsDe = p;
+    if (!p || !this.dia) return;
+    const grupos = new Map<string, number[]>();
+    for (const sub of p.subs) {
+      if (!sub.pos) continue;
+      const clave = sub.pos.map((c) => c.toFixed(4)).join(',');
+      grupos.set(clave, [...(grupos.get(clave) ?? []), sub.i]);
+    }
+    for (const letras of grupos.values()) {
+      const subs = letras.map((i) => p.subs[i]);
+      const el = document.createElement('button');
+      el.type = 'button';
+      el.className = 'submarcador';
+      el.classList.toggle('opcional', subs.every((x) => x.s.opcional));
+      el.style.setProperty('--color', this.colorDe(this.dia));
+      el.setAttribute('aria-label', subs.map((x) => `${x.letra}: ${x.s.nombre}${x.s.opcional ? ' (si da tiempo)' : ''}`).join(', '));
+      el.innerHTML = `<span>${subs.map((x) => x.letra).join('·')}</span>`;
+      el.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.eventos.alPulsarSubparada(p, letras[0]);
+      });
+      const m = new Marker({ element: el }).setLngLat(subs[0].pos!).addTo(this.mapa);
+      this.subMarcadores.push({ m, letras });
+    }
+  }
+
+  /** Resalta el sello del sitio que se está mirando (o ninguno). */
+  resaltarSub(i: number | null) {
+    for (const { m, letras } of this.subMarcadores) m.getElement().classList.toggle('activa', i !== null && letras.includes(i));
+  }
+
+  /** Lleva el mapa a un punto concreto (un sitio de dentro de una parada). */
+  enfocarPunto(pos: LngLat) {
+    this.centrar(pos, Math.max(this.mapa.getZoom(), 16));
+  }
 }
+

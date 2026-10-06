@@ -38,6 +38,16 @@ const C = {
   hinichijou: [31.2129028, 121.4538854],
   lujiazui: [31.23962, 121.4960369],
   perla: [31.2419464, 121.4952604],
+  // Subparadas (OpenStreetMap). Miniso Land, a falta de confirmar el número exacto.
+  jiaJia: [31.236418, 121.4663129],
+  primerBaihuo: [31.2370344, 121.4702701],
+  primerAlimentacion: [31.2375414, 121.47216],
+  shimao: [31.2363682, 121.471206],
+  minisoLand: [31.2379593, 121.4766991],
+  hongyi: [31.238756, 121.4800058],
+  bailianZX: [31.239143, 121.4787764],
+  daimaru: [31.240375, 121.4810468],
+  disneytown: [31.1423191, 121.6569261],
 } satisfies Record<string, [number, number]>;
 
 const en = ([lat, lng]: [number, number]) => ({ lat, lng });
@@ -109,9 +119,18 @@ export const itinerario: Itinerario = {
           direccionLocal: '黄河路97号',
           notas:
             'Shengjian (bollos fritos de sopa), distintos de los xiaolongbao del sábado: un plato de 4 cuesta unos 12 ¥. Abre hasta tarde.\n' +
-            'En la misma calle está Jia Jia Tang Bao (佳家汤包), de los xiaolongbao más famosos de Shanghái (unos 40 ¥ por persona; abre de 07:30 a 20:00).\n' +
             'Huanghe Road se puso de moda por la serie «Blossoms Shanghai» (繁花).',
           gastos: [{ concepto: 'comida', min: 25, max: 45 }],
+          subparadas: [
+            {
+              nombre: 'Jia Jia Tang Bao',
+              local: '佳家汤包',
+              opcional: true,
+              ...en(C.jiaJia),
+              direccionLocal: '黄河路90号',
+              notas: 'En la misma calle: de los xiaolongbao más famosos de Shanghái (unos 40 ¥ por persona). Abre de 07:30 a 20:00.',
+            },
+          ],
           enlaces: [enlace('Huanghe Road', 'https://english.shanghai.gov.cn/en-Latest-WhatsNew/20240110/1ba02195e1ef4de49fabee498555c64d.html')],
         },
         {
@@ -123,8 +142,30 @@ export const itinerario: Itinerario = {
           ...en(C.nanjingOeste),
           llegada: { modo: 'a_pie' },
           notas:
-            'Inicio de la calle peatonal. Grandes almacenes históricos No. 1 Department Store (con zona de anime y figuras), First Food Store (上海第一食品商店, n.º 720) para snacks y dulces de todo el país, y en Shimao Plaza las tiendas insignia de LEGO y M&M’s.\n' +
+            'Inicio de la calle peatonal.\n' +
             'Para compras grandes, preguntar en atención al cliente por la devolución de impuestos para turistas (con el pasaporte; se cobra en el aeropuerto).',
+          subparadas: [
+            {
+              nombre: 'No. 1 Department Store',
+              local: '上海市第一百货商店',
+              ...en(C.primerBaihuo),
+              notas: 'Grandes almacenes históricos, con zona de anime y figuras.',
+            },
+            {
+              nombre: 'First Food Store',
+              local: '第一食品商店',
+              ...en(C.primerAlimentacion),
+              direccionLocal: '南京东路720号',
+              notas: 'Snacks y dulces de todo el país.',
+            },
+            {
+              nombre: 'Shimao Plaza: LEGO y M&M’s',
+              local: '上海世茂广场',
+              opcional: true,
+              ...en(C.shimao),
+              notas: 'Tiendas insignia de LEGO y M&M’s.',
+            },
+          ],
           enlaces: [
             enlace('Guía de tiendas de Nanjing Road', 'https://www.wanderinchina.com/es/destinations/shanghai/nanjing-east-road/shopping/'),
           ],
@@ -138,8 +179,36 @@ export const itinerario: Itinerario = {
           ...en(C.nanjingEste),
           llegada: { modo: 'a_pie' },
           notas:
-            'Marcas chinas y cosas curiosas: Miniso Land (n.º 387, tres plantas), Pop Mart Global Flagship en Hongyi Plaza (figuras sorpresa de edición Shanghái), Bailian ZX (seis plantas de anime y videojuegos) y las escaleras mecánicas doradas en espiral de New World Daimaru.\n' +
-            'Por la tarde-noche se encienden los neones de la calle. Posición en el mapa aproximada.',
+            'Marcas chinas y cosas curiosas. Por la tarde-noche se encienden los neones de la calle. Posición en el mapa aproximada.',
+          subparadas: [
+            {
+              nombre: 'Miniso Land',
+              local: '名创优品',
+              ...en(C.minisoLand),
+              direccionLocal: '南京东路387号',
+              notas: 'Tres plantas. Posición en el mapa aproximada.',
+            },
+            {
+              nombre: 'Pop Mart Global Flagship',
+              local: '泡泡玛特 · 宏伊国际广场',
+              ...en(C.hongyi),
+              notas: 'En Hongyi Plaza: figuras sorpresa de edición Shanghái.',
+            },
+            {
+              nombre: 'Bailian ZX',
+              local: '百联ZX',
+              opcional: true,
+              ...en(C.bailianZX),
+              notas: 'Seis plantas de anime y videojuegos.',
+            },
+            {
+              nombre: 'New World Daimaru',
+              local: '上海新世界大丸百货',
+              opcional: true,
+              ...en(C.daimaru),
+              notas: 'Las escaleras mecánicas doradas en espiral.',
+            },
+          ],
         },
         {
           hora: '18:30',
@@ -162,10 +231,17 @@ export const itinerario: Itinerario = {
           llegada: { modo: 'taxi', detalle: 'Taxi desde el Bund (~3 km)', min: 15 },
           direccionLocal: '上海市静安区西藏北路166号',
           notas:
-            'Maleta: en Joy City hay una tienda Xiaomi (edificio sur, planta baja, según información de hace unos años: confirmarlo). Vende las maletas de 90分 (NINETYGO) y Mijia, la opción china con mejor calidad/precio (policarbonato, ruedas silenciosas, candado TSA). Precios orientativos: 20″ ~200–500 ¥, 24″ ~300–700 ¥, 28″ ~460 ¥ en adelante.\n' +
+            'Maleta: las de 90分 (NINETYGO) y Mijia son la opción china con mejor calidad/precio (policarbonato, ruedas silenciosas, candado TSA). Precios orientativos: 20″ ~200–500 ¥, 24″ ~300–700 ¥, 28″ ~460 ¥ en adelante.\n' +
             'Para comparar o si no hay existencias: en JD o Taobao son algo más baratas y llegan al hotel en 1–2 días. En los grandes almacenes de Nanjing Road predominan marcas internacionales más caras.\n' +
             'Antes de elegir el tamaño, revisar la franquicia de equipaje de los cuatro vuelos, sobre todo el Barcelona–Málaga de Vueling (según la tarifa, podría hacer falta añadir la maleta).\n' +
             'Ropa imprescindible para Disneyland. Las tiendas cierran a las 22:00.',
+          subparadas: [
+            {
+              nombre: 'Tienda Xiaomi',
+              local: '小米之家',
+              notas: 'Maletas 90分 (NINETYGO) y Mijia. En el edificio sur, planta baja, según información de hace unos años: confirmarlo.',
+            },
+          ],
           enlaces: [
             enlace('Joy City', 'https://english.shanghai.gov.cn/en-ShoppingCenters/20231217/dbb23c40ef1b4ff68794226b8ca37d1a.html'),
             enlace('Equipaje en Vueling', 'https://help.vueling.com/hc/es/articles/19798835176081-Equipaje-de-mano-Maletas-de-mano'),
@@ -193,9 +269,15 @@ export const itinerario: Itinerario = {
           ...en(C.noria),
           llegada: { modo: 'a_pie' },
           notas:
-            'Mercado gastronómico de cocinas asiáticas con mesas compartidas (abrió en 2026): cocina del sudeste asiático de Opalm Asia, tempura de Nuu Nuu, sukiyaki de wagyu para comer en barra (Karasuma) y fideos salteados de Wen Made, además de bebidas y postres.\n' +
+            'Mercado gastronómico de cocinas asiáticas con mesas compartidas (abrió en 2026), con bebidas y postres.\n' +
             'Está en la planta baja del edificio norte de Joy City. Confirmar a qué hora cierra; si cierra pronto, cenar antes de subir a la noria.',
           gastos: [{ concepto: 'cena (estimado, sin precios publicados)', min: 60, max: 120 }],
+          subparadas: [
+            { nombre: 'Opalm Asia', notas: 'Cocina del sudeste asiático.' },
+            { nombre: 'Nuu Nuu', notas: 'Tempura.' },
+            { nombre: 'Karasuma', notas: 'Sukiyaki de wagyu para comer en barra.' },
+            { nombre: 'Wen Made', notas: 'Fideos salteados.' },
+          ],
           enlaces: [enlace('Top Banana Market', 'https://english.shanghai.gov.cn/en-FirstStores/20260211/4976961a80794cf495e4eb67df6371ee.html')],
         },
         {
@@ -223,12 +305,21 @@ export const itinerario: Itinerario = {
           llegada: { modo: 'metro', detalle: 'Metro hasta Disney Resort (línea 11) o taxi/DiDi', min: 60 },
           notas:
             'Comprar la entrada y consultar el horario de apertura y cierre publicado para el 22. La hora de salida de aquí es orientativa.\n' +
-            'El precio de la entrada depende del día (calendario oficial con unos 30 días de antelación). Comer en Disneytown, junto al parque, sale bastante más barato.\n' +
+            'El precio de la entrada depende del día (calendario oficial con unos 30 días de antelación).\n' +
             'El punto del mapa es el centro del parque, no la puerta de entrada.',
           gastos: [
             { concepto: 'entrada (día normal; los días punta, hasta 719 ¥)', min: 475, max: 599 },
             { concepto: 'comida y cena de servicio rápido', min: 120, max: 240 },
             { concepto: 'snacks (gofre de Mickey 40 ¥, pata de pavo 80 ¥)', min: 20, max: 80 },
+          ],
+          subparadas: [
+            {
+              nombre: 'Disneytown',
+              local: '迪士尼小镇',
+              opcional: true,
+              ...en(C.disneytown),
+              notas: 'Junto al parque: comer aquí sale bastante más barato.',
+            },
           ],
           enlaces: [enlace('Precios de las entradas', 'https://wanderinchina.com/es/destinations/shanghai/disneyland/tickets/')],
         },
@@ -356,8 +447,19 @@ export const itinerario: Itinerario = {
           llegada: { modo: 'metro', detalle: 'Línea 1 hasta South Huangpi Road', min: 20 },
           direccionLocal: '淮海中路523号',
           notas:
-            'Prioridad a marcas locales: Pane en TX Huaihai (planta baja, L1-05/06; en festivos ha tenido colas de más de 40 min), Mason Prince enfrente (淮海中路528号) y otras tiendas que nos gusten al recorrer la calle.\n' +
+            'Prioridad a marcas locales, y otras tiendas que nos gusten al recorrer la calle.\n' +
             'TX Huaihai abre de 11:00 a 22:00.',
+          subparadas: [
+            {
+              nombre: 'Pane',
+              notas: 'En TX Huaihai, planta baja (L1-05/06). En festivos ha tenido colas de más de 40 min.',
+            },
+            {
+              nombre: 'Mason Prince',
+              direccionLocal: '淮海中路528号',
+              notas: 'Enfrente de TX Huaihai.',
+            },
+          ],
           enlaces: [
             enlace('Guía de tiendas de Huaihai', 'https://english.shanghai.gov.cn/en-TrendyStores/20260525/8fc944e699224a4e9e9a609ad33fa0c0.html'),
           ],
@@ -404,8 +506,15 @@ export const itinerario: Itinerario = {
           ...en(C.yuyuan),
           llegada: { modo: 'taxi', min: 25 },
           notas:
-            'Arquitectura, ambiente y tiendas, con la tienda insignia de Semir (marca china de ropa diaria con artículos exclusivos de Shanghái).\n' +
+            'Arquitectura, ambiente y tiendas.\n' +
             'El jardín interior de Yuyuan no está incluido: cierra pronto y chocaría con las compras.',
+          subparadas: [
+            {
+              nombre: 'Semir, tienda insignia',
+              local: '森马',
+              notas: 'Marca china de ropa diaria, con artículos exclusivos de Shanghái.',
+            },
+          ],
           enlaces: [
             enlace('Semir en Yuyuan', 'https://english.shanghai.gov.cn/en-Latest-WhatsNew/20260917/1213b27578094564b1ad9630d36c24f2.html'),
           ],
@@ -509,9 +618,18 @@ export const itinerario: Itinerario = {
           direccion: '98 Wukang Road',
           direccionLocal: '武康路98号',
           notas:
-            'A esta hora lo seguro es SOMETHING Dining & Bar (2.ª planta), con brunch y cocina occidental de 10:00 a 22:00.\n' +
-            'Dongxin Jiujia, de cocina shanghainesa, está en el mismo número, pero no hemos podido confirmar si sirve después de las 14:00.\n' +
-            'Posición en el mapa aproximada.',
+            'Dos restaurantes en el mismo número. Posición en el mapa aproximada.',
+          subparadas: [
+            {
+              nombre: 'SOMETHING Dining & Bar',
+              notas: '2.ª planta. Brunch y cocina occidental de 10:00 a 22:00: a esta hora, lo seguro.',
+            },
+            {
+              nombre: 'Dongxin Jiujia',
+              opcional: true,
+              notas: 'Cocina shanghainesa. Sin confirmar si sirve después de las 14:00.',
+            },
+          ],
           gastos: [{ concepto: 'comida (estimado, sin precio publicado)', min: 100, max: 180 }],
           enlaces: [
             enlace('SOMETHING', 'https://english.shanghai.gov.cn/en-Restaurants/20240416/b3de189a44064a76afd2e677f7e60b37.html'),

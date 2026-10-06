@@ -8,6 +8,7 @@ import {
   type DiaC,
   type Momento,
   type ParadaC,
+  type SubC,
   type TramoC,
   construirModelo,
   gastoTotal,
@@ -295,6 +296,7 @@ function siguienteDe(p: ParadaC): ParadaC | undefined {
 
 const vista = new VistaMapa($('mapa'), modelo, {
   alPulsarParada: pulsarParada,
+  alPulsarSubparada: pulsarSubparada,
   alArrastrar: () => {
     estado.seguir = false;
     el.seguir.hidden = estado.vista !== 'dia';
@@ -810,9 +812,24 @@ function bloqueAhora(p: ParadaC, titulo: string, detalle: string, cuando: string
       ${local ? `<span class="detalle-ahora">${chino(local)}</span>` : ''}
       ${detalle ? `<span class="detalle-ahora">${esc(detalle)}</span>` : ''}
       <span class="hasta">${esc(cuando)}</span>
+      ${lineaSubs(p)}
     </button>
     ${acciones ? `<div class="acciones-bloque">${acciones}</div>` : ''}
   </div>`;
+}
+
+/**
+ * «Aquí: No. 1 Department Store, First Food Store · +1 si da tiempo»: los sitios de dentro, a un
+ * toque de su ficha.
+ */
+function lineaSubs(p: ParadaC): string {
+  if (!p.subs.length || p === diaActual().origen) return '';
+  const seguras = p.subs.filter((x) => !x.s.opcional).map((x) => x.s.nombre);
+  const opcionales = p.subs.filter((x) => x.s.opcional).map((x) => x.s.nombre);
+  const texto = seguras.length
+    ? `<b>Aquí:</b> ${esc(seguras.join(', '))}${opcionales.length ? ` · +${opcionales.length} si da tiempo` : ''}`
+    : `<b>Si da tiempo:</b> ${esc(opcionales.join(', '))}`;
+  return `<span class="subs-ahora">${texto}</span>`;
 }
 
 function bloqueDespues(q: ParadaC | undefined, recuperar = '', saltarlaPrimero = false): string {
@@ -876,7 +893,7 @@ function botonMarca(p: ParadaC, marca: Marca): string {
 el.ahora.addEventListener('click', (e) => {
   const objetivo = e.target as HTMLElement;
   const taxi = objetivo.closest<HTMLElement>('[data-taxi]');
-  if (taxi) return mostrarTaxi(modelo.paradas[Number(taxi.dataset.taxi)], taxi, !('pie' in taxi.dataset));
+  if (taxi) return mostrarTaxi(modelo.paradas[Number(taxi.dataset.taxi)].p, taxi, !('pie' in taxi.dataset));
   const marca = objetivo.closest<HTMLElement>('[data-marcar]');
   if (marca) return marcar(modelo.paradas[Number(marca.dataset.id)], marca.dataset.marcar as Marca, true);
   const b = objetivo.closest<HTMLElement>('[data-abrir]');
@@ -971,6 +988,7 @@ function filaParada(p: ParadaC, esOrigen: boolean): string {
       </button>
       <div class="detalle">
         ${q.notas && !esOrigen ? parrafos(q.notas, 'notas') : ''}
+        ${esOrigen ? '' : subparadasHtml(p)}
         ${datos.length ? `<dl>${datos.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${k === 'Horario' || k === 'Hotel' ? esc(v) : v}</dd>`).join('')}</dl>` : ''}
         ${esOrigen ? '' : gastosHtml(q.gastos)}
         ${q.enlaces?.length && !esOrigen ? `<p class="enlaces">${enlacesHtml(q.enlaces)}</p>` : ''}
@@ -981,6 +999,33 @@ function filaParada(p: ParadaC, esOrigen: boolean): string {
         </div>
       </div>
     </li>`;
+}
+
+/** Los sitios de dentro de una parada, en dos grupos: «Aquí» (seguros) y «Si da tiempo». */
+function subparadasHtml(p: ParadaC): string {
+  if (!p.subs.length) return '';
+  const fila = (x: SubC) => `
+    <li class="sub${x.s.opcional ? ' opcional' : ''}" data-sub="${x.i}">
+      <button type="button" class="sub-fila" data-ver-sub="${p.id}:${x.i}">
+        <span class="sub-marca" aria-hidden="true">${x.letra}</span>
+        <span class="sub-texto">
+          <span class="sub-nombre">${esc(x.s.nombre)}</span>${x.s.local ? ` <span class="local">(${chino(x.s.local)})</span>` : ''}
+          ${x.s.notas ? `<span class="sub-nota">${esc(x.s.notas)}</span>` : ''}
+          <span class="sr">${x.pos ? 'Ver en el mapa' : 'Está en la misma parada'}</span>
+        </span>
+      </button>
+      ${
+        x.s.local || x.s.direccionLocal
+          ? `<button type="button" class="mini suave sub-chino" data-chino-sub="${p.id}:${x.i}" aria-label="${esc(`Enseñar «${x.s.nombre}» en chino`)}">En chino</button>`
+          : ''
+      }
+    </li>`;
+  const grupo = (titulo: string, lista: SubC[]) =>
+    lista.length ? `<p class="subs-titulo">${titulo}</p><ol class="subs">${lista.map(fila).join('')}</ol>` : '';
+  return `<div class="subparadas">
+    ${grupo('Aquí', p.subs.filter((x) => !x.s.opcional))}
+    ${grupo('Si da tiempo', p.subs.filter((x) => x.s.opcional))}
+  </div>`;
 }
 
 /** Etiqueta con el gasto de la parada. */
@@ -1061,6 +1106,7 @@ function marcarLista(m: Momento) {
   for (const li of el.contenido.querySelectorAll<HTMLLIElement>('li.tramo')) {
     li.classList.toggle('actual', m.tramo?.id === Number(li.dataset.tramo));
   }
+  vista.mostrarSubparadas(paradaMirada(m));
   if (estado.abierta !== null) return;
   const fila = el.contenido.querySelector<HTMLElement>('li.actual');
   // Plegado y en directo, la lista asoma por lo que viene después (lo de ahora ya está arriba).
@@ -1108,7 +1154,17 @@ el.contenido.addEventListener('click', (e) => {
     return;
   }
   const taxi = objetivo.closest<HTMLElement>('[data-taxi]');
-  if (taxi) return mostrarTaxi(modelo.paradas[Number(taxi.dataset.taxi)], taxi);
+  if (taxi) return mostrarTaxi(modelo.paradas[Number(taxi.dataset.taxi)].p, taxi);
+  const chinoSub = objetivo.closest<HTMLElement>('[data-chino-sub]');
+  if (chinoSub) {
+    const [pid, i] = chinoSub.dataset.chinoSub!.split(':').map(Number);
+    return mostrarTaxi(modelo.paradas[pid].subs[i].s, chinoSub, false);
+  }
+  const verSub = objetivo.closest<HTMLElement>('[data-ver-sub]');
+  if (verSub) {
+    const [pid, i] = verSub.dataset.verSub!.split(':').map(Number);
+    return verSubparada(modelo.paradas[pid], i);
+  }
   const mas = objetivo.closest<HTMLElement>('[data-mas-mapas]');
   if (mas) {
     const otros = mas.parentElement!.querySelectorAll<HTMLElement>('a[hidden]');
@@ -1136,6 +1192,36 @@ el.contenido.addEventListener('click', (e) => {
   if (!yaAbierta) enfocar(p);
   marcarLista(momentoActual());
 });
+
+/** La parada cuyos sitios de dentro se enseñan en el mapa: la de la ficha abierta, o la de ahora. */
+function paradaMirada(m: Momento): ParadaC | null {
+  if (estado.vista !== 'dia') return null;
+  if (estado.abierta !== null && estado.abierta >= 0) return modelo.paradas[estado.abierta];
+  return m.tipo === 'parada' ? m.parada : m.tramo.hasta;
+}
+
+/** Desde la ficha: la hoja baja a media y el mapa va al sitio, con su sello resaltado. */
+function verSubparada(p: ParadaC, i: number) {
+  const sub = p.subs[i];
+  estado.seguir = false;
+  el.seguir.hidden = estado.vista !== 'dia';
+  for (const li of el.contenido.querySelectorAll('li.sub.vista')) li.classList.remove('vista');
+  el.contenido.querySelector(`li.parada[data-id="${p.id}"] li.sub[data-sub="${i}"]`)?.classList.add('vista');
+  if (esMovil() && hoja.destino === 'alta') animarHoja('media');
+  vista.mostrarSubparadas(p);
+  vista.resaltarSub(sub.pos ? i : null);
+  vista.enfocarPunto(sub.pos ?? p.pos);
+  if (!sub.pos) aviso(`«${sub.s.nombre}» está en la misma parada`, 3000);
+}
+
+/** Al tocar el sello de un sitio en el mapa: su nombre y su nota, y la tarjeta en chino a mano. */
+function pulsarSubparada(p: ParadaC, i: number) {
+  const sub = p.subs[i];
+  vista.resaltarSub(i);
+  const texto = `${sub.letra} · ${sub.s.nombre}${sub.s.opcional ? ' (si da tiempo)' : ''}${sub.s.notas ? `: ${sub.s.notas}` : ''}`;
+  const chino = sub.s.local || sub.s.direccionLocal ? { texto: 'En chino', hacer: () => mostrarTaxi(sub.s, undefined, false) } : undefined;
+  aviso(texto, 7000, chino);
+}
 
 /** Lleva el mapa a una parada sin tocar la hora; el recorrido deja de seguirse hasta que se pida. */
 function enfocar(p: ParadaC) {
@@ -1674,13 +1760,13 @@ const PEDIR = {
  * Tarjeta a pantalla completa. Solo se cierra con ✕, Escape o el gesto de volver: no con un roce.
  * `taxi`: para el taxista («lléveme aquí»); si no, para preguntar a alguien por la calle.
  */
-function mostrarTaxi(p: ParadaC, abridor?: HTMLElement, taxi = true) {
+function mostrarTaxi(d: { nombre: string; local?: string; direccionLocal?: string }, abridor?: HTMLElement, taxi = true) {
   const pedir = PEDIR[taxi ? 'taxi' : 'pie'];
   $('taxi-pedir').innerHTML = `<span lang="zh-Hans">${esc(pedir.zh)}</span><small>${esc(pedir.es)}</small>`;
-  $('taxi-texto').innerHTML = enTrozos(p.p.local ?? p.p.nombre);
-  $('taxi-direccion').innerHTML = p.p.direccionLocal ? enTrozos(p.p.direccionLocal) : '';
-  $('taxi-nombre').textContent = p.p.nombre;
-  el.taxi.setAttribute('aria-label', `${taxi ? 'Tarjeta para el taxista' : 'Tarjeta para preguntar cómo llegar'}: ${p.p.nombre}`);
+  $('taxi-texto').innerHTML = enTrozos(d.local ?? d.direccionLocal ?? d.nombre);
+  $('taxi-direccion').innerHTML = d.direccionLocal && d.local ? enTrozos(d.direccionLocal) : '';
+  $('taxi-nombre').textContent = d.nombre;
+  el.taxi.setAttribute('aria-label', `${taxi ? 'Tarjeta para el taxista' : 'Tarjeta para preguntar cómo llegar'}: ${d.nombre}`);
   abridorTaxi = abridor ?? null;
   el.taxi.hidden = false;
   // Mientras está abierta, lo de detrás no se puede tocar ni recorrer con el teclado.
@@ -1719,7 +1805,7 @@ function hotelActual(): ParadaC | null {
 el.hotel.hidden = !modelo.paradas.some((p) => p.p.categoria === 'hotel');
 el.hotel.addEventListener('click', () => {
   const h = hotelActual();
-  if (h) mostrarTaxi(h, el.hotel);
+  if (h) mostrarTaxi(h.p, el.hotel);
 });
 
 // Con teclado o lector de pantalla, el primer tabulador lleva a «ahora» sin recorrer el mapa.

@@ -1,6 +1,6 @@
 import { type Arco, type LngLat, crearArco, distanciaKm } from './geo';
 import { aMinutos } from './formato';
-import type { Dia, Itinerario, Parada, Seccion, Transporte } from './tipos';
+import type { Dia, Itinerario, Parada, Seccion, Subparada, Transporte } from './tipos';
 
 export interface ParadaC {
   /** Índice global en todo el viaje. */
@@ -14,6 +14,27 @@ export interface ParadaC {
   fin: number;
   /** Zona geográfica (Shanghái, Nankín…) calculada por cercanía. */
   zona: number;
+  /** Sitios de dentro: primero los seguros y luego los de «si da tiempo», con su letra (a, b, c…). */
+  subs: SubC[];
+}
+
+export interface SubC {
+  /** Posición en `subs` de su parada. */
+  i: number;
+  letra: string;
+  s: Subparada;
+  /** Sin coordenadas propias (o a menos de 25 m de la parada): está en la misma parada. */
+  pos: LngLat | null;
+}
+
+function subsDe(p: Parada): SubC[] {
+  const todas = p.subparadas ?? [];
+  const ordenadas = [...todas.filter((s) => !s.opcional), ...todas.filter((s) => s.opcional)];
+  return ordenadas.map((s, i) => {
+    const pos: LngLat | null = Number.isFinite(s.lat) && Number.isFinite(s.lng) ? [s.lng!, s.lat!] : null;
+    const aparte = pos && distanciaKm(pos, [p.lng, p.lat]) >= 0.025;
+    return { i, letra: String.fromCharCode(97 + i), s, pos: aparte ? pos : null };
+  });
 }
 
 export interface TramoC {
@@ -127,6 +148,7 @@ export function construirModelo(it: Itinerario): Modelo {
         inicio: aMinutos(d.fecha, p.hora),
         fin: NaN,
         zona: 0,
+        subs: subsDe(p),
       });
     }
   });
