@@ -409,7 +409,8 @@ body.vista-todo #btn-hotel,
 @media (max-width: 759px) {
   #panel {
     bottom: -60px;
-    height: calc(80dvh + 60px);
+    /* Alta: hasta justo debajo de las pestañas, que siguen a mano para cambiar de día. */
+    height: calc(100dvh - var(--alto-barra, 54px) - 4px + 60px);
     padding-bottom: calc(var(--abajo) + 60px);
     touch-action: none;
     will-change: transform;
@@ -419,6 +420,59 @@ body.vista-todo #btn-hotel,
   }
   #panel.expandido #contenido {
     touch-action: pan-y;
+  }
+}
+/*
+ * Con la hoja alta, lo que se quiere es la lista: la cabecera se reduce a la cuenta atrás (o la hora
+ * del repaso con sus controles) y, debajo, el nombre de lo de ahora en una línea.
+ */
+@media (max-width: 759px) {
+  body.panel-abierto:not(.vista-todo) #cabecera {
+    grid-template-columns: minmax(0, 1fr);
+    padding-bottom: 8px;
+  }
+  body.panel-abierto:not(.vista-todo) #reloj {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    grid-template-areas: 'hora cuenta controles';
+    align-items: center;
+    column-gap: 10px;
+    padding: 0;
+  }
+  body.panel-abierto:not(.vista-todo) #hora {
+    grid-area: hora;
+    font-size: 30px;
+  }
+  body.panel-abierto:not(.vista-todo) #cuenta {
+    grid-area: cuenta;
+    overflow: hidden;
+    margin: 0;
+    font-size: 14px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  body.panel-abierto:not(.vista-todo) #controles {
+    grid-area: controles;
+    margin: 0 -8px 0 0;
+  }
+  body.panel-abierto:not(.vista-todo) #pista,
+  body.panel-abierto:not(.vista-todo) #btn-repasar,
+  body.panel-abierto:not(.vista-todo) #ahora::before,
+  body.panel-abierto:not(.vista-todo) #ahora .pregunta,
+  body.panel-abierto:not(.vista-todo) #ahora hr,
+  body.panel-abierto:not(.vista-todo) #ahora .bloque.siguiente,
+  body.panel-abierto:not(.vista-todo) #ahora .acciones-bloque,
+  body.panel-abierto:not(.vista-todo) #ahora .detalle-ahora,
+  body.panel-abierto:not(.vista-todo) #ahora .hasta,
+  body.panel-abierto:not(.vista-todo) #ahora .subs-ahora {
+    display: none;
+  }
+  body.panel-abierto:not(.vista-todo) #ahora {
+    padding: 4px 0 0;
+  }
+  body.panel-abierto:not(.vista-todo) #ahora .bloque .titulo {
+    font-size: 15.5px;
+    -webkit-line-clamp: 1;
   }
 }
 /* Donde la hoja se corta con el borde de la pantalla, la lista se funde con el papel. */

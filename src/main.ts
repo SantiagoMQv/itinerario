@@ -1392,9 +1392,19 @@ const seguidores = () => [
 ];
 
 /** Las tres alturas visibles de la hoja, medidas sobre lo que lleva dentro ahora mismo. */
+/** Con la hoja alta (en el móvil, en un día) la cabecera va reducida a lo esencial. */
+const cabeceraReducida = () => esMovil() && estado.vista === 'dia' && document.body.classList.contains('panel-abierto');
+
 function medirHoja() {
   const r = el.panel.getBoundingClientRect();
   const alta = el.panel.offsetHeight - SOBRANTE_HOJA;
+  // Baja y media se miden con la cabecera entera: con la reducida se conserva lo medido antes.
+  if (cabeceraReducida()) {
+    hoja.alturas = hoja.alturas.media
+      ? { ...hoja.alturas, alta }
+      : { baja: Math.min(120, alta), media: Math.min(innerHeight * 0.5, alta), alta };
+    return;
+  }
   const abajo = (parseFloat(getComputedStyle(el.panel).paddingBottom) || 0) - SOBRANTE_HOJA;
   const fin = (e: Element | null) => (e ? e.getBoundingClientRect().bottom - r.top : 0);
   const media = Math.min(Math.max(fin(el.cabecera) + 56 + abajo, innerHeight * 0.5), innerHeight * 0.76, alta);
@@ -1616,9 +1626,12 @@ function recolocarHoja() {
 function margenesMapa() {
   const ancha = pantallaAncha.matches;
   if (!ancha && !hoja.alturas.alta) medirHoja();
+  // Con la hoja alta el mapa casi no se ve: se encuadra como si estuviera a media altura, que es
+  // lo que se verá al bajarla.
+  const visible = hoja.destino === 'alta' ? hoja.alturas.media : hoja.alturas[hoja.destino];
   vista.fijarMargenes({
     top: el.barra.offsetHeight + 8,
-    bottom: ancha ? 16 : (hoja.alturas[hoja.destino] || hoja.visible) + 8,
+    bottom: ancha ? 16 : (visible || hoja.visible) + 8,
     left: ancha ? el.panel.offsetWidth + 28 : 16,
     right: 68,
   });
