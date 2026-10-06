@@ -180,6 +180,10 @@ export class VistaMapa {
         this.guardarOriginales();
         this.crearCapas();
         this.pintarBase();
+        // Los créditos, plegados en su ⓘ (como al arrastrar): desplegados tapaban las píldoras de abajo.
+        const plegar = () => contenedor.querySelector('.maplibregl-ctrl-attrib')?.classList.remove('maplibregl-compact-show');
+        plegar();
+        this.mapa.once('idle', plegar);
         ok();
       }),
     );
@@ -405,6 +409,9 @@ export class VistaMapa {
     const puestas: { x: number; y: number; w: number; h: number }[] = [];
     const ahora = this.tramoResaltado();
     const orden = [...this.pastillas].sort((a, b) => Number(b.t === ahora) - Number(a.t === ahora) || b.t.km - a.t.km);
+    // Ida y vuelta entre los mismos sitios: la distancia se dice una sola vez.
+    const pares = new Set<string>();
+    const par = (t: TramoC) => [t.desde.pos, t.hasta.pos].map((p) => p.map((v) => v.toFixed(3)).join(',')).sort().join('|');
     for (const { m, t } of orden) {
       const el = m.getElement();
       const a = this.mapa.project(t.desde.pos);
@@ -415,8 +422,12 @@ export class VistaMapa {
       const caja = { x: c.x, y: c.y, w: el.offsetWidth + 6, h: el.offsetHeight + 4 };
       const pisa = puestas.some((o) => Math.abs(o.x - caja.x) * 2 < o.w + caja.w && Math.abs(o.y - caja.y) * 2 < o.h + caja.h);
       const corto = Math.hypot(a.x - b.x, a.y - b.y) < 110;
-      el.classList.toggle('oculta', corto || pisa);
-      if (!corto && !pisa) puestas.push(caja);
+      const repetida = pares.has(par(t));
+      el.classList.toggle('oculta', corto || pisa || repetida);
+      if (!corto && !pisa && !repetida) {
+        puestas.push(caja);
+        pares.add(par(t));
+      }
     }
   }
 

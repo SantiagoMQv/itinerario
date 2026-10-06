@@ -350,19 +350,31 @@ body.vista-todo #btn-hotel,
   fill: currentColor;
   stroke: none;
 }
-/* Sin conexión: una píldora de tinta que solo aparece cuando falta la red. */
+/* Sin conexión: una píldora de papel, de una línea, que informa sin alarmar. */
 #red {
   display: flex;
   align-items: center;
+  gap: 6px;
   min-height: 36px;
   margin: 0;
-  padding: 0 14px;
+  padding: 0 12px 0 10px;
+  border: 1.5px dashed var(--borde-fuerte);
   border-radius: 20px;
-  background: var(--tinta);
-  color: var(--papel);
+  background: var(--boton-mapa);
+  color: var(--tinta);
   font-size: 13.5px;
-  font-weight: 600;
+  font-weight: 650;
+  white-space: nowrap;
   box-shadow: var(--sombra-boton);
+}
+#red svg {
+  flex: none;
+  width: 17px;
+  height: 17px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
 }
 #btn-seguir svg {
   width: 18px;
@@ -391,11 +403,26 @@ body.vista-todo #btn-hotel,
 #panel.expandido {
   height: 80dvh;
 }
-body.panel-abierto #botones-mapa {
-  display: none;
+/* Plegado, el panel crece lo justo para que quepa la cabecera entera (más un poco de lista). */
+@media (max-width: 759px) {
+  #panel:not(.expandido) {
+    height: max(50dvh, min(var(--alto-plegado, 0px), 76dvh));
+  }
+}
+/* Desplegado (en el móvil), el mapa es una franja: sin botones, píldoras ni créditos encima. */
+@media (max-width: 759px) {
+  body.panel-abierto #botones-mapa,
+  body.panel-abierto #pildoras,
+  body.panel-abierto #mapa .maplibregl-ctrl-bottom-right {
+    display: none;
+  }
+  body.panel-abierto #toast {
+    bottom: calc(var(--abajo) + 12px);
+  }
 }
 
 #asa {
+  position: relative;
   flex: none;
   display: grid;
   place-items: center;
@@ -403,6 +430,12 @@ body.panel-abierto #botones-mapa {
   padding: 0;
   border: none;
   background: none;
+}
+/* Se ve de 32 px, pero se agarra con 44: la zona sube un poco por encima del borde del panel. */
+#asa::after {
+  content: '';
+  position: absolute;
+  inset: -12px 0 0;
 }
 #asa span {
   width: 38px;
@@ -459,21 +492,70 @@ body.repaso #hora {
   color: var(--papel);
   -webkit-text-stroke: 1.6px var(--tinta);
 }
-/* En directo, el repaso se esconde: la cuenta atrás, una tira fina y «Repasar el día». */
+/*
+ * En directo, una sola columna pensada desde la cuenta atrás: arriba, a lo ancho, cuánto queda y
+ * para qué; debajo, la línea del día con «Repasar el día»; y después «ahora» y «después» con todo el
+ * ancho. Los controles del repaso no existen aquí.
+ */
 #btn-repasar {
   display: none;
-  margin: 2px 0 0 -6px;
+}
+body:not(.repaso) #cabecera {
+  grid-template-columns: minmax(0, 1fr);
+}
+body:not(.repaso) #reloj {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-areas:
+    'hora cuenta cuenta'
+    'pista pista repasar';
+  align-items: center;
+  column-gap: 12px;
+  padding: 0 0 2px;
+}
+body:not(.repaso) #hora {
+  grid-area: hora;
+}
+body:not(.repaso) #cuenta {
+  grid-area: cuenta;
+  margin: 0;
+  font-size: 15px;
+}
+body:not(.repaso) #pista {
+  grid-area: pista;
+  height: 40px;
 }
 body:not(.repaso) #btn-repasar {
+  grid-area: repasar;
   display: inline-flex;
+  margin-right: -6px;
 }
 body:not(.repaso) #controles,
 body:not(.repaso) #extremos {
   display: none;
 }
-body:not(.repaso) #pista {
-  height: 40px;
-  margin-top: 4px;
+body:not(.repaso) #ahora {
+  padding-top: 6px;
+}
+body:not(.repaso) #ahora::before {
+  top: 2px;
+}
+/* Móviles bajos: lo de ahora sin el nombre en chino (está en su tarjeta) y lo siguiente en una línea. */
+@media (max-height: 700px) and (max-width: 759px) {
+  body:not(.repaso) #hora {
+    font-size: 44px;
+  }
+  body:not(.repaso) #ahora .bloque:not(.siguiente) .detalle-ahora:has(> [lang]) {
+    display: none;
+  }
+  body:not(.repaso) #ahora hr {
+    margin: 7px 0 6px;
+  }
+  body:not(.repaso) .bloque.siguiente .titulo {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 #cuenta {
   margin: 5px 0 0;
@@ -726,7 +808,7 @@ body.reproduciendo .icono-pausa {
 .mini::after {
   content: '';
   position: absolute;
-  inset: -5px -3px;
+  inset: -7px -4px;
 }
 .mini svg {
   width: 17px;
@@ -779,7 +861,7 @@ body.reproduciendo .icono-pausa {
   -webkit-line-clamp: 3;
 }
 .bloque.fin .titulo {
-  color: var(--tinta-suave);
+  font-size: 17px;
 }
 
 /* Subrayado fluorescente: trazo de rotulador con los extremos irregulares. */
@@ -1153,10 +1235,19 @@ li.abierta > .detalle {
   gap: 6px;
   margin: 0 0 12px;
 }
+/* El estado elegido se marca con ✓ y contorno de tinta: el relleno es solo para la acción principal. */
+.marcas .boton svg {
+  display: none;
+}
 .marcas .boton[aria-pressed='true'] {
   border-color: var(--tinta);
-  background: var(--tinta);
-  color: var(--papel);
+  box-shadow: inset 0 0 0 1px var(--tinta);
+}
+.marcas .boton[aria-pressed='true'] svg {
+  display: block;
+}
+.acciones .boton[hidden] {
+  display: none;
 }
 .boton.tinta {
   border-color: var(--tinta);
@@ -1381,11 +1472,11 @@ body.vista-todo .lista {
   font-weight: 800;
   line-height: 1;
 }
-/* Zona de toque de 44 px aunque el sello se vea más pequeño. */
+/* Zona de toque de 44 px aunque el sello se vea más pequeño (el ::after cuenta desde dentro del borde). */
 .marcador > span::after {
   content: '';
   position: absolute;
-  inset: -6px;
+  inset: -9px;
   border-radius: 50%;
 }
 .marcador.opcional > span {
@@ -1400,6 +1491,11 @@ body.vista-todo .lista {
 .marcador.hotel > span {
   background: var(--color);
   color: #fff;
+}
+/* De noche el color del día va aclarado: el número, en tinta oscura para que se lea. */
+:root[data-tema='oscuro'] .marcador.hecha > span,
+:root[data-tema='oscuro'] .marcador.hotel > span {
+  color: #121820;
 }
 .marcador.hecha > span {
   rotate: -8deg;
@@ -1497,8 +1593,8 @@ body.vista-todo .lista {
   box-shadow: 0 0 0 2px var(--papel);
 }
 
-.maplibregl-ctrl-bottom-right,
-.maplibregl-ctrl-bottom-left {
+#mapa .maplibregl-ctrl-bottom-right,
+#mapa .maplibregl-ctrl-bottom-left {
   bottom: var(--alto-panel);
 }
 .maplibregl-ctrl-attrib {
@@ -1537,13 +1633,16 @@ body.vista-todo .lista {
   color: #4f5b73;
   font-size: 15px;
 }
-/* El chino no se parte a media palabra y las líneas quedan equilibradas. */
+/* El chino se parte solo entre trozos (palabras, y números con su 号) y las líneas quedan equilibradas. */
 #taxi-texto,
 #taxi-direccion {
-  word-break: keep-all;
-  overflow-wrap: anywhere;
+  word-break: normal;
+  overflow-wrap: break-word;
   line-break: strict;
   text-wrap: balance;
+}
+#taxi .trozo {
+  white-space: nowrap;
 }
 #taxi-texto {
   font-size: min(17vw, 20vh, 112px);
@@ -1657,8 +1756,8 @@ body.vista-todo .lista {
 
 /* Cómo leer las marcas del cuaderno. */
 .leyenda {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
   align-items: center;
   gap: 6px 14px;
   margin: 16px 0 0;
@@ -1693,6 +1792,46 @@ body.vista-todo .lista {
   border-radius: 0.5em 0.2em 0.6em 0.3em;
   background: var(--fluor);
   color: var(--tinta-fija);
+}
+
+/* Saltar el mapa con el teclado: aparece al recibir el foco. */
+#saltar {
+  position: fixed;
+  z-index: 60;
+  top: calc(var(--arriba) + 8px);
+  left: 12px;
+  padding: 10px 16px;
+  border-radius: 20px;
+  background: var(--tinta);
+  color: var(--papel);
+  font-weight: 700;
+  text-decoration: none;
+  transform: translateY(-200%);
+}
+#saltar:focus {
+  transform: none;
+}
+#ahora:focus {
+  outline: none;
+}
+#ahora:focus-visible {
+  outline: 2.5px solid var(--tono);
+  outline-offset: 4px;
+}
+/* El plan deja menos tiempo del que se tarda: se dice, en rojo de aviso. */
+.apretado {
+  color: var(--aviso);
+  font-weight: 650;
+}
+.tareas li.apretado {
+  display: block;
+  color: var(--tinta);
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 1.35;
+}
+.tareas li.apretado b {
+  color: var(--aviso);
 }
 
 /* Solo para lectores de pantalla. */

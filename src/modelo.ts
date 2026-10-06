@@ -61,7 +61,8 @@ export interface Modelo {
 
 export type Momento =
   | { tipo: 'parada'; parada: ParadaC; tramo: null }
-  | { tipo: 'camino'; parada: null; tramo: TramoC; f: number };
+  /** De camino: `salida` y `llegada` son las del plan, o las estimadas a partir de una marca. */
+  | { tipo: 'camino'; parada: null; tramo: TramoC; f: number; salida: number; llegada: number };
 
 /** Colores de pestaña de cada día (todos con contraste suficiente para texto blanco). */
 export const COLORES_DIA = [
@@ -219,7 +220,8 @@ export function construirModelo(it: Itinerario): Modelo {
 export function momentoEn(m: Modelo, t: number): Momento {
   for (const tramo of m.tramos) {
     if (!tramo.nulo && tramo.salida <= t && t < tramo.llegada) {
-      return { tipo: 'camino', parada: null, tramo, f: (t - tramo.salida) / (tramo.llegada - tramo.salida) };
+      const f = (t - tramo.salida) / (tramo.llegada - tramo.salida);
+      return { tipo: 'camino', parada: null, tramo, f, salida: tramo.salida, llegada: tramo.llegada };
     }
   }
   let actual = m.paradas[0];
@@ -228,6 +230,11 @@ export function momentoEn(m: Modelo, t: number): Momento {
     else break;
   }
   return { tipo: 'parada', parada: actual, tramo: null };
+}
+
+/** Trayectos que el plan no deja hacer a tiempo: faltan 5 minutos o más para lo que se tarda. */
+export function trayectosApretados(m: Modelo): TramoC[] {
+  return m.tramos.filter((t) => !t.nulo && t.salida + t.minutos >= t.llegada + 5);
 }
 
 /** Hotel de referencia para una parada: el último usado en la misma zona. */

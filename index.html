@@ -15,6 +15,7 @@
     <title>Itinerario</title>
   </head>
   <body>
+    <a id="saltar" href="#ahora">Ir a «ahora»</a>
     <div id="mapa"></div>
 
     <header id="barra">
@@ -88,7 +89,7 @@
           </div>
           <button id="btn-repasar" class="mini suave" type="button">Repasar el día</button>
         </div>
-        <div id="ahora"></div>
+        <div id="ahora" tabindex="-1"></div>
       </div>
 
       <div id="contenido"></div>
@@ -96,7 +97,7 @@
 
     <p id="anuncio" class="sr" aria-live="polite"></p>
 
-    <div id="taxi" role="dialog" aria-modal="true" aria-labelledby="taxi-texto" hidden>
+    <div id="taxi" role="dialog" aria-modal="true" aria-label="Tarjeta para el taxista" hidden>
       <button id="taxi-cerrar" type="button" aria-label="Cerrar la tarjeta">
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>
       </button>

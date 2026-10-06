@@ -13,6 +13,7 @@ import {
   gastoTotal,
   hotelDe,
   momentoEn,
+  trayectosApretados,
 } from './modelo';
 import { descargaAnterior, descargarMapas, registrarServiceWorker } from './offline';
 import type { Enlace, Gasto } from './tipos';
@@ -118,38 +119,93 @@ let hoyIdx = hoy().idx;
  * he llegado antes o sigo después de la hora).
  */
 type Marca = 'hecha' | 'saltada' | 'aqui';
-// Las marcas se guardan por fecha, hora y nombre: siguen valiendo aunque se añadan paradas al plan.
+// Las marcas se guardan por fecha, hora y nombre: siguen valiendo aunque se añadan paradas al plan
+// y, si ese día no hay otra parada con el mismo nombre, aunque se cambie su hora.
 const CLAVE_MARCAS = 'marcas';
 const marcas = leer<Record<string, Marca>>(CLAVE_MARCAS, {});
+// Cuándo se marcó en la calle (minutos, hora de China): «Hecha» o «Ya salí» dicen cuándo se salió.
+const CLAVE_HORAS = 'marcas-hora';
+const horasMarca = leer<Record<string, number>>(CLAVE_HORAS, {});
+// Un móvil que nunca ha marcado es el de quien solo mira: sigue el plan sin preguntar.
+const CLAVE_MARCADOR = 'marcador';
+let marcador = leer<boolean>(CLAVE_MARCADOR, false) || Object.keys(marcas).length > 0;
 let versionMarcas = 0;
 const claveParada = (p: ParadaC) => `${modelo.dias[p.dia].d.fecha}|${p.p.hora}|${p.p.nombre}`;
-const marcaDe = (p: ParadaC): Marca | undefined => marcas[claveParada(p)];
+const clavesPlan = new Set(modelo.paradas.map(claveParada));
+
+const cacheClaves = new Map<number, string | undefined>();
+let versionCache = -1;
+/** Clave con la que está guardada la marca de `p` (la suya, o la de antes de cambiarle la hora). */
+function claveGuardada(p: ParadaC): string | undefined {
+  if (versionCache !== versionMarcas) {
+    cacheClaves.clear();
+    versionCache = versionMarcas;
+  }
+  if (cacheClaves.has(p.id)) return cacheClaves.get(p.id);
+  const exacta = claveParada(p);
+  let clave: string | undefined = exacta in marcas ? exacta : undefined;
+  if (!clave && modelo.paradas.filter((q) => q.dia === p.dia && q.p.nombre === p.p.nombre).length === 1) {
+    const fecha = modelo.dias[p.dia].d.fecha;
+    clave = Object.keys(marcas).find((k) => k.startsWith(`${fecha}|`) && k.endsWith(`|${p.p.nombre}`) && !clavesPlan.has(k));
+  }
+  cacheClaves.set(p.id, clave);
+  return clave;
+}
+const marcaDe = (p: ParadaC): Marca | undefined => {
+  const k = claveGuardada(p);
+  return k ? marcas[k] : undefined;
+};
+const horaMarcaDe = (p: ParadaC): number | undefined => {
+  const k = claveGuardada(p);
+  return k ? horasMarca[k] : undefined;
+};
 const cerrada = (p: ParadaC) => marcaDe(p) === 'hecha' || marcaDe(p) === 'saltada';
 const NOMBRE_MARCA: Record<Marca, string> = { hecha: 'hecha', saltada: 'saltada', aqui: 'aquí' };
 
-function marcar(p: ParadaC, marca: Marca | null, deshacible = true) {
+function guardarMarcas() {
+  guardar(CLAVE_MARCAS, marcas);
+  guardar(CLAVE_HORAS, horasMarca);
+  versionMarcas++;
+}
+
+/**
+ * `enLaCalle`: marcada desde «ahora» (se guarda la hora, que dice cuándo se salió). Desde la ficha es
+ * una corrección y no cuenta como salida.
+ */
+function marcar(p: ParadaC, marca: Marca | null, enLaCalle = false) {
   const antes = { ...marcas };
+  const horasAntes = { ...horasMarca };
+  const marcadorAntes = marcador;
   // Solo se puede «estar» en un sitio: la que estuviera en «aquí» pasa a hecha.
   if (marca === 'aqui') for (const [k, v] of Object.entries(marcas)) if (v === 'aqui') marcas[k] = 'hecha';
-  if (marca) marcas[claveParada(p)] = marca;
-  else delete marcas[claveParada(p)];
-  guardar(CLAVE_MARCAS, marcas);
-  versionMarcas++;
+  const vieja = claveGuardada(p);
+  if (vieja) {
+    delete marcas[vieja];
+    delete horasMarca[vieja];
+  }
+  if (marca) {
+    marcas[claveParada(p)] = marca;
+    if (enLaCalle) horasMarca[claveParada(p)] = hoy().min;
+  }
+  guardarMarcas();
+  if (!marcador) guardar(CLAVE_MARCADOR, (marcador = true));
   // Tras repintar, el foco no se pierde: vuelve al primer botón de «Ahora».
   const enAhora = el.ahora.contains(document.activeElement);
   pintar(true);
   if (estado.vista === 'todo') pintarResumen();
   if (enAhora) el.ahora.querySelector<HTMLElement>('.mini, .abrir')?.focus();
-  if (!deshacible) return;
-  const texto = marca === 'aqui' ? `estás en «${p.p.nombre}»` : `«${p.p.nombre}»: ${marca ? NOMBRE_MARCA[marca] : 'según el plan'}`;
+  const texto = marca === 'aqui' ? `Estás en «${p.p.nombre}»` : `«${p.p.nombre}»: ${marca ? NOMBRE_MARCA[marca] : 'según el plan'}`;
   aviso(texto, 8000, {
     texto: 'Deshacer',
     hacer: () => {
       for (const k of Object.keys(marcas)) delete marcas[k];
+      for (const k of Object.keys(horasMarca)) delete horasMarca[k];
       Object.assign(marcas, antes);
-      guardar(CLAVE_MARCAS, marcas);
-      versionMarcas++;
+      Object.assign(horasMarca, horasAntes);
+      guardarMarcas();
+      if (marcador !== marcadorAntes) guardar(CLAVE_MARCADOR, (marcador = marcadorAntes));
       pintar(true);
+      if (estado.vista === 'todo') pintarResumen();
     },
   });
 }
@@ -179,9 +235,20 @@ function siguientePendiente(p: ParadaC): ParadaC | undefined {
   return undefined;
 }
 
+const deCamino = (tramo: TramoC, t: number, salida: number, llegada: number, tope = 1): Momento => ({
+  tipo: 'camino',
+  parada: null,
+  tramo,
+  salida,
+  llegada,
+  f: Math.min(Math.max((t - salida) / Math.max(llegada - salida, 1), 0), tope),
+});
+
 /**
  * Dónde se está de verdad: lo que dice el horario del plan a esta hora, corregido por las marcas.
  * «Aquí» fija la parada; si la del plan ya está hecha o saltada, se va hacia la siguiente pendiente.
+ * Si se dijo en la calle cuándo se salió de la anterior, el trayecto cuenta desde entonces: se llega
+ * antes (o después) que en el plan.
  */
 function momentoDirecto(t: number): Momento {
   const dia = diaActual();
@@ -189,15 +256,19 @@ function momentoDirecto(t: number): Momento {
   if (aqui) return { tipo: 'parada', parada: aqui, tramo: null };
   const plan = momentoEn(modelo, t);
   const objetivo = plan.tipo === 'parada' ? plan.parada : plan.tramo.hasta;
-  if (!cerrada(objetivo)) return plan;
-  const sig = siguientePendiente(objetivo);
+  const sig = cerrada(objetivo) ? siguientePendiente(objetivo) : objetivo;
   if (!sig || sig.dia !== dia.idx) return { tipo: 'parada', parada: objetivo, tramo: null };
   const tramo = modelo.tramos.find((tr) => tr.hasta === sig);
-  if (tramo && !tramo.nulo && t < sig.inicio) {
-    const f = Math.min(Math.max((t - tramo.salida) / Math.max(tramo.llegada - tramo.salida, 1), 0), 0.98);
-    return { tipo: 'camino', parada: null, tramo, f };
+  if (!tramo || tramo.nulo) return sig === objetivo ? plan : { tipo: 'parada', parada: sig, tramo: null };
+  let previa: ParadaC | undefined = modelo.paradas[sig.id - 1];
+  while (previa && marcaDe(previa) === 'saltada') previa = modelo.paradas[previa.id - 1];
+  const salida = previa && marcaDe(previa) === 'hecha' ? horaMarcaDe(previa) : undefined;
+  if (salida !== undefined) {
+    const llegada = salida + tramo.minutos;
+    return t < llegada ? deCamino(tramo, t, salida, llegada) : { tipo: 'parada', parada: sig, tramo: null };
   }
-  return { tipo: 'parada', parada: sig, tramo: null };
+  if (sig === objetivo) return plan;
+  return t < sig.inicio ? deCamino(tramo, t, tramo.salida, tramo.llegada, 0.98) : { tipo: 'parada', parada: sig, tramo: null };
 }
 
 const momentoActual = (): Momento => (estado.modo === 'directo' ? momentoDirecto(estado.t) : momentoEn(modelo, estado.t));
@@ -425,7 +496,7 @@ function pintarLineaTiempo(m: Momento) {
     punto.classList.toggle('pasado', e === 'hecha');
     punto.classList.toggle('saltado', e === 'saltada');
   }
-  const [desde, hasta] = m.tipo === 'camino' ? [m.tramo.salida, m.tramo.llegada] : [m.parada.inicio, m.parada.fin];
+  const [desde, hasta] = m.tipo === 'camino' ? [m.salida, m.llegada] : [m.parada.inicio, m.parada.fin];
   const izquierda = pct(desde);
   el.tramoAhora.style.left = `${izquierda}%`;
   el.tramoAhora.style.width = `${Math.max(pct(hasta) - izquierda, 1.5)}%`;
@@ -561,13 +632,26 @@ function pintar(moverCamara: boolean) {
     estado.claveMomento = clave;
     pintarAhora(momento);
     marcarLista(momento);
-    if (!estado.reproduciendo) anunciar();
+    // Se anuncia al cambiar lo de ahora, no cada vez que avanza la cuenta atrás.
+    const anuncio = claveDe(momento);
+    if (!estado.reproduciendo && anuncio !== ultimoAnuncio) {
+      ultimoAnuncio = anuncio;
+      anunciar();
+    }
   }
+}
+let ultimoAnuncio = '';
+
+/** Texto de un bloque para leerlo en voz alta: sin el chino, que una voz en castellano destroza. */
+function textoParaLeer(e: HTMLElement): string {
+  const copia = e.cloneNode(true) as HTMLElement;
+  for (const n of copia.querySelectorAll('[lang="zh-Hans"]')) n.remove();
+  return (copia.textContent ?? '').replace(/\s+/g, ' ').replace(/\(\s*\)/g, '').trim();
 }
 
 /** Para lectores de pantalla: la cuenta atrás y lo de ahora y después (sin los botones). */
 function anunciar() {
-  const bloques = [...el.ahora.querySelectorAll<HTMLElement>('.abrir, .bloque.fin')].map((b) => b.innerText.replace(/\s+/g, ' ').trim());
+  const bloques = [...el.ahora.querySelectorAll<HTMLElement>('.pregunta p, .abrir, .bloque.fin, .recuperar')].map(textoParaLeer);
   el.anuncio.textContent = [`${el.reloj.textContent} ${el.cuenta.textContent}`, ...bloques].join('. ');
 }
 
@@ -595,29 +679,36 @@ function pintarReloj(m: Momento) {
     detalle =
       h.idx >= 0 ? 'Repaso del plan' : faltan > 0 ? `Repaso · falta${faltan === 1 ? '' : 'n'} ${faltan} día${faltan === 1 ? '' : 's'}` : 'Repaso del viaje';
     el.cuenta.textContent = detalle;
+  } else if (diaTerminado(m) && !siguienteDe(m.parada!)) {
+    // Último día, ya en el avión: un final, no una cuenta atrás.
+    grande = 'Buen viaje';
+    el.cuenta.textContent = `de vuelta · ${modelo.dias.length} días, ${resumenParadas(modelo.paradas)}`;
+  } else if (diaTerminado(m) && siguienteDe(m.parada!)!.dia !== m.parada!.dia) {
+    // En el hotel por la noche: a qué hora se sale mañana (la hora en grande, que es lo que se recuerda).
+    const sig = siguienteDe(m.parada!)!;
+    const salida = modelo.tramos.find((tr) => tr.hasta === sig)?.salida ?? sig.inicio;
+    grande = hora(salida);
+    el.cuenta.textContent = `salida ${otroDia(salida, estado.t) ? 'mañana' : 'hoy'} · en ${cuantoQueda(salida - estado.t)}`;
   } else {
     let objetivo: number;
     let accion: string;
+    let estimada = false;
     if (diaTerminado(m)) {
-      // En el hotel por la noche: cuánto falta para salir mañana.
-      const sig = siguienteDe(m.parada!);
-      objetivo = sig ? (modelo.tramos.find((tr) => tr.hasta === sig)?.salida ?? sig.inicio) : estado.t;
-      accion = 'salir';
+      const sig = siguienteDe(m.parada!)!;
+      [objetivo, accion] = [modelo.tramos.find((tr) => tr.hasta === sig)?.salida ?? sig.inicio, 'salir'];
     } else if (m.tipo === 'camino') {
-      [objetivo, accion] = [m.tramo.llegada, 'llegar'];
+      [objetivo, accion] = [m.llegada, 'llegar'];
+      estimada = m.llegada !== m.tramo.llegada;
     } else {
       [objetivo, accion] = [m.parada.fin, 'salir'];
     }
     const resta = objetivo - estado.t;
     tarde = resta < 0;
-    const cuando = `${otroDia(objetivo, estado.t) ? 'mañana ' : ''}${hora(objetivo)}`;
-    grande = objetivo === estado.t ? hora(estado.t) : cuantoQueda(resta);
-    el.cuenta.innerHTML =
-      objetivo === estado.t
-        ? 'Fin del viaje'
-        : tarde
-          ? `<span class="tarde-etiqueta">Tarde</span> ${accion === 'salir' ? 'salida' : 'llegada'} prevista ${esc(cuando)}`
-          : `para ${accion} · ${esc(cuando)}`;
+    const cuando = `${otroDia(objetivo, estado.t) ? 'mañana ' : ''}${estimada ? '~' : ''}${hora(objetivo)}`;
+    grande = cuantoQueda(resta);
+    el.cuenta.innerHTML = tarde
+      ? `<span class="tarde-etiqueta">Tarde</span> ${accion === 'salir' ? 'salida' : 'llegada'} prevista ${esc(cuando)}`
+      : `para ${accion} · ${esc(cuando)}`;
   }
   el.reloj.textContent = grande;
   el.reloj.classList.toggle('largo', grande.length > 6);
@@ -626,6 +717,7 @@ function pintarReloj(m: Momento) {
 
 /** Parada que el plan acaba de dejar atrás sin que el viajero lo haya confirmado (para preguntar). */
 function previaSinConfirmar(m: Momento): ParadaC | null {
+  if (!marcador) return null;
   const plan = momentoEn(modelo, estado.t);
   const previa = plan.tipo === 'camino' ? plan.tramo.desde : modelo.paradas[plan.parada.id - 1];
   if (!previa || marcaDe(previa) || anclaDe(m) === previa.id) return null;
@@ -637,45 +729,67 @@ function previaSinConfirmar(m: Momento): ParadaC | null {
 function pintarAhora(m: Momento) {
   const directo = estado.modo === 'directo';
   const dia = diaActual();
+  // Con la pregunta abierta, «ahora» queda como contexto: un solo par de botones a la vez.
+  const previa = directo ? previaSinConfirmar(m) : null;
   let ahora: string;
   let despues: ParadaC | undefined;
   let recuperar = '';
+  let saltarlaPrimero = false;
   if (diaTerminado(m)) {
     const visitas = dia.paradas.filter((p) => p.n !== null);
-    const saltadas = visitas.filter((p) => marcaDe(p) === 'saltada').length;
-    const resumen = `día terminado · ${visitas.length - saltadas} de ${paradas(visitas.length)}${saltadas ? ` (${saltadas} saltada${saltadas === 1 ? '' : 's'})` : ''}`;
+    const resumen = `día terminado · ${resumenParadas(visitas)}`;
     ahora = bloqueAhora(m.parada!, m.parada!.p.nombre, '', resumen, '', m.parada!.p.local);
     despues = siguienteDe(m.parada!);
   } else if (m.tipo === 'camino') {
     const tr = m.tramo;
     const q = tr.hasta;
     despues = siguienteDe(q);
-    const acciones = (directo ? botonMarca(q, 'aqui') : '') + botonChino(q, tr);
-    ahora = bloqueAhora(q, q.p.nombre, `De camino · ${comoSeLlega(tr)}`, `llegada ${hora(tr.llegada)}`, acciones, q.p.local);
+    const acciones = (directo && !previa ? botonMarca(q, 'aqui') : '') + botonChino(q, tr);
+    const llegada =
+      Math.abs(m.llegada - tr.llegada) >= 5 ? `llegas ~${hora(m.llegada)} (plan ${hora(tr.llegada)})` : `llegada ${hora(tr.llegada)}`;
+    ahora = bloqueAhora(q, q.p.nombre, `De camino · ${comoSeLlega(tr)}`, llegada, acciones, q.p.local);
   } else {
     const p = m.parada;
     despues = siguienteDe(p);
     const antes = !directo && estado.t < p.inicio;
     const esOrigen = p === dia.origen;
-    const cuando = antes ? `desde ${hora(p.inicio)}` : esOrigen ? `salida ${hora(p.fin)}` : `hasta ${hora(p.fin)}`;
-    const acciones = directo && !esOrigen ? botonMarca(p, 'hecha') + botonMarca(p, 'saltada') : '';
+    const tarde = directo && estado.t > p.fin;
+    const cuando = antes ? `desde ${hora(p.inicio)}` : tarde ? 'Ya es hora de salir' : esOrigen ? `salida ${hora(p.fin)}` : `hasta ${hora(p.fin)}`;
+    // El vuelo de vuelta no se salta.
+    const ultimaDelViaje = p.id === modelo.paradas.length - 1;
+    const acciones =
+      directo && !esOrigen && !previa ? botonMarca(p, 'hecha') + (ultimaDelViaje ? '' : botonMarca(p, 'saltada')) : '';
     ahora = bloqueAhora(p, p.p.nombre, '', cuando, acciones, p.p.local);
-    // Se va tarde: cuándo se llegaría a lo siguiente saliendo ya, y la opción de saltárselo.
+    // Se va tarde: cuándo se llegaría a lo siguiente saliendo ya, cuánto se podría estar allí y,
+    // si no da tiempo, saltárselo pasa a ser lo primero.
     if (directo && despues && estado.t > p.fin + 5) {
       const tramo = modelo.tramos.find((tr) => tr.hasta === despues);
       const llegaria = estado.t + (tramo?.minutos ?? 0);
       if (llegaria > despues.inicio) {
-        recuperar = `<p class="recuperar">Saliendo ya llegas a las <b>${hora(llegaria)}</b> (plan: ${hora(despues.inicio)})</p>`;
+        const queda = despues.fin - llegaria;
+        const esHotel = despues.p.categoria === 'hotel';
+        saltarlaPrimero = !esHotel && queda < 10;
+        recuperar = saltarlaPrimero
+          ? `<p class="recuperar"><b>No da tiempo:</b> llegarías a las ${hora(llegaria)} y acaba a las ${hora(despues.fin)}.</p>`
+          : `<p class="recuperar">Saliendo ya llegas a las <b>${hora(llegaria)}</b> (plan ${hora(despues.inicio)})${
+              esHotel ? '' : ` y te quedan ${duracion(queda)} allí`
+            }.</p>`;
       }
     }
   }
-  const previa = directo ? previaSinConfirmar(m) : null;
   const pregunta = previa
     ? `<div class="pregunta"><p>¿Sigues en ${esc(previa.p.nombre)}?</p><div class="acciones-bloque">
-        <button type="button" class="mini" data-marcar="aqui" data-id="${previa.id}">Sigo aquí</button>
-        <button type="button" class="mini suave" data-marcar="hecha" data-id="${previa.id}">Ya salí</button></div></div>`
+        <button type="button" class="mini tinta" data-marcar="aqui" data-id="${previa.id}">Sigo aquí</button>
+        <button type="button" class="mini" data-marcar="hecha" data-id="${previa.id}">Ya salí</button></div></div>`
     : '';
-  el.ahora.innerHTML = `${pregunta}${ahora}<hr />${bloqueDespues(despues, recuperar)}`;
+  el.ahora.innerHTML = `${pregunta}${ahora}<hr />${bloqueDespues(despues, recuperar, saltarlaPrimero)}`;
+}
+
+/** «8 de 8 paradas», «6 de 8 paradas (2 saltadas)»: lo hecho según el plan menos lo saltado. */
+function resumenParadas(lista: ParadaC[]): string {
+  const visitas = lista.filter((p) => p.n !== null);
+  const saltadas = visitas.filter((p) => marcaDe(p) === 'saltada').length;
+  return `${visitas.length - saltadas} de ${paradas(visitas.length)}${saltadas ? ` (${saltadas} saltada${saltadas === 1 ? '' : 's'})` : ''}`;
 }
 
 const chino = (texto?: string) => (texto ? `<span lang="zh-Hans">${esc(texto)}</span>` : '');
@@ -697,13 +811,18 @@ function bloqueAhora(p: ParadaC, titulo: string, detalle: string, cuando: string
   </div>`;
 }
 
-function bloqueDespues(q: ParadaC | undefined, recuperar = ''): string {
-  if (!q) return `<div class="bloque fin"><span class="titulo">Fin del viaje</span></div>`;
+function bloqueDespues(q: ParadaC | undefined, recuperar = '', saltarlaPrimero = false): string {
+  if (!q) {
+    return `<div class="bloque fin"><span class="titulo">Fin del viaje</span>
+      <span class="detalle-ahora">${esc(modelo.titulo)} · ${modelo.dias.length} días</span></div>`;
+  }
   const dia = diaActual();
   const cuando = q.dia === dia.idx ? hora(q.inicio) : `${fechaCorta(modelo.dias[q.dia].d.fecha)} ${hora(q.inicio)}`;
   const tramo = modelo.tramos.find((t) => t.hasta === q);
   const pie = tramo ? comoSeLlega(tramo) : '';
-  const saltar = recuperar ? botonMarca(q, 'saltada', 'Saltar esta') : '';
+  // «Saltarla» (lo siguiente) no se confunde con «Saltar» (lo de ahora).
+  const saltar = recuperar ? botonSaltarla(q, saltarlaPrimero) : '';
+  const acciones = saltarlaPrimero ? `${saltar}${botonChino(q, tramo)}` : `${botonChino(q, tramo)}${saltar}`;
   return `<div class="bloque siguiente">
     <button type="button" class="abrir" data-abrir="${q.id}">
       <span class="sr">Después: </span>
@@ -711,8 +830,13 @@ function bloqueDespues(q: ParadaC | undefined, recuperar = ''): string {
       ${pie ? `<span class="detalle-ahora">${esc(pie)}</span>` : ''}
     </button>
     ${recuperar}
-    <div class="acciones-bloque">${botonChino(q, tramo)}${saltar}${precioCorto(q)}</div>
+    <div class="acciones-bloque">${acciones}${precioCorto(q)}</div>
   </div>`;
+}
+
+function botonSaltarla(q: ParadaC, principal: boolean): string {
+  return `<button type="button" class="mini ${principal ? 'tinta' : 'suave'}" data-marcar="saltada" data-id="${q.id}"
+    aria-label="${esc(`Saltar ${q.p.nombre}`)}">Saltarla</button>`;
 }
 
 const ICONO_TAXI = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 16V11l2-5h10l2 5v5M3.5 11h17M5 16h14v2.5H5zM7.5 13.5h.01M16.5 13.5h.01" /></svg>`;
@@ -725,26 +849,32 @@ const ICONO_CHINO = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h1
 function botonChino(p: ParadaC, tramo?: TramoC): string {
   if (!p.p.local) return '';
   const taxi = !tramo || tramo.modo === 'taxi';
-  const etiqueta = taxi ? `Taxi a ${p.p.nombre}: enseñar al taxista` : `Enseñar «${p.p.nombre}» en chino`;
-  return `<button type="button" class="mini" data-taxi="${p.id}" aria-label="${esc(etiqueta)}">${taxi ? ICONO_TAXI : ICONO_CHINO}${taxi ? 'Taxi' : 'En chino'}</button>`;
+  const etiqueta = taxi ? `Taxi a ${p.p.nombre}: enseñar al taxista` : `Preguntar cómo llegar a ${p.p.nombre}: enseñar en chino`;
+  return `<button type="button" class="mini" data-taxi="${p.id}"${taxi ? '' : ' data-pie'} aria-label="${esc(etiqueta)}">${
+    taxi ? ICONO_TAXI : ICONO_CHINO
+  }${taxi ? 'Taxi' : 'En chino'}</button>`;
 }
 
 const ICONO_HECHO = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>';
 
-/** Botones de la calle: el principal (Hecha / Llegué) siempre el primero y en tinta. */
-function botonMarca(p: ParadaC, marca: Marca, texto?: string): string {
-  const t = texto ?? { hecha: 'Hecha', saltada: 'Saltar', aqui: 'Llegué' }[marca];
+/**
+ * Botones de la calle: el principal (Hecha / Llegué) siempre el primero. En tinta solo en el móvil
+ * que marca; en el de quien solo mira, en contorno, para que no sea lo que más llama.
+ */
+function botonMarca(p: ParadaC, marca: Marca): string {
+  const t = { hecha: 'Hecha', saltada: 'Saltar', aqui: 'Llegué' }[marca];
   const principal = marca !== 'saltada';
-  return `<button type="button" class="mini ${principal ? 'tinta' : 'suave'}" data-marcar="${marca}" data-id="${p.id}"
+  const clase = principal ? (marcador ? 'tinta' : '') : 'suave';
+  return `<button type="button" class="mini ${clase}" data-marcar="${marca}" data-id="${p.id}"
     aria-label="${esc(`${t}: ${p.p.nombre}`)}">${principal ? ICONO_HECHO : ''}${esc(t)}</button>`;
 }
 
 el.ahora.addEventListener('click', (e) => {
   const objetivo = e.target as HTMLElement;
   const taxi = objetivo.closest<HTMLElement>('[data-taxi]');
-  if (taxi) return mostrarTaxi(modelo.paradas[Number(taxi.dataset.taxi)], taxi);
+  if (taxi) return mostrarTaxi(modelo.paradas[Number(taxi.dataset.taxi)], taxi, !('pie' in taxi.dataset));
   const marca = objetivo.closest<HTMLElement>('[data-marcar]');
-  if (marca) return marcar(modelo.paradas[Number(marca.dataset.id)], marca.dataset.marcar as Marca);
+  if (marca) return marcar(modelo.paradas[Number(marca.dataset.id)], marca.dataset.marcar as Marca, true);
   const b = objetivo.closest<HTMLElement>('[data-abrir]');
   if (b) abrirFicha(modelo.paradas[Number(b.dataset.abrir)]);
 });
@@ -789,13 +919,15 @@ function gastosHtml(gastos: Gasto[] = []): string {
 const enlacesHtml = (enlaces: Enlace[] = []) =>
   enlaces.map((e) => `<a class="enlace" href="${esc(e.url)}" target="_blank" rel="noopener">${esc(e.texto)}</a>`).join('');
 
+/** Amap a la vista (funciona en China); Apple Maps y Google Maps, a un toque más. */
 function enlacesMapas(p: ParadaC): string {
   const [lng, lat] = p.pos;
   const nombre = encodeURIComponent(p.p.local ?? p.p.nombre);
   return `
     <a class="boton" href="https://uri.amap.com/marker?position=${lng},${lat}&name=${nombre}&coordinate=wgs84&callnative=1" target="_blank" rel="noopener">Amap</a>
-    <a class="boton" href="https://maps.apple.com/?ll=${lat},${lng}&q=${encodeURIComponent(p.p.nombre)}" target="_blank" rel="noopener">Apple Maps</a>
-    <a class="boton" href="https://www.google.com/maps/search/?api=1&query=${lat},${lng}" target="_blank" rel="noopener">Google Maps</a>`;
+    <button type="button" class="boton" data-mas-mapas>Más mapas</button>
+    <a class="boton" hidden href="https://maps.apple.com/?ll=${lat},${lng}&q=${encodeURIComponent(p.p.nombre)}" target="_blank" rel="noopener">Apple Maps</a>
+    <a class="boton" hidden href="https://www.google.com/maps/search/?api=1&query=${lat},${lng}" target="_blank" rel="noopener">Google Maps</a>`;
 }
 
 /** Hecha / saltada / según el plan, para corregir lo marcado (también días pasados o futuros). */
@@ -806,7 +938,7 @@ function selectorMarca(p: ParadaC): string {
     ['pendiente', 'Según el plan'],
   ];
   return `<div class="marcas" role="group" aria-label="Estado de la parada">${opciones
-    .map(([v, t]) => `<button type="button" class="boton" data-fijar="${v}" data-id="${p.id}" aria-pressed="false">${t}</button>`)
+    .map(([v, t]) => `<button type="button" class="boton" data-fijar="${v}" data-id="${p.id}" aria-pressed="false">${ICONO_HECHO}${t}</button>`)
     .join('')}</div>`;
 }
 
@@ -854,10 +986,16 @@ function precioCorto(p: ParadaC): string {
   return `<span class="precio">${esc(yuanes(min, max, false))}</span>`;
 }
 
+const apretados = new Set(trayectosApretados(modelo));
+/** «solo hay 10 min para ~20 min»: el plan deja menos tiempo del que se tarda. */
+const textoApretado = (t: TramoC) => `solo hay ${duracion(t.llegada - t.salida)} para ${t.estimado ? '~' : ''}${duracion(t.minutos)}`;
+
 function filaTramo(t: TramoC): string {
   return `
     <li class="tramo" data-tramo="${t.id}">
-      <span><span class="via">${esc(comoSeLlega(t))}</span>${t.detalle ? `<small>${esc(t.detalle)}</small>` : ''}</span>
+      <span><span class="via">${esc(comoSeLlega(t))}</span>${
+        apretados.has(t) ? `<small class="apretado">No da tiempo: ${esc(textoApretado(t))}</small>` : ''
+      }${t.detalle ? `<small>${esc(t.detalle)}</small>` : ''}</span>
     </li>`;
 }
 
@@ -919,7 +1057,18 @@ function marcarLista(m: Momento) {
   for (const li of el.contenido.querySelectorAll<HTMLLIElement>('li.tramo')) {
     li.classList.toggle('actual', m.tramo?.id === Number(li.dataset.tramo));
   }
-  if (estado.abierta === null) mostrarFila(el.contenido.querySelector('li.actual'));
+  if (estado.abierta !== null) return;
+  const fila = el.contenido.querySelector<HTMLElement>('li.actual');
+  // Plegado y en directo, la lista asoma por lo que viene después (lo de ahora ya está arriba).
+  if (estado.expandido || estado.modo !== 'directo') mostrarFila(fila);
+  else mostrarSiguientes(fila?.classList.contains('tramo') ? (fila.nextElementSibling as HTMLElement | null) : fila);
+}
+
+/** Pone arriba de la lista lo que viene después de la fila actual (empezando por su trayecto). */
+function mostrarSiguientes(actual: HTMLElement | null) {
+  const sig = actual?.nextElementSibling as HTMLElement | null;
+  if (!sig) return mostrarFila(actual);
+  el.contenido.scrollTo({ top: sig.offsetTop, behavior: 'smooth' });
 }
 
 /** Desplaza la lista para que se vea la fila, con la parada anterior encima como contexto. */
@@ -956,6 +1105,13 @@ el.contenido.addEventListener('click', (e) => {
   }
   const taxi = objetivo.closest<HTMLElement>('[data-taxi]');
   if (taxi) return mostrarTaxi(modelo.paradas[Number(taxi.dataset.taxi)], taxi);
+  const mas = objetivo.closest<HTMLElement>('[data-mas-mapas]');
+  if (mas) {
+    const otros = mas.parentElement!.querySelectorAll<HTMLElement>('a[hidden]');
+    for (const a of otros) a.hidden = false;
+    mas.hidden = true;
+    return otros[0]?.focus();
+  }
   const fijar = objetivo.closest<HTMLElement>('[data-fijar]');
   if (fijar) {
     const v = fijar.dataset.fijar;
@@ -1017,6 +1173,13 @@ function bloqueAntes(): string {
     <ul class="tareas">
       ${modelo.pendientes.length ? `<li><a href="#pendientes">Comprobar lo pendiente</a> <b>${hechos} de ${modelo.pendientes.length}</b></li>` : ''}
       <li>${mapas ? `Mapas guardados el ${esc(fechaCortaLocal(mapas))}` : '<button type="button" class="boton tinta" data-guardar-mapas>Guardar mapas para ir sin conexión</button>'}</li>
+      ${[...apretados]
+        .map(
+          (t) => `<li class="apretado"><span><b>El plan no da tiempo</b> el día ${t.hasta.dia + 1}: de «${esc(t.desde.p.nombre)}» a «${esc(
+            t.hasta.p.nombre,
+          )}» ${esc(textoApretado(t))}.</span></li>`,
+        )
+        .join('')}
     </ul>
   </section>`;
 }
@@ -1025,6 +1188,7 @@ const COMO_FUNCIONA = `
   <section class="seccion como">
     <h3>Cómo funciona</h3>
     <p>Durante el viaje la app sigue el horario del plan con la hora real. Si no coincide con lo que haces, díselo: «Hecha» al terminar antes, «Saltar», «Llegué» o «Sigo aquí». Las marcas y las casillas se guardan solo en este móvil.</p>
+    <p>Si en un móvil no se marca nada, sigue el plan en silencio y no pregunta: es lo cómodo para quien solo mira.</p>
     <p>Arrastrar la línea de tiempo o mirar otro día es un repaso del plan (la hora sale en contorno); «Volver a ahora» te devuelve.</p>
     ${LEYENDA}
   </section>`;
@@ -1114,9 +1278,9 @@ function expandir(abrir = !estado.expandido) {
   el.panel.classList.toggle('expandido', abrir);
   el.asa.setAttribute('aria-expanded', String(abrir));
   document.body.classList.toggle('panel-abierto', abrir);
-  if (abrir && estado.vista === 'dia') {
-    requestAnimationFrame(() => mostrarFila(el.contenido.querySelector('li.abierta, li.actual'), false));
-  }
+  if (estado.vista !== 'dia') return;
+  if (abrir) requestAnimationFrame(() => mostrarFila(el.contenido.querySelector('li.abierta, li.actual'), false));
+  else if (estado.abierta === null) requestAnimationFrame(() => marcarLista(momentoActual()));
 }
 
 el.asa.addEventListener('click', () => expandir());
@@ -1151,6 +1315,11 @@ function ajustarMargenes() {
 }
 new ResizeObserver(ajustarMargenes).observe(el.panel);
 new ResizeObserver(ajustarMargenes).observe(el.barra);
+// Lo que necesita el panel plegado: el asa, la cabecera entera y un poco de lista asomando.
+new ResizeObserver(() => {
+  const abajo = parseFloat(getComputedStyle(el.panel).paddingBottom) || 0;
+  el.panel.style.setProperty('--alto-plegado', `${el.asa.offsetHeight + el.cabecera.offsetHeight + abajo + 56}px`);
+}).observe(el.cabecera);
 
 // ---------- Botones del mapa ----------
 
@@ -1202,14 +1371,18 @@ el.offline.addEventListener('click', async () => {
 
 // ---------- Conexión ----------
 
+const ICONO_SIN_RED =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.8 16a5 5 0 0 1 6.4 0M12 19.5h.01M4 4l16 16" /></svg>';
+
 function pintarRed() {
   const sinRed = !navigator.onLine;
   el.red.hidden = !sinRed;
   if (!sinRed) return;
   const previa = descargaAnterior();
-  el.red.textContent = previa
-    ? `Sin conexión · mapas guardados el ${fechaCortaLocal(previa)}`
-    : 'Sin conexión · solo se ven las zonas del mapa ya visitadas';
+  el.red.innerHTML = `${ICONO_SIN_RED}Sin conexión · ${previa ? 'mapas guardados' : 'sin mapas guardados'}`;
+  el.red.title = previa
+    ? `Mapas guardados el ${fechaCortaLocal(previa)}`
+    : 'Solo se ven las zonas del mapa ya visitadas';
 }
 addEventListener('online', pintarRed);
 addEventListener('offline', pintarRed);
@@ -1217,7 +1390,8 @@ pintarRed();
 
 // ---------- Día / noche ----------
 
-// La elección se recuerda en este móvil; por defecto, claro (se usa sobre todo de día, en la calle).
+// La elección se recuerda en este móvil. Sin elegir, sigue al móvil: claro de día y noche si el
+// móvil se pone en modo oscuro al anochecer.
 const CLAVE_TEMA = 'tema';
 const metaColor = document.querySelector<HTMLMetaElement>('meta[name="theme-color"]')!;
 
@@ -1236,18 +1410,50 @@ el.tema.addEventListener('click', () => {
   guardar(CLAVE_TEMA, oscuro ? 'oscuro' : 'claro');
 });
 
-if (leer<string>(CLAVE_TEMA, "claro") === "oscuro") fijarTema(true);
+const temaDelMovil = matchMedia('(prefers-color-scheme: dark)');
+const temaElegido = () => leer<string | null>(CLAVE_TEMA, null);
+fijarTema(temaElegido() ? temaElegido() === 'oscuro' : temaDelMovil.matches);
+temaDelMovil.addEventListener('change', (e) => temaElegido() === null && fijarTema(e.matches));
 
 // ---------- Tarjeta para el taxista ----------
 
 let bloqueoPantalla: WakeLockSentinel | null = null;
 let abridorTaxi: HTMLElement | null = null;
 
-/** Tarjeta a pantalla completa. Solo se cierra con ✕, Escape o el gesto de volver: no con un roce. */
-function mostrarTaxi(p: ParadaC, abridor?: HTMLElement) {
-  $('taxi-texto').textContent = p.p.local ?? p.p.nombre;
-  $('taxi-direccion').textContent = p.p.direccionLocal ?? '';
+const segmentador = 'Segmenter' in Intl ? new Intl.Segmenter('zh', { granularity: 'word' }) : null;
+
+/**
+ * El chino partido en trozos que no se cortan al cambiar de línea: las palabras, y cada número con
+ * lo que le sigue («688号», «1號»). Así nunca sale «恒丰路6 / 88号», que es otra dirección.
+ */
+function enTrozos(texto: string): string {
+  const piezas = segmentador ? [...segmentador.segment(texto)].map((s) => s.segment) : [...texto];
+  const trozos: string[] = [];
+  for (const pieza of piezas) {
+    const previo = trozos[trozos.length - 1];
+    const pegar = previo !== undefined && (/[0-9A-Za-z]$/.test(previo) ? /^[0-9A-Za-z.\-#]/.test(pieza) || pieza.length === 1 : false);
+    if (pegar) trozos[trozos.length - 1] += pieza;
+    else trozos.push(pieza);
+  }
+  return trozos.map((t) => `<span class="trozo">${esc(t)}</span>`).join('');
+}
+
+const PEDIR = {
+  taxi: { zh: '请带我去这里', es: 'Lléveme aquí, por favor' },
+  pie: { zh: '我想去这里，怎么走？', es: 'Quiero ir aquí. ¿Cómo llego?' },
+};
+
+/**
+ * Tarjeta a pantalla completa. Solo se cierra con ✕, Escape o el gesto de volver: no con un roce.
+ * `taxi`: para el taxista («lléveme aquí»); si no, para preguntar a alguien por la calle.
+ */
+function mostrarTaxi(p: ParadaC, abridor?: HTMLElement, taxi = true) {
+  const pedir = PEDIR[taxi ? 'taxi' : 'pie'];
+  $('taxi-pedir').innerHTML = `<span lang="zh-Hans">${esc(pedir.zh)}</span><small>${esc(pedir.es)}</small>`;
+  $('taxi-texto').innerHTML = enTrozos(p.p.local ?? p.p.nombre);
+  $('taxi-direccion').innerHTML = p.p.direccionLocal ? enTrozos(p.p.direccionLocal) : '';
   $('taxi-nombre').textContent = p.p.nombre;
+  el.taxi.setAttribute('aria-label', `${taxi ? 'Tarjeta para el taxista' : 'Tarjeta para preguntar cómo llegar'}: ${p.p.nombre}`);
   abridorTaxi = abridor ?? null;
   el.taxi.hidden = false;
   // Mientras está abierta, lo de detrás no se puede tocar ni recorrer con el teclado.
@@ -1287,6 +1493,12 @@ el.hotel.hidden = !modelo.paradas.some((p) => p.p.categoria === 'hotel');
 el.hotel.addEventListener('click', () => {
   const h = hotelActual();
   if (h) mostrarTaxi(h, el.hotel);
+});
+
+// Con teclado o lector de pantalla, el primer tabulador lleva a «ahora» sin recorrer el mapa.
+$('saltar').addEventListener('click', (e) => {
+  e.preventDefault();
+  el.ahora.focus();
 });
 
 // ---------- Avisos y diálogo ----------
