@@ -116,7 +116,7 @@ export const itinerario: Itinerario = {
         },
         {
           hora: '16:05',
-          fin: '17:15',
+          fin: '17:05',
           nombre: 'Nanjing Road: tramo de People’s Square',
           local: '南京路步行街 · 第一百货',
           categoria: 'compras',
@@ -131,7 +131,7 @@ export const itinerario: Itinerario = {
         },
         {
           hora: '17:20',
-          fin: '18:20',
+          fin: '18:10',
           nombre: 'Nanjing Road: tramo hacia el Bund',
           local: '南京东路步行街',
           categoria: 'compras',
@@ -397,7 +397,7 @@ export const itinerario: Itinerario = {
         },
         {
           hora: '16:45',
-          fin: '18:30',
+          fin: '18:25',
           nombre: 'Yuyuan y Shanghai Old Street',
           local: '上海老街',
           categoria: 'barrio',
@@ -520,7 +520,7 @@ export const itinerario: Itinerario = {
         },
         {
           hora: '15:25',
-          fin: '15:55',
+          fin: '15:50',
           nombre: 'Wukang Road y Wukang Mansion',
           local: '武康大楼 · 武康路',
           categoria: 'barrio',
