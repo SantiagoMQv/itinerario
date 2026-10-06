@@ -20,6 +20,7 @@ import { descargaAnterior, descargarMapas, registrarServiceWorker } from './offl
 import type { Enlace, Gasto } from './tipos';
 
 const modelo = construirModelo(itinerario);
+const ultimoHotel = [...modelo.paradas].reverse().find((p) => p.p.categoria === 'hotel') ?? null;
 for (const a of modelo.avisos) console.warn(a);
 
 const $ = <T extends HTMLElement = HTMLElement>(id: string) => document.getElementById(id) as T;
@@ -51,7 +52,10 @@ const el = {
   volverAhora: $<HTMLButtonElement>('btn-ahora'),
   seguir: $<HTMLButtonElement>('btn-seguir'),
   pildoras: $('pildoras'),
+  irMapa: $<HTMLButtonElement>('btn-mapa'),
   botonesMapa: $('botones-mapa'),
+  fichaCorta: $('ficha-corta'),
+  fichaCortaContenido: $('ficha-corta-contenido'),
   pista: $('pista'),
   controles: $('controles'),
   tema: $<HTMLButtonElement>('btn-tema'),
@@ -69,6 +73,15 @@ const VELOCIDADES = [5, 10, 20, 40];
 const ACELERACION_EN_PARADA = 4;
 /** Cada cuánto avanza el modo en directo. */
 const LATIDO_MS = 30_000;
+
+/** Página a un lado en vez de hoja abajo (a la par con estilos.css). */
+const pantallaAncha = matchMedia('(min-width: 760px), (min-width: 560px) and (orientation: landscape)');
+/** Ancha pero baja: la página se desplaza de una pieza, con la cabecera. */
+const panelCorrido = matchMedia(
+  '(min-width: 760px) and (max-height: 560px), (min-width: 560px) and (orientation: landscape) and (max-height: 560px)',
+);
+const reducirMovimiento = matchMedia('(prefers-reduced-motion: reduce)');
+const esMovil = () => !pantallaAncha.matches;
 
 const estado = {
   vista: 'dia' as 'dia' | 'todo',
@@ -215,6 +228,20 @@ function marcar(p: ParadaC, marca: Marca | null, enLaCalle = false) {
   });
 }
 
+/**
+ * El primer toque que marca convierte este móvil en el que lleva el viaje (y empieza a preguntar):
+ * se confirma una vez, para que el móvil de quien solo mira no cambie por un toque sin querer.
+ */
+async function puedeMarcar(): Promise<boolean> {
+  if (marcador) return true;
+  return preguntar(
+    '¿Llevar el viaje en este móvil?',
+    'Hasta ahora este móvil sigue el plan en silencio. Si marcas aquí, pasará a llevar el viaje: contará lo que marques y preguntará «¿Sigues en…?» cuando se acabe la hora de un sitio. En el móvil de quien solo mira, mejor no marcar.',
+    'Sí, marcar aquí',
+    'Cancelar',
+  );
+}
+
 /** Parada de referencia de «ahora» (en la que se está o hacia la que se va); todo lo anterior va hecho. */
 let ancla = -1;
 const anclaDe = (m: Momento) => (m.tipo === 'parada' ? m.parada.id : m.tramo.hasta.id);
@@ -297,6 +324,7 @@ function siguienteDe(p: ParadaC): ParadaC | undefined {
 const vista = new VistaMapa($('mapa'), modelo, {
   alPulsarParada: pulsarParada,
   alPulsarSubparada: pulsarSubparada,
+  alPulsarMapa: () => cerrarFichaCorta(),
   alArrastrar: () => {
     estado.seguir = false;
     el.seguir.hidden = estado.vista !== 'dia';
@@ -331,17 +359,21 @@ function pintarDias() {
     }),
   ];
   el.dias.innerHTML = pestanas.join('');
-  // Que la pestaña activa quede a la vista sin mover nada más de la página.
-  const activa = el.dias.querySelector<HTMLElement>('.activa');
-  if (activa && (activa.offsetLeft < el.dias.scrollLeft || activa.offsetLeft + activa.offsetWidth > el.dias.scrollLeft + el.dias.clientWidth)) {
-    el.dias.scrollLeft = activa.offsetLeft - 40;
+  // Que la pestaña activa (o, desde «Todo», la de hoy) quede a la vista sin mover nada más de la
+  // página. «Todo» se queda fija a la izquierda y tapa lo que pasa por debajo.
+  const activa =
+    el.dias.querySelector<HTMLElement>('.activa:not(.todo)') ?? el.dias.querySelector<HTMLElement>(`[data-dia="${hoyIdx}"]`);
+  const tapa = el.dias.querySelector<HTMLElement>('.todo')!.offsetWidth + 12;
+  if (activa && (activa.offsetLeft < el.dias.scrollLeft + tapa || activa.offsetLeft + activa.offsetWidth > el.dias.scrollLeft + el.dias.clientWidth)) {
+    el.dias.scrollLeft = activa.offsetLeft - tapa - 28;
   }
   marcarDesborde();
 }
 
-/** Difumina el borde derecho de las pestañas mientras quedan días por ver a la derecha. */
+/** Difumina el borde derecho de las pestañas mientras quedan días por ver a la derecha (y separa «Todo» si han pasado por debajo). */
 function marcarDesborde() {
   el.dias.classList.toggle('mas', el.dias.scrollLeft + el.dias.clientWidth < el.dias.scrollWidth - 4);
+  el.dias.classList.toggle('corrido', el.dias.scrollLeft > 8);
 }
 el.dias.addEventListener('scroll', marcarDesborde, { passive: true });
 
@@ -358,6 +390,7 @@ el.dias.addEventListener('click', (e) => {
 
 function seleccionarDia(idx: number, t?: number, encuadrar = true, directo = false) {
   const dia = modelo.dias[idx];
+  cerrarFichaCorta();
   if (estado.vista === 'todo') expandir(false);
   pausar();
   estado.vista = 'dia';
@@ -384,14 +417,18 @@ function seleccionarDia(idx: number, t?: number, encuadrar = true, directo = fal
 
 function verTodo() {
   pausar();
+  cerrarFichaCorta();
   estado.vista = 'todo';
   document.body.classList.add('vista-todo');
+  el.hotel.hidden = !ultimoHotel;
   el.seguir.hidden = true;
   vista.mostrarTodo();
   pintarDias();
   pintarResumen();
   actualizarModo();
-  expandir(true);
+  // En el móvil, el viaje entero se ve en el mapa: la hoja a media altura, como un día.
+  if (esMovil()) animarHoja('media');
+  else expandir(true);
   ajustarMargenes();
   vista.encuadrarTodo();
 }
@@ -418,6 +455,8 @@ function entrarRepaso() {
 function actualizarModo() {
   const repaso = estado.modo === 'repaso' || estado.vista === 'todo';
   document.body.classList.toggle('repaso', repaso);
+  // En directo la línea del día solo informa: un roce al agarrar la hoja no debe sacar del directo.
+  el.deslizador.disabled = !repaso;
   el.volverAhora.hidden = !(repaso && hoyIdx >= 0 && estado.vista === 'dia');
   if (hoyIdx >= 0) {
     el.volverAhora.querySelector('span:last-child')!.textContent = `Volver a ahora · ${hora(hoy().min)}`;
@@ -631,6 +670,8 @@ function pintar(moverCamara: boolean) {
   el.deslizador.setAttribute('aria-valuetext', hora(t));
   pintarReloj(momento);
   pintarLineaTiempo(momento);
+  // Ya fuera del último hotel del viaje (de camino al aeropuerto), «Hotel» no lleva a ninguna parte.
+  el.hotel.hidden = !ultimoHotel || ancla > ultimoHotel.id;
 
   // En directo, «ahora» y «después» cambian también con la hora (preguntas, ir tarde): cada 5 min.
   const clave = `${claveDe(momento)}|${estado.modo === 'directo' ? Math.floor(t / 5) : ''}`;
@@ -658,7 +699,9 @@ function textoParaLeer(e: HTMLElement): string {
 /** Para lectores de pantalla: la cuenta atrás y lo de ahora y después (sin los botones). */
 function anunciar() {
   const bloques = [...el.ahora.querySelectorAll<HTMLElement>('.pregunta p, .abrir, .bloque.fin, .recuperar')].map(textoParaLeer);
-  el.anuncio.textContent = [`${el.reloj.textContent} ${el.cuenta.textContent}`, ...bloques].join('. ');
+  const cuenta = el.cuenta.cloneNode(true) as HTMLElement;
+  cuenta.querySelector('.lugar')?.remove();
+  el.anuncio.textContent = [`${el.reloj.textContent} ${cuenta.textContent}`, ...bloques].join('. ');
 }
 
 /** «39 min», «1 h 05», «+12 min». */
@@ -678,6 +721,8 @@ function pintarReloj(m: Momento) {
   let grande: string;
   let detalle: string;
   let tarde = false;
+  /** De dónde se sale o adónde se llega: solo se ve con la hoja baja, donde no asoma nada más. */
+  let lugar = '';
   if (estado.modo === 'repaso') {
     grande = hora(estado.t);
     const h = hoy();
@@ -695,6 +740,7 @@ function pintarReloj(m: Momento) {
     const salida = modelo.tramos.find((tr) => tr.hasta === sig)?.salida ?? sig.inicio;
     grande = hora(salida);
     el.cuenta.textContent = `salida ${otroDia(salida, estado.t) ? 'mañana' : 'hoy'} · en ${cuantoQueda(salida - estado.t)}`;
+    lugar = `hacia ${sig.p.nombre}`;
   } else {
     let objetivo: number;
     let accion: string;
@@ -702,11 +748,14 @@ function pintarReloj(m: Momento) {
     if (diaTerminado(m)) {
       const sig = siguienteDe(m.parada!)!;
       [objetivo, accion] = [modelo.tramos.find((tr) => tr.hasta === sig)?.salida ?? sig.inicio, 'salir'];
+      lugar = `hacia ${sig.p.nombre}`;
     } else if (m.tipo === 'camino') {
       [objetivo, accion] = [m.llegada, 'llegar'];
       estimada = m.llegada !== m.tramo.llegada;
+      lugar = `a ${m.tramo.hasta.p.nombre}`;
     } else {
       [objetivo, accion] = [m.parada.fin, 'salir'];
+      lugar = `de ${m.parada.p.nombre}`;
     }
     const resta = objetivo - estado.t;
     tarde = resta < 0;
@@ -716,6 +765,7 @@ function pintarReloj(m: Momento) {
       ? `<span class="tarde-etiqueta">Tarde</span> ${accion === 'salir' ? 'salida' : 'llegada'} prevista ${esc(cuando)}`
       : `para ${accion} · ${esc(cuando)}`;
   }
+  if (lugar) el.cuenta.insertAdjacentHTML('beforeend', `<span class="lugar">${esc(lugar)}</span>`);
   el.reloj.textContent = grande;
   el.reloj.classList.toggle('largo', grande.length > 6);
   el.reloj.classList.toggle('tarde', tarde);
@@ -788,8 +838,18 @@ function pintarAhora(m: Momento) {
         <button type="button" class="mini tinta" data-marcar="aqui" data-id="${previa.id}">Sigo aquí</button>
         <button type="button" class="mini" data-marcar="hecha" data-id="${previa.id}">Ya salí</button></div></div>`
     : '';
-  el.ahora.innerHTML = `${pregunta}${ahora}<hr />${bloqueDespues(despues, recuperar, saltarlaPrimero)}`;
+  const html = `${pregunta}${ahora}<hr />${bloqueDespues(despues, recuperar, saltarlaPrimero)}`;
+  // Igual que estaba: no se toca (ni se pierde el foco ni lo que se esté leyendo).
+  if (html === ultimoAhora) return;
+  ultimoAhora = html;
+  // Si el foco estaba en un botón de «Ahora», vuelve al mismo botón (o, si ya no está, a «Ahora»).
+  const foco = document.activeElement instanceof HTMLElement && el.ahora.contains(document.activeElement) ? document.activeElement : null;
+  const huella = (b: Element) => ['data-marcar', 'data-id', 'data-taxi', 'data-abrir'].map((a) => b.getAttribute(a)).join('|');
+  const buscada = foco ? huella(foco) : '';
+  el.ahora.innerHTML = html;
+  if (foco) ([...el.ahora.querySelectorAll<HTMLElement>('button')].find((b) => huella(b) === buscada) ?? el.ahora).focus();
 }
+let ultimoAhora = '';
 
 /** «8 de 8 paradas», «6 de 8 paradas (2 saltadas)»: lo hecho según el plan menos lo saltado. */
 function resumenParadas(lista: ParadaC[]): string {
@@ -890,12 +950,21 @@ function botonMarca(p: ParadaC, marca: Marca): string {
     aria-label="${esc(`${t}: ${p.p.nombre}`)}">${principal ? ICONO_HECHO : ''}${esc(t)}</button>`;
 }
 
+let enfriarHasta = 0;
 el.ahora.addEventListener('click', (e) => {
   const objetivo = e.target as HTMLElement;
   const taxi = objetivo.closest<HTMLElement>('[data-taxi]');
   if (taxi) return mostrarTaxi(modelo.paradas[Number(taxi.dataset.taxi)].p, taxi, !('pie' in taxi.dataset));
+  // Tras marcar, «ahora» cambia y otro botón aparece bajo el dedo: un segundo toque rápido no cuenta.
+  if (performance.now() < enfriarHasta) return;
   const marca = objetivo.closest<HTMLElement>('[data-marcar]');
-  if (marca) return marcar(modelo.paradas[Number(marca.dataset.id)], marca.dataset.marcar as Marca, true);
+  if (marca) {
+    enfriarHasta = performance.now() + 700;
+    el.ahora.classList.add('enfriando');
+    setTimeout(() => el.ahora.classList.remove('enfriando'), 700);
+    const p = modelo.paradas[Number(marca.dataset.id)];
+    return void puedeMarcar().then((si) => si && marcar(p, marca.dataset.marcar as Marca, true));
+  }
   const b = objetivo.closest<HTMLElement>('[data-abrir]');
   if (b) abrirFicha(modelo.paradas[Number(b.dataset.abrir)]);
 });
@@ -994,11 +1063,20 @@ function filaParada(p: ParadaC, esOrigen: boolean): string {
         ${q.enlaces?.length && !esOrigen ? `<p class="enlaces">${enlacesHtml(q.enlaces)}</p>` : ''}
         ${esOrigen ? '' : selectorMarca(p)}
         <div class="acciones">
-          ${q.local ? `<button type="button" class="boton tinta" data-taxi="${p.id}">${ICONO_TAXI}Enseñar al taxista</button>` : ''}
+          ${q.local ? botonEnsenar(p) : ''}
           ${enlacesMapas(p)}
         </div>
       </div>
     </li>`;
+}
+
+/** En la ficha: al taxista si se llega en taxi; si se llega a pie, en metro o en tren, en chino para preguntar. */
+function botonEnsenar(p: ParadaC): string {
+  const tramo = modelo.tramos.find((t) => t.hasta === p);
+  const taxi = !tramo || tramo.modo === 'taxi';
+  return taxi
+    ? `<button type="button" class="boton tinta" data-taxi="${p.id}">${ICONO_TAXI}Enseñar al taxista</button>`
+    : `<button type="button" class="boton tinta" data-taxi="${p.id}" data-pie>${ICONO_CHINO}Enseñar en chino</button>`;
 }
 
 /** Los sitios de dentro de una parada, en dos grupos: «Aquí» (seguros) y «Si da tiempo». */
@@ -1107,25 +1185,36 @@ function marcarLista(m: Momento) {
     li.classList.toggle('actual', m.tramo?.id === Number(li.dataset.tramo));
   }
   vista.mostrarSubparadas(paradaMirada(m));
-  if (estado.abierta !== null) return;
+  // Con la página corrida de una pieza, desplazarla sola escondería la cabecera con lo de ahora.
+  if (estado.abierta !== null || panelCorrido.matches) return;
   const fila = el.contenido.querySelector<HTMLElement>('li.actual');
   // Plegado y en directo, la lista asoma por lo que viene después (lo de ahora ya está arriba).
   if (estado.expandido || estado.modo !== 'directo') mostrarFila(fila);
   else mostrarSiguientes(fila?.classList.contains('tramo') ? (fila.nextElementSibling as HTMLElement | null) : fila);
 }
 
-/** Pone arriba de la lista lo que viene después de la fila actual (empezando por su trayecto). */
+/** Lo que se desplaza para recorrer la lista: la lista o, en pantallas anchas y bajas, el panel entero. */
+const rollo = () => (panelCorrido.matches ? el.panel : el.contenido);
+/** Altura de una fila dentro de lo que se desplaza. */
+const alturaEnRollo = (e: HTMLElement) => e.offsetTop + (panelCorrido.matches ? el.contenido.offsetTop : 0);
+
+/**
+ * Pone arriba de la lista lo que viene detrás de «Después» (que ya está en la cabecera), empezando
+ * por su trayecto; si no hay nada más, lo de después.
+ */
 function mostrarSiguientes(actual: HTMLElement | null) {
-  const sig = actual?.nextElementSibling as HTMLElement | null;
+  let despues = actual?.nextElementSibling as HTMLElement | null;
+  while (despues && !despues.classList.contains('parada')) despues = despues.nextElementSibling as HTMLElement | null;
+  const sig = (despues?.nextElementSibling ?? actual?.nextElementSibling) as HTMLElement | null;
   if (!sig) return mostrarFila(actual);
-  el.contenido.scrollTo({ top: sig.offsetTop, behavior: 'smooth' });
+  rollo().scrollTo({ top: alturaEnRollo(sig), behavior: 'smooth' });
 }
 
 /** Desplaza la lista para que se vea la fila, con la parada anterior encima como contexto. */
 function mostrarFila(li: HTMLElement | null, suave = true) {
   if (!li) return;
-  const c = el.contenido;
-  const arriba = li.offsetTop;
+  const c = rollo();
+  const arriba = alturaEnRollo(li);
   const abajo = arriba + li.offsetHeight;
   if (arriba >= c.scrollTop && abajo <= c.scrollTop + c.clientHeight) return;
   // Contexto: la parada anterior con el trayecto que lleva a ella, para no cortar ninguna línea.
@@ -1133,7 +1222,7 @@ function mostrarFila(li: HTMLElement | null, suave = true) {
   while (previa && !previa.classList.contains('parada')) previa = previa.previousElementSibling as HTMLElement | null;
   const encima = previa?.previousElementSibling as HTMLElement | null;
   if (previa && encima?.classList.contains('tramo')) previa = encima;
-  const conContexto = previa && abajo - previa.offsetTop <= c.clientHeight ? previa.offsetTop : arriba;
+  const conContexto = previa && abajo - alturaEnRollo(previa) <= c.clientHeight ? alturaEnRollo(previa) : arriba;
   c.scrollTo({ top: Math.max(0, conContexto - 6), behavior: suave ? 'smooth' : 'auto' });
 }
 
@@ -1150,11 +1239,11 @@ el.contenido.addEventListener('click', (e) => {
   if (ancla) {
     e.preventDefault();
     const destino = el.contenido.querySelector<HTMLElement>(ancla.getAttribute('href')!);
-    if (destino) el.contenido.scrollTo({ top: destino.offsetTop - 8, behavior: 'smooth' });
+    if (destino) rollo().scrollTo({ top: alturaEnRollo(destino) - 8, behavior: 'smooth' });
     return;
   }
   const taxi = objetivo.closest<HTMLElement>('[data-taxi]');
-  if (taxi) return mostrarTaxi(modelo.paradas[Number(taxi.dataset.taxi)].p, taxi);
+  if (taxi) return mostrarTaxi(modelo.paradas[Number(taxi.dataset.taxi)].p, taxi, !('pie' in taxi.dataset));
   const chinoSub = objetivo.closest<HTMLElement>('[data-chino-sub]');
   if (chinoSub) {
     const [pid, i] = chinoSub.dataset.chinoSub!.split(':').map(Number);
@@ -1175,7 +1264,8 @@ el.contenido.addEventListener('click', (e) => {
   const fijar = objetivo.closest<HTMLElement>('[data-fijar]');
   if (fijar) {
     const v = fijar.dataset.fijar;
-    return marcar(modelo.paradas[Number(fijar.dataset.id)], v === 'pendiente' ? null : (v as Marca));
+    const p = modelo.paradas[Number(fijar.dataset.id)];
+    return void puedeMarcar().then((si) => si && marcar(p, v === 'pendiente' ? null : (v as Marca)));
   }
   const dia = objetivo.closest<HTMLElement>('[data-ir-dia]');
   if (dia) {
@@ -1191,6 +1281,8 @@ el.contenido.addEventListener('click', (e) => {
   estado.abierta = yaAbierta ? -1 : p.id;
   if (!yaAbierta) enfocar(p);
   marcarLista(momentoActual());
+  // Abrir una ficha que no se ve no sirve: si la hoja no está arriba, sube.
+  if (!yaAbierta && esMovil() && hoja.destino !== 'alta') expandir(true);
 });
 
 /** La parada cuyos sitios de dentro se enseñan en el mapa: la de la ficha abierta, o la de ahora. */
@@ -1200,28 +1292,109 @@ function paradaMirada(m: Momento): ParadaC | null {
   return m.tipo === 'parada' ? m.parada : m.tramo.hasta;
 }
 
-/** Desde la ficha: la hoja baja a media y el mapa va al sitio, con su sello resaltado. */
+/** Desde la ficha: la hoja baja a media, el mapa va al sitio y queda su ficha corta. */
 function verSubparada(p: ParadaC, i: number) {
   const sub = p.subs[i];
   estado.seguir = false;
   el.seguir.hidden = estado.vista !== 'dia';
-  for (const li of el.contenido.querySelectorAll('li.sub.vista')) li.classList.remove('vista');
-  el.contenido.querySelector(`li.parada[data-id="${p.id}"] li.sub[data-sub="${i}"]`)?.classList.add('vista');
-  if (esMovil() && hoja.destino === 'alta') animarHoja('media');
+  if (esMovil()) {
+    estado.abierta = null;
+    if (hoja.destino === 'alta') animarHoja('media');
+    mostrarFichaCorta(p, sub);
+  }
   vista.mostrarSubparadas(p);
   vista.resaltarSub(sub.pos ? i : null);
   vista.enfocarPunto(sub.pos ?? p.pos);
-  if (!sub.pos) aviso(`«${sub.s.nombre}» está en la misma parada`, 3000);
 }
 
-/** Al tocar el sello de un sitio en el mapa: su nombre y su nota, y la tarjeta en chino a mano. */
+/** Al tocar el sello de un sitio en el mapa: su ficha corta, con el mapa a la vista. */
 function pulsarSubparada(p: ParadaC, i: number) {
-  const sub = p.subs[i];
   vista.resaltarSub(i);
-  const texto = `${sub.letra} · ${sub.s.nombre}${sub.s.opcional ? ' (si da tiempo)' : ''}${sub.s.notas ? `: ${sub.s.notas}` : ''}`;
-  const chino = sub.s.local || sub.s.direccionLocal ? { texto: 'En chino', hacer: () => mostrarTaxi(sub.s, undefined, false) } : undefined;
-  aviso(texto, 7000, chino);
+  if (esMovil() && hoja.destino === 'alta') animarHoja('media');
+  mostrarFichaCorta(p, p.subs[i]);
 }
+
+// ---------- Ficha corta (lo que se toca en el mapa) ----------
+
+/**
+ * En el móvil, lo que se toca en el mapa no tapa el mapa: una ficha corta encima de la hoja con el
+ * nombre, la hora o la nota, la tarjeta en chino y «Ver ficha» para la entera.
+ */
+let fichaCorta: { p: ParadaC; sub?: SubC } | null = null;
+
+function mostrarFichaCorta(p: ParadaC, sub?: SubC) {
+  fichaCorta = { p, sub };
+  const tramo = modelo.tramos.find((t) => t.hasta === p);
+  let html: string;
+  if (sub) {
+    const enChino = sub.s.local || sub.s.direccionLocal;
+    html = `<div class="fc-cabeza">
+        <span class="fc-sello sub${sub.s.opcional ? ' opcional' : ''}" aria-hidden="true">${sub.letra}</span>
+        <div class="fc-texto">
+          <p class="fc-nombre">${esc(sub.s.nombre)}${sub.s.local ? ` <span class="local">${chino(sub.s.local)}</span>` : ''}</p>
+          <p class="fc-detalle">${sub.s.opcional ? 'Si da tiempo · ' : ''}en ${esc(p.p.nombre)}</p>
+          ${sub.s.notas ? `<p class="fc-nota">${esc(sub.s.notas)}</p>` : ''}
+        </div>
+      </div>
+      <div class="acciones-bloque">
+        ${enChino ? `<button type="button" class="mini" data-fc-chino>${ICONO_CHINO}En chino</button>` : ''}
+        <button type="button" class="mini suave" data-fc-ficha>Ver ficha</button>
+      </div>`;
+  } else {
+    const esOrigen = p === diaActual().origen;
+    const horario = esOrigen ? `salida ${hora(p.fin)}` : `${hora(p.inicio)}–${hora(p.fin)}`;
+    html = `<div class="fc-cabeza">
+        <span class="fc-sello${p.n === null ? ' hotel' : ''}" aria-hidden="true">${p.n ?? 'H'}</span>
+        <div class="fc-texto">
+          <p class="fc-nombre">${esc(p.p.nombre)}${p.p.local ? ` <span class="local">${chino(p.p.local)}</span>` : ''}</p>
+          <p class="fc-detalle"><b>${esc(horario)}</b>${tramo && !esOrigen ? ` · ${esc(comoSeLlega(tramo))}` : ''}</p>
+          ${esOrigen ? '' : lineaSubs(p)}
+        </div>
+      </div>
+      <div class="acciones-bloque">
+        ${botonChino(p, tramo)}
+        <button type="button" class="mini suave" data-fc-ficha>Ver ficha</button>
+        ${precioCorto(p)}
+      </div>`;
+  }
+  el.fichaCortaContenido.innerHTML = html;
+  el.fichaCorta.setAttribute('aria-label', sub ? sub.s.nombre : p.p.nombre);
+  el.fichaCorta.hidden = false;
+  document.body.classList.add('con-ficha');
+  document.documentElement.style.setProperty('--alto-ficha', `${el.fichaCorta.offsetHeight}px`);
+  margenesMapa();
+}
+
+function cerrarFichaCorta() {
+  if (!fichaCorta) return;
+  fichaCorta = null;
+  el.fichaCorta.hidden = true;
+  document.body.classList.remove('con-ficha');
+  vista.resaltarSub(null);
+  margenesMapa();
+}
+
+$('ficha-corta-cerrar').addEventListener('click', () => cerrarFichaCorta());
+el.fichaCorta.addEventListener('click', (e) => {
+  const objetivo = e.target as HTMLElement;
+  if (!fichaCorta) return;
+  const { p, sub } = fichaCorta;
+  const taxi = objetivo.closest<HTMLElement>('[data-taxi]');
+  if (taxi) return mostrarTaxi(p.p, taxi, !('pie' in taxi.dataset));
+  const chinoSub = objetivo.closest<HTMLElement>('[data-fc-chino]');
+  if (chinoSub && sub) return mostrarTaxi(sub.s, chinoSub, false);
+  if (!objetivo.closest('[data-fc-ficha]')) return;
+  cerrarFichaCorta();
+  abrirFicha(p);
+  if (sub) {
+    requestAnimationFrame(() => {
+      const fila = el.contenido.querySelector<HTMLElement>(`li.parada[data-id="${p.id}"] li.sub[data-sub="${sub.i}"]`);
+      for (const li of el.contenido.querySelectorAll('li.sub.vista')) li.classList.remove('vista');
+      fila?.classList.add('vista');
+      fila?.scrollIntoView({ block: 'center' });
+    });
+  }
+});
 
 /** Lleva el mapa a una parada sin tocar la hora; el recorrido deja de seguirse hasta que se pida. */
 function enfocar(p: ParadaC) {
@@ -1235,6 +1408,13 @@ function pulsarParada(p: ParadaC) {
   if (estado.vista === 'todo' || p.dia !== estado.dia) {
     if (p.dia === hoyIdx) volverAhora();
     else seleccionarDia(p.dia, undefined, false);
+  }
+  // En el móvil, el mapa se queda a la vista: hoja a media altura y la ficha corta de la parada.
+  if (esMovil()) {
+    if (hoja.destino === 'alta') animarHoja('media');
+    vista.mostrarSubparadas(p);
+    mostrarFichaCorta(p);
+    return enfocar(p);
   }
   expandir(true);
   ajustarMargenes();
@@ -1287,13 +1467,14 @@ function pintarResumen() {
   const visitas = modelo.paradas.filter((p) => p.n !== null).length;
   // Lo hecho lo da el plan; aquí solo cuenta lo que se ha cambiado: las paradas saltadas.
   const saltadas = modelo.paradas.filter((p) => marcaDe(p) === 'saltada').length;
+  ultimoAhora = '';
   el.ahora.innerHTML = `
     <div class="bloque viaje">
       <h2 class="titulo-viaje">${esc(modelo.titulo)}</h2>
       ${modelo.subtitulo ? `<p class="detalle-ahora">${esc(modelo.subtitulo)}</p>` : ''}
       <p class="cifras">${modelo.dias.length} días · ${paradas(visitas)}${saltadas ? ` · ${saltadas} saltada${saltadas === 1 ? '' : 's'}` : ''} · ${esc(textoPlan)}</p>
     </div>`;
-  el.contenido.scrollTop = 0;
+  rollo().scrollTop = 0;
   const antes = faltanDias() > 0;
   el.contenido.innerHTML = `
     ${bloqueAntes()}
@@ -1381,13 +1562,17 @@ const hoja = {
   asentada: 0,
   alturas: { baja: 0, media: 0, alta: 0 } as Record<AlturaHoja, number>,
   animacion: 0,
+  /**
+   * Media altura donde se paró por última vez, para lo mismo (vista, día, modo y pantalla): si lo de
+   * dentro cambia solo (sale la pregunta, pasa el tiempo) y sigue cabiendo, la hoja no se mueve.
+   */
+  fija: { media: 0, clave: '' },
 };
-const pantallaAncha = matchMedia('(min-width: 760px)');
-const reducirMovimiento = matchMedia('(prefers-reduced-motion: reduce)');
-const esMovil = () => !pantallaAncha.matches;
+const claveHoja = () => `${estado.vista}|${estado.dia}|${estado.modo}|${innerWidth}x${innerHeight}`;
 const seguidores = () => [
   el.pildoras,
   el.toast,
+  el.fichaCorta,
   ...document.querySelectorAll<HTMLElement>('#mapa .maplibregl-ctrl-bottom-right, #mapa .maplibregl-ctrl-bottom-left'),
 ];
 
@@ -1407,7 +1592,11 @@ function medirHoja() {
   }
   const abajo = (parseFloat(getComputedStyle(el.panel).paddingBottom) || 0) - SOBRANTE_HOJA;
   const fin = (e: Element | null) => (e ? e.getBoundingClientRect().bottom - r.top : 0);
-  const media = Math.min(Math.max(fin(el.cabecera) + 56 + abajo, innerHeight * 0.5), innerHeight * 0.76, alta);
+  const tope = Math.min(innerHeight * 0.76, alta);
+  const ideal = Math.min(Math.max(fin(el.cabecera) + 56 + abajo, innerHeight * 0.5), tope);
+  const { fija } = hoja;
+  const sigueValiendo = fija.clave === claveHoja() && fija.media <= tope && fin(el.cabecera) + abajo + 8 <= fija.media;
+  const media = sigueValiendo ? fija.media : ideal;
   // Baja: el asa y la primera línea de la cabecera (la cuenta atrás, o la hora del repaso, o el viaje).
   const corte =
     estado.vista === 'todo'
@@ -1425,8 +1614,11 @@ function moverHoja(v: number) {
   const d = hoja.asentada - v;
   const { media, alta } = hoja.alturas;
   const apagar = alta > media ? Math.min(Math.max((v - media) / (alta - media), 0), 1) : 0;
-  for (const e of seguidores()) e.style.transform = d ? `translateY(${d}px)` : '';
-  for (const e of [el.pildoras, el.botonesMapa]) e.style.opacity = apagar ? String(1 - apagar) : '';
+  // Yendo a alta, las píldoras ya están al pie (no siguen al borde) y aparecen al llegar.
+  const alPie = document.body.classList.contains('panel-abierto');
+  for (const e of seguidores()) e.style.transform = d && !(alPie && e === el.pildoras) ? `translateY(${d}px)` : '';
+  el.botonesMapa.style.opacity = apagar ? String(1 - apagar) : '';
+  el.pildoras.style.opacity = alPie ? (apagar < 1 ? String(apagar) : '') : apagar ? String(1 - apagar) : '';
 }
 
 function asentarHoja(pos: AlturaHoja) {
@@ -1437,6 +1629,12 @@ function asentarHoja(pos: AlturaHoja) {
   for (const e of seguidores()) e.style.transform = '';
   for (const e of [el.pildoras, el.botonesMapa]) e.style.opacity = '';
   document.body.dataset.hoja = pos;
+  if (pos === 'media') hoja.fija = { media: hoja.alturas.media, clave: claveHoja() };
+  // Una ficha abierta que ha quedado fuera de la vista no sigue «abierta» a escondidas.
+  if (pos !== 'alta' && esMovil() && estado.abierta !== null && estado.abierta >= 0) {
+    estado.abierta = null;
+    marcarLista(momentoActual());
+  }
   ajustarMargenes();
   // Al bajar la hoja, el mapa ha crecido: se vuelve a encuadrar el viaje o, si se va siguiendo el
   // recorrido, lo de ahora.
@@ -1459,7 +1657,7 @@ function animarHoja(pos: AlturaHoja, velocidad = 0) {
     moverHoja(destino);
     return asentarHoja(pos);
   }
-  const k = 420;
+  const k = 600;
   const c = 2 * Math.sqrt(k) * 0.9;
   let x = hoja.visible;
   let v = velocidad * 1000;
@@ -1485,6 +1683,7 @@ function animarHoja(pos: AlturaHoja, velocidad = 0) {
 function fijarDestino(pos: AlturaHoja) {
   hoja.destino = pos;
   const alta = pos === 'alta';
+  if (alta) cerrarFichaCorta();
   estado.expandido = alta;
   el.panel.classList.toggle('expandido', alta);
   el.asa.setAttribute('aria-expanded', String(alta));
@@ -1504,6 +1703,22 @@ function expandir(abrir = hoja.destino !== 'alta') {
 
 // Un toque en el asa: de baja a media, y de media a alta y vuelta.
 el.asa.addEventListener('click', () => (hoja.destino === 'baja' ? animarHoja('media') : expandir()));
+// Con teclado, las flechas suben y bajan la hoja por sus tres alturas.
+el.asa.addEventListener('keydown', (e) => {
+  if (!esMovil() || (e.key !== 'ArrowUp' && e.key !== 'ArrowDown')) return;
+  e.preventDefault();
+  const i = ORDEN_HOJA.indexOf(hoja.destino) + (e.key === 'ArrowUp' ? 1 : -1);
+  const pos = ORDEN_HOJA[Math.min(Math.max(i, 0), ORDEN_HOJA.length - 1)];
+  if (pos === hoja.destino) return;
+  if (pos === 'alta' || hoja.destino === 'alta') expandir(pos === 'alta');
+  else animarHoja(pos);
+});
+// Desde arriba del todo se vuelve al mapa sin estirar el dedo: «Mapa» al pie, o un toque en la cabecera.
+el.irMapa.addEventListener('click', () => expandir(false));
+el.cabecera.addEventListener('click', (e) => {
+  if (!esMovil() || hoja.destino !== 'alta' || (e.target as HTMLElement).closest('button, a, input')) return;
+  expandir(false);
+});
 
 // --- Arrastre con el dedo ---
 
@@ -1526,7 +1741,7 @@ el.panel.addEventListener(
     if (!esMovil() || e.touches.length > 1) return (toque = null);
     const objetivo = e.target as HTMLElement;
     // La línea de tiempo se arrastra de lado: no es para la hoja.
-    if (objetivo.closest('#pista')) return (toque = null);
+    if (objetivo.closest('#pista') && estado.modo === 'repaso') return (toque = null);
     const t = e.touches[0];
     toque = {
       x0: t.clientX,
@@ -1629,11 +1844,16 @@ function margenesMapa() {
   // Con la hoja alta el mapa casi no se ve: se encuadra como si estuviera a media altura, que es
   // lo que se verá al bajarla.
   const visible = hoja.destino === 'alta' ? hoja.alturas.media : hoja.alturas[hoja.destino];
+  // Encima de la hoja están las píldoras y los avisos (o la ficha corta): no cuentan como mapa.
+  const encima = fichaCorta ? el.fichaCorta.offsetHeight + 20 : 60;
+  // En móviles bajos los botones del mapa van en fila arriba: el mapa empieza debajo de ellos.
+  const botones = el.botonesMapa.getBoundingClientRect();
+  const enFila = botones.width > botones.height && botones.height > 0;
   vista.fijarMargenes({
-    top: el.barra.offsetHeight + 8,
-    bottom: ancha ? 16 : (visible || hoja.visible) + 8,
-    left: ancha ? el.panel.offsetWidth + 28 : 16,
-    right: 68,
+    top: enFila ? botones.bottom + 8 : el.barra.offsetHeight + 8,
+    bottom: ancha ? 16 : (visible || hoja.visible) + encima,
+    left: ancha ? el.panel.getBoundingClientRect().right + 12 : 16,
+    right: enFila ? 16 : 68,
   });
 }
 
@@ -1644,6 +1864,11 @@ function ajustarMargenes() {
   document.documentElement.style.setProperty('--alto-barra', `${el.barra.offsetHeight}px`);
 }
 new ResizeObserver(recolocarHoja).observe(el.panel);
+// Al girar el móvil se pasa de hoja abajo a página a un lado (y vuelta): la ficha corta es de la hoja.
+pantallaAncha.addEventListener('change', () => {
+  cerrarFichaCorta();
+  recolocarHoja();
+});
 new ResizeObserver(recolocarHoja).observe(el.cabecera);
 new ResizeObserver(ajustarMargenes).observe(el.barra);
 
@@ -1805,7 +2030,11 @@ function cerrarTaxi(desdeHistorial = false) {
 
 el.taxiCerrar.addEventListener('click', () => cerrarTaxi());
 addEventListener('popstate', () => cerrarTaxi(true));
-addEventListener('keydown', (e) => e.key === 'Escape' && cerrarTaxi());
+addEventListener('keydown', (e) => {
+  if (e.key !== 'Escape') return;
+  if (!el.taxi.hidden) cerrarTaxi();
+  else cerrarFichaCorta();
+});
 
 /** Hotel donde se duerme el día que se está viendo (o hoy): para «Llévame al hotel». */
 function hotelActual(): ParadaC | null {
@@ -1815,7 +2044,7 @@ function hotelActual(): ParadaC | null {
   return [...hoteles].reverse().find((h) => h.id <= (ultima?.id ?? 0)) ?? hoteles[0] ?? null;
 }
 
-el.hotel.hidden = !modelo.paradas.some((p) => p.p.categoria === 'hotel');
+el.hotel.hidden = !ultimoHotel;
 el.hotel.addEventListener('click', () => {
   const h = hotelActual();
   if (h) mostrarTaxi(h.p, el.hotel);

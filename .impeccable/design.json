@@ -780,7 +780,7 @@
       "name": "Botón de tinta",
       "kind": "button",
       "refersTo": "boton-tinta",
-      "description": "Acción principal de la ficha: «Enseñar al taxista».",
+      "description": "Acción principal de la ficha: «Enseñar al taxista» si se llega en taxi, «Enseñar en chino» si se llega a pie, en metro o en tren.",
       "html": "<button class=\"ds-boton-tinta\">Enseñar al taxista</button>",
       "css": ".ds-boton-tinta{display:inline-flex;align-items:center;min-height:42px;padding:0 14px;border:1.5px solid #14213d;border-radius:8px;background:#14213d;color:#fff;font:650 14.5px var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif);cursor:pointer}.ds-boton-tinta:hover{background:#25335a;border-color:#25335a}.ds-boton-tinta:focus-visible{outline:2.5px solid #2453d1;outline-offset:2px}"
     },
@@ -815,6 +815,14 @@
       "description": "Pendiente, hecha, opcional, actual (con anillo fluorescente) y pastilla de distancia.",
       "html": "<div class=\"ds-mapa\"><span class=\"ds-mk\">5</span><span class=\"ds-mk ds-mk-hecha\">3</span><span class=\"ds-mk ds-mk-opc\">6</span><span class=\"ds-mk ds-mk-actual\">4</span><span class=\"ds-pastilla\">1,1 km</span></div>",
       "css": ".ds-mapa{display:flex;align-items:center;gap:18px;padding:16px;background:#eef0f2;font-family:var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif)}.ds-mk{display:grid;place-items:center;width:30px;height:30px;border:2.5px solid #2453d1;border-radius:50%;background:#fff;color:#2453d1;box-shadow:0 0 0 2px #fff,0 2px 5px rgba(20,33,61,.3);font-size:14px;font-weight:800;line-height:1}.ds-mk-hecha{background:#2453d1;color:#fff;rotate:-8deg}.ds-mk-opc{border-style:dashed}.ds-mk-actual{width:36px;height:36px;border-color:#14213d;background:#14213d;color:#ddf94a;font-size:16px;box-shadow:0 0 0 5px #ddf94a,0 3px 8px rgba(20,33,61,.35)}.ds-pastilla{padding:2px 7px;border-radius:5px;background:#fff;color:#14213d;box-shadow:0 0 0 1.5px #14213d,0 1px 3px rgba(20,33,61,.3);font-size:12.5px;font-weight:700;font-stretch:90%}"
+    },
+    {
+      "name": "Ficha corta",
+      "kind": "custom",
+      "refersTo": "ficha-corta",
+      "description": "Lo que se toca en el mapa (marcador o sello) en el móvil: papel cuadriculado encima de la hoja a media altura, con sello, nombre y chino, hora y cómo se llega, «En chino» o «Taxi» y «Ver ficha». Se cierra con ✕ o tocando el mapa.",
+      "html": "<div class=\"ds-fc\"><div class=\"ds-fc-cabeza\"><span class=\"ds-fc-sello\">5</span><div><b>The Bund al encenderse las luces</b> <span lang=\"zh-Hans\">外滩</span><p><b>18:30–19:05</b> · A pie · 1,1 km · ~20 min</p></div></div><div class=\"ds-fc-acciones\"><button>En chino</button><a href=\"#\">Ver ficha</a></div><button class=\"ds-fc-cerrar\" aria-label=\"Cerrar\">✕</button></div>",
+      "css": ".ds-fc{position:relative;max-width:360px;padding:12px 52px 12px 14px;border-radius:12px;background:#fff linear-gradient(#dce7f2 1px,transparent 1px) -1px -1px/12px 12px,linear-gradient(90deg,#dce7f2 1px,transparent 1px) -1px -1px/12px 12px;box-shadow:0 0 0 1px rgba(20,33,61,.16),0 1px 2px rgba(20,33,61,.2),0 4px 12px rgba(20,33,61,.14);color:#14213d;font:500 14px var(--fuente,'Archivo Variable','Archivo',system-ui,sans-serif)}.ds-fc-cabeza{display:grid;grid-template-columns:auto 1fr;gap:10px;align-items:start}.ds-fc-cabeza b{font-weight:700}.ds-fc-cabeza p{margin:4px 0 0;color:#46526a}.ds-fc-sello{display:grid;place-items:center;width:28px;height:28px;border:2px solid #2453d1;border-radius:50%;color:#2453d1;font-weight:800}.ds-fc-acciones{display:flex;gap:14px;align-items:center;margin-top:10px}.ds-fc-acciones button{min-height:34px;padding:0 11px;border:1.5px solid rgba(20,33,61,.55);border-radius:8px;background:#fff;font:700 14px inherit}.ds-fc-acciones a{color:#14213d;font-weight:700;text-underline-offset:3px}.ds-fc-cerrar{position:absolute;top:4px;right:4px;width:44px;height:44px;border:none;background:none;font-size:18px}"
     }
   ],
   "narrative": {

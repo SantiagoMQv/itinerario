@@ -26,12 +26,17 @@
   --kraft-velo: transparent;
   --pestana-todo: #efe3d2;
   --boton-mapa: #ffffff;
+  /* Color de las sombras: tinta de día; negro de noche (una sombra azulada sobre oscuro parece un halo). */
+  --sombra-rgb: 20, 33, 61;
   /* Filo de 1 px y sombra: al sol (o de noche) el botón no se funde con el mapa. */
   --sombra-boton: 0 0 0 1px rgba(20, 33, 61, 0.16), 0 1px 2px rgba(20, 33, 61, 0.2), 0 4px 12px rgba(20, 33, 61, 0.14);
   --color-dia: #2453d1;
   --tono: var(--color-dia);
   --arriba: env(safe-area-inset-top, 0px);
   --abajo: env(safe-area-inset-bottom, 0px);
+  /* En horizontal, la muesca y las esquinas redondas quedan a un lado. */
+  --izq: env(safe-area-inset-left, 0px);
+  --der: env(safe-area-inset-right, 0px);
   --alto-panel: 50dvh;
   --fuente:
     'Archivo Variable', 'Archivo', system-ui, -apple-system, 'Segoe UI', Roboto, 'PingFang SC', 'Hiragino Sans GB',
@@ -55,6 +60,7 @@
   --aviso: #ff8a8f;
   --pestana-todo: #4a3d2e;
   --boton-mapa: #1b2330;
+  --sombra-rgb: 0, 0, 0;
   --sombra-boton: 0 0 0 1px rgba(232, 236, 242, 0.2), 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.35);
   --tono: color-mix(in srgb, var(--color-dia) 62%, #ffffff);
   color-scheme: dark;
@@ -130,7 +136,7 @@ mark {
   background:
     linear-gradient(var(--kraft-velo), var(--kraft-velo)),
     var(--kraft) 0 0 / 231px auto repeat;
-  box-shadow: 0 1px 0 rgba(20, 33, 61, 0.25);
+  box-shadow: 0 1px 0 rgba(var(--sombra-rgb), 0.25);
 }
 
 #tapa {
@@ -146,7 +152,7 @@ mark {
   align-items: flex-end;
   gap: 4px;
   height: 54px;
-  padding: 0 8px;
+  padding: 0 calc(8px + var(--der)) 0 calc(8px + var(--izq));
   overflow-x: auto;
   overflow-y: hidden;
   scrollbar-width: none;
@@ -189,8 +195,17 @@ mark {
   font-stretch: 92%;
 }
 .pestana.todo {
+  /* Siempre a mano: los días pasan por debajo al deslizarlos (pegada al borde, sin rendija). */
+  position: sticky;
+  left: -8px;
+  z-index: 1;
   min-width: 70px;
   color: var(--tinta);
+}
+#dias.corrido .pestana.todo {
+  box-shadow:
+    inset 0 -1px 0 rgba(0, 0, 0, 0.18),
+    4px 0 6px -3px rgba(20, 16, 10, 0.45);
 }
 .pestana.activa {
   padding-bottom: 0;
@@ -215,7 +230,7 @@ mark {
 #botones-mapa {
   position: fixed;
   z-index: 4;
-  right: 12px;
+  right: calc(12px + var(--der));
   top: calc(var(--alto-barra, 54px) + 12px);
   display: flex;
   flex-direction: column;
@@ -250,7 +265,7 @@ mark {
   font-size: 12px;
   font-weight: 700;
   line-height: 1.1;
-  box-shadow: 0 1px 2px rgba(20, 33, 61, 0.2);
+  box-shadow: 0 1px 2px rgba(var(--sombra-rgb), 0.2);
 }
 .btn-redondo svg {
   width: 23px;
@@ -290,8 +305,8 @@ mark {
 #pildoras {
   position: fixed;
   z-index: 4;
-  left: 12px;
-  right: 76px;
+  left: calc(12px + var(--izq));
+  right: calc(76px + var(--der));
   bottom: calc(var(--alto-panel) + 12px);
   display: flex;
   flex-wrap: wrap-reverse;
@@ -302,6 +317,7 @@ mark {
   pointer-events: auto;
 }
 
+#btn-mapa,
 #btn-hotel,
 #btn-ahora,
 #btn-seguir {
@@ -330,7 +346,7 @@ mark {
   border-radius: 50%;
   background: var(--fluor);
 }
-body.vista-todo #btn-hotel,
+#btn-mapa,
 #btn-hotel[hidden],
 #btn-ahora[hidden],
 #btn-seguir[hidden],
@@ -338,6 +354,7 @@ body.vista-todo #btn-hotel,
   display: none;
 }
 /* «Llévame al hotel»: siempre a mano, junto al pulgar. */
+#btn-mapa svg,
 #btn-hotel svg {
   width: 21px;
   height: 21px;
@@ -399,14 +416,14 @@ body.vista-todo #btn-hotel,
   height: 50dvh;
   padding-bottom: var(--abajo);
   border-radius: 14px 14px 0 0;
-  box-shadow: 0 -2px 14px rgba(20, 33, 61, 0.18);
+  box-shadow: 0 -2px 14px rgba(var(--sombra-rgb), 0.18);
 }
 /*
  * En el móvil, una hoja de altura fija que se desliza con transform (lo mueve el código): baja,
  * media o alta. Lleva papel de sobra por debajo para que un rebote nunca enseñe el mapa.
  * Mientras no está alta, la lista no se desplaza: arrastrarla mueve la hoja.
  */
-@media (max-width: 759px) {
+@media (max-width: 759px) and (orientation: portrait), (max-width: 559px) {
   #panel {
     bottom: -60px;
     /* Alta: hasta justo debajo de las pestañas, que siguen a mano para cambiar de día. */
@@ -426,7 +443,7 @@ body.vista-todo #btn-hotel,
  * Con la hoja alta, lo que se quiere es la lista: la cabecera se reduce a la cuenta atrás (o la hora
  * del repaso con sus controles) y, debajo, el nombre de lo de ahora en una línea.
  */
-@media (max-width: 759px) {
+@media (max-width: 759px) and (orientation: portrait), (max-width: 559px) {
   body.panel-abierto:not(.vista-todo) #cabecera {
     grid-template-columns: minmax(0, 1fr);
     padding-bottom: 8px;
@@ -479,7 +496,7 @@ body.vista-todo #btn-hotel,
 #pie-hoja {
   display: none;
 }
-@media (max-width: 759px) {
+@media (max-width: 759px) and (orientation: portrait), (max-width: 559px) {
   #pie-hoja {
     position: fixed;
     z-index: 11;
@@ -502,15 +519,40 @@ body.vista-todo #btn-hotel,
     display: none;
   }
 }
-/* Desplegado (en el móvil), el mapa es una franja: sin botones, píldoras ni créditos encima. */
-@media (max-width: 759px) {
+/*
+ * Desplegado (en el móvil), el mapa es una franja: sin botones ni créditos encima. Las píldoras
+ * bajan al pie, junto al pulgar, con «Mapa» para volver a media altura sin subir hasta el asa.
+ */
+@media (max-width: 759px) and (orientation: portrait), (max-width: 559px) {
   body.panel-abierto #botones-mapa,
-  body.panel-abierto #pildoras,
+  body.panel-abierto #btn-seguir,
   body.panel-abierto #mapa .maplibregl-ctrl-bottom-right {
     display: none;
   }
+  body.panel-abierto #pildoras {
+    z-index: 13;
+    left: calc(12px + var(--izq));
+    right: calc(12px + var(--der));
+    bottom: calc(var(--abajo) + 14px);
+    justify-content: center;
+  }
+  body.panel-abierto #btn-mapa {
+    display: flex;
+  }
+  /* «Mapa» en tinta; en el repaso la tinta es para «Volver a ahora». */
+  body.panel-abierto:not(.repaso) #btn-mapa {
+    background: var(--tinta);
+    color: var(--papel);
+  }
+  body.panel-abierto #panel.expandido #contenido {
+    padding-bottom: 84px;
+  }
   body.panel-abierto #toast {
-    bottom: calc(var(--abajo) + 12px);
+    bottom: calc(var(--abajo) + 72px);
+  }
+  /* Arriba del todo, el asa no se mete en las pestañas de los días. */
+  #panel.expandido #asa::after {
+    inset: 0;
   }
 }
 
@@ -530,6 +572,11 @@ body.vista-todo #btn-hotel,
   position: absolute;
   inset: -12px 0 0;
 }
+/* El asa ocupa todo el ancho: su anillo de foco va por dentro, como un contorno de la franja. */
+#asa:focus-visible {
+  outline-offset: -4px;
+  border-radius: 12px 12px 6px 6px;
+}
 #asa span {
   width: 38px;
   height: 4px;
@@ -548,7 +595,7 @@ body.vista-todo #btn-hotel,
 }
 /* Al bajar por la lista, la cabecera se separa con una sombra corta. */
 #panel.desplazado #cabecera {
-  box-shadow: 0 7px 8px -7px rgba(20, 33, 61, 0.35);
+  box-shadow: 0 7px 8px -7px rgba(var(--sombra-rgb), 0.35);
 }
 #panel.desplazado #contenido {
   border-top-color: var(--borde-fuerte);
@@ -634,7 +681,7 @@ body:not(.repaso) #ahora::before {
   top: 2px;
 }
 /* Móviles bajos: lo de ahora sin el nombre en chino (está en su tarjeta) y lo siguiente en una línea. */
-@media (max-height: 700px) and (max-width: 759px) {
+@media (max-height: 700px) and (max-width: 759px) and (orientation: portrait), (max-height: 700px) and (max-width: 559px) {
   body:not(.repaso) #hora {
     font-size: 44px;
   }
@@ -649,6 +696,28 @@ body:not(.repaso) #ahora::before {
     text-overflow: ellipsis;
     white-space: nowrap;
   }
+  /* Lo siguiente en una fila: el nombre y cómo se llega a la izquierda, su botón a la derecha. */
+  body:not(.repaso) #ahora .bloque.siguiente {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 10px;
+  }
+  body:not(.repaso) #ahora .bloque.siguiente > :not(.abrir, .acciones-bloque) {
+    grid-column: 1 / -1;
+  }
+  body:not(.repaso) #ahora .bloque.siguiente .acciones-bloque {
+    grid-area: 1 / 2;
+    flex-wrap: nowrap;
+  }
+  body:not(.repaso) #ahora .bloque.siguiente .precio {
+    display: none;
+  }
+  /* Los botones del mapa en fila arriba, para que la hoja a media altura no los tape. */
+  #botones-mapa {
+    flex-direction: row;
+    gap: 4px;
+  }
 }
 #cuenta {
   margin: 5px 0 0;
@@ -657,6 +726,19 @@ body:not(.repaso) #ahora::before {
   font-weight: 650;
   font-stretch: 88%;
   line-height: 1.25;
+}
+#cuenta .lugar {
+  display: none;
+}
+@media (max-width: 759px) and (orientation: portrait), (max-width: 559px) {
+  body[data-hoja='baja']:not(.vista-todo) #cuenta .lugar {
+    display: block;
+    overflow: hidden;
+    color: var(--tinta-suave);
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 body.repaso #cuenta {
   color: var(--tinta-suave);
@@ -792,6 +874,11 @@ body.reproduciendo .icono-pausa {
   -webkit-appearance: none;
   appearance: none;
   touch-action: none;
+}
+/* En directo la línea solo informa (al repaso se entra con «Repasar el día»). */
+#deslizador:disabled {
+  opacity: 1;
+  cursor: default;
 }
 #deslizador::-webkit-slider-runnable-track {
   height: 40px;
@@ -1651,7 +1738,7 @@ body.vista-todo .lista {
   color: var(--color);
   box-shadow:
     0 0 0 2px var(--papel),
-    0 2px 5px rgba(20, 33, 61, 0.3);
+    0 2px 5px rgba(var(--sombra-rgb), 0.3);
   font-family: var(--fuente);
   font-size: 15px;
   font-weight: 800;
@@ -1659,7 +1746,7 @@ body.vista-todo .lista {
 }
 /* Sitios de dentro de la parada que se está mirando: un sello pequeño con su letra. */
 .submarcador {
-  z-index: 3;
+  z-index: 1;
   padding: 0;
   border: none;
   background: none;
@@ -1677,7 +1764,7 @@ body.vista-todo .lista {
   color: var(--color);
   box-shadow:
     0 0 0 2px var(--papel),
-    0 2px 4px rgba(20, 33, 61, 0.25);
+    0 2px 4px rgba(var(--sombra-rgb), 0.25);
   font-family: var(--fuente);
   font-size: 13px;
   font-weight: 800;
@@ -1692,8 +1779,11 @@ body.vista-todo .lista {
 .submarcador.opcional > span {
   border-style: dashed;
 }
+.submarcador.oculto {
+  display: none;
+}
 .submarcador.activa {
-  z-index: 4;
+  z-index: 3;
 }
 .submarcador.activa > span {
   border-color: var(--tinta-fija);
@@ -1779,7 +1869,7 @@ body.vista-todo .lista {
   rotate: 0deg;
   box-shadow:
     0 0 0 5px var(--fluor),
-    0 3px 8px rgba(20, 33, 61, 0.35);
+    0 3px 8px rgba(var(--sombra-rgb), 0.35);
 }
 .marcador.varios.actual > span {
   width: auto;
@@ -1793,7 +1883,7 @@ body.vista-todo .lista {
   border-radius: 5px;
   background: var(--papel);
   color: var(--tinta);
-  box-shadow: 0 1px 3px rgba(20, 33, 61, 0.3);
+  box-shadow: 0 1px 3px rgba(var(--sombra-rgb), 0.3);
   font-family: var(--fuente);
   font-size: 12.5px;
   font-weight: 700;
@@ -1804,7 +1894,7 @@ body.vista-todo .lista {
 .pastilla.ahora {
   box-shadow:
     0 0 0 1.5px var(--tinta),
-    0 1px 3px rgba(20, 33, 61, 0.3);
+    0 1px 3px rgba(var(--sombra-rgb), 0.3);
 }
 .pastilla.oculta {
   display: none;
@@ -1825,6 +1915,12 @@ body.vista-todo .lista {
 #mapa .maplibregl-ctrl-bottom-right,
 #mapa .maplibregl-ctrl-bottom-left {
   bottom: var(--alto-panel);
+}
+#mapa .maplibregl-ctrl-bottom-right {
+  right: var(--der);
+}
+#mapa .maplibregl-ctrl-bottom-left {
+  left: var(--izq);
 }
 .maplibregl-ctrl-attrib {
   font-family: var(--fuente);
@@ -1918,12 +2014,131 @@ body.vista-todo .lista {
   stroke-linecap: round;
 }
 
+/* Tras marcar, un instante sin botones activos en «ahora»: el segundo toque de un doble toque no cuenta. */
+#ahora.enfriando button {
+  pointer-events: none;
+}
+#ahora.enfriando .mini {
+  opacity: 0.55;
+}
+#ahora .mini {
+  transition: opacity 0.25s ease;
+}
+
+/*
+ * Ficha corta: lo que se toca en el mapa (una parada o un sitio de dentro) sale encima de la hoja,
+ * sin taparla ni tapar el mapa. Sustituye a las píldoras mientras está abierta.
+ */
+#ficha-corta {
+  position: fixed;
+  z-index: 12;
+  left: calc(10px + var(--izq));
+  right: calc(10px + var(--der));
+  bottom: calc(var(--alto-panel) + 10px);
+  padding: 12px 52px 12px 14px;
+  border-radius: 12px;
+  box-shadow: var(--sombra-boton);
+}
+#ficha-corta[hidden],
+body.panel-abierto #ficha-corta,
+body.con-ficha #pildoras {
+  display: none;
+}
+body.con-ficha #toast {
+  bottom: calc(var(--alto-panel) + var(--alto-ficha, 120px) + 20px);
+}
+#ficha-corta-cerrar {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--tinta);
+}
+#ficha-corta-cerrar svg {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+.fc-cabeza {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr);
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.fc-sello {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border: 2.5px solid var(--tono);
+  border-radius: 50%;
+  background: var(--papel);
+  color: var(--tono);
+  font-size: 14px;
+  font-weight: 800;
+  line-height: 1;
+}
+.fc-sello.hotel {
+  background: var(--tono);
+  color: var(--papel);
+}
+.fc-sello.sub {
+  width: 26px;
+  height: 26px;
+  margin: 2px;
+  border-width: 2px;
+  font-size: 13px;
+}
+.fc-sello.opcional {
+  border-style: dashed;
+}
+.fc-texto {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.fc-texto p {
+  margin: 0;
+}
+.fc-nombre {
+  font-size: 16px;
+  font-weight: 700;
+  font-stretch: 92%;
+  line-height: 1.25;
+}
+.fc-nombre .local {
+  font-weight: 500;
+}
+.fc-detalle,
+.fc-nota {
+  color: var(--tinta-suave);
+  font-size: 14px;
+  line-height: 1.3;
+}
+.fc-detalle b {
+  color: var(--tinta);
+}
+.fc-texto .subs-ahora {
+  -webkit-line-clamp: 1;
+}
+
 /* Avisos junto al pulgar, encima del panel, con su «Deshacer». */
 #toast {
   position: fixed;
   z-index: 40;
-  left: 12px;
-  right: 76px;
+  left: calc(12px + var(--izq));
+  right: calc(76px + var(--der));
   bottom: calc(var(--alto-panel) + 64px);
   display: flex;
   align-items: center;
@@ -1959,7 +2174,7 @@ body.vista-todo .lista {
   border-radius: 14px;
   background: var(--papel);
   color: var(--tinta);
-  box-shadow: 0 12px 40px rgba(20, 33, 61, 0.35);
+  box-shadow: 0 12px 40px rgba(var(--sombra-rgb), 0.35);
 }
 #dialogo::backdrop {
   background: rgba(20, 33, 61, 0.45);
@@ -2117,16 +2332,24 @@ body.reproduciendo li.hecha .marca {
   }
 }
 
-/* ---------- Pantallas grandes: la página a la izquierda ---------- */
+/*
+ * ---------- Pantallas anchas: la página a la izquierda ----------
+ * El ordenador, la tableta y el móvil en horizontal (con la hoja abajo no quedaría sitio para nada).
+ * Mantener a la par con PANTALLA_ANCHA en main.ts.
+ */
 
-@media (min-width: 760px) {
+@media (min-width: 760px), (min-width: 560px) and (orientation: landscape) {
+  :root {
+    --ancho-panel: min(480px, 58vw);
+  }
   #panel {
-    left: 16px;
+    left: calc(16px + var(--izq));
     right: auto;
     top: calc(var(--alto-barra, 54px) + 14px);
-    bottom: 16px;
-    width: 480px;
+    bottom: calc(16px + var(--abajo));
+    width: var(--ancho-panel);
     height: auto;
+    padding-bottom: 0;
     border-radius: 14px;
     box-shadow: var(--sombra-boton);
   }
@@ -2146,17 +2369,48 @@ body.reproduciendo li.hecha .marca {
     top: -16px;
   }
   #pildoras {
-    left: 512px;
-    bottom: 16px;
+    left: calc(var(--ancho-panel) + 32px + var(--izq));
+    bottom: calc(16px + var(--abajo));
   }
   #toast {
-    left: 512px;
+    left: calc(var(--ancho-panel) + 32px + var(--izq));
     right: auto;
-    width: min(420px, calc(100vw - 528px));
-    bottom: 76px;
+    width: min(420px, calc(100vw - var(--ancho-panel) - 48px - var(--izq) - var(--der)));
+    bottom: calc(76px + var(--abajo));
   }
-  .maplibregl-ctrl-bottom-right,
-  .maplibregl-ctrl-bottom-left {
-    bottom: 0;
+  #mapa .maplibregl-ctrl-bottom-right,
+  #mapa .maplibregl-ctrl-bottom-left {
+    bottom: var(--abajo);
+  }
+}
+/*
+ * Ancha pero baja (el móvil en horizontal): la página entera se desplaza de una pieza, cabecera
+ * incluida, para que la lista no se quede en una rendija.
+ */
+@media (min-width: 760px) and (max-height: 560px), (min-width: 560px) and (orientation: landscape) and (max-height: 560px) {
+  #panel {
+    top: calc(var(--alto-barra, 54px) + 8px);
+    bottom: calc(8px + var(--abajo));
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+  #cabecera {
+    padding-top: 12px;
+  }
+  #cabecera,
+  #contenido {
+    flex: none;
+  }
+  #contenido {
+    overflow: visible;
+  }
+  #panel.desplazado #cabecera {
+    box-shadow: none;
+  }
+  body:not(.repaso) #hora {
+    font-size: 44px;
+  }
+  #pildoras {
+    bottom: calc(8px + var(--abajo));
   }
 }

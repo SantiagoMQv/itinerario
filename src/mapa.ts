@@ -39,6 +39,19 @@ const HUECOS: Record<string, [number, number]> = { marcador: [40, 40], pastilla:
 /** Estado de una parada para pintarla: hecha (sello), saltada o pendiente (null). */
 export type EstadoParada = 'hecha' | 'saltada' | null;
 
+/** Lo que dice un lector de pantalla de un marcador: número, nombre y cómo está (ahora, hecha, saltada). */
+function rotuloMarcador(grupo: ParadaC[], el: HTMLElement): string {
+  const numeros = grupo.map((p) => p.n).filter((n) => n !== null);
+  const estado = el.classList.contains('actual')
+    ? ', ahora'
+    : el.classList.contains('hecha')
+      ? ', hecha'
+      : el.classList.contains('saltada')
+        ? ', saltada'
+        : '';
+  return `${numeros.length ? `${numeros.join(' y ')}: ` : 'Hotel: '}${grupo[0].p.nombre}${estado}`;
+}
+
 export interface Margenes {
   top: number;
   bottom: number;
@@ -157,6 +170,7 @@ export class VistaMapa {
     private eventos: {
       alPulsarParada: (p: ParadaC) => void;
       alPulsarSubparada: (p: ParadaC, i: number) => void;
+      alPulsarMapa: () => void;
       alArrastrar: () => void;
     },
   ) {
@@ -166,6 +180,18 @@ export class VistaMapa {
       center: [121.47, 31.23],
       zoom: 11,
       attributionControl: { compact: true },
+      // Lo que MapLibre dice en voz alta (lector de pantalla) o en sus botones, en español.
+      locale: {
+        'AttributionControl.ToggleAttribution': 'Mostrar u ocultar los créditos del mapa',
+        'AttributionControl.MapFeedback': 'Avisar de un error en el mapa',
+        'LogoControl.Title': 'Logotipo de MapLibre',
+        'Map.Title': 'Mapa',
+        'Marker.Title': 'Marcador',
+        'Popup.Close': 'Cerrar',
+        'CooperativeGesturesHandler.WindowsHelpText': 'Usa Ctrl + rueda para acercar el mapa',
+        'CooperativeGesturesHandler.MacHelpText': 'Usa ⌘ + rueda para acercar el mapa',
+        'CooperativeGesturesHandler.MobileHelpText': 'Usa dos dedos para mover el mapa',
+      },
       dragRotate: false,
       pitchWithRotate: false,
       touchPitch: false,
@@ -176,7 +202,11 @@ export class VistaMapa {
     this.mapa.on('dragstart', (e) => {
       if ('originalEvent' in e && e.originalEvent) this.eventos.alArrastrar();
     });
-    this.mapa.on('zoom', () => this.ajustarPastillas());
+    this.mapa.on('zoom', () => {
+      this.ajustarPastillas();
+      this.ajustarSubs();
+    });
+    this.mapa.on('click', () => this.eventos.alPulsarMapa());
 
     const el = document.createElement('div');
     el.className = 'posicion';
@@ -372,7 +402,7 @@ export class VistaMapa {
       el.classList.toggle('varios', numeros.length > 1);
       el.classList.toggle('opcional', grupo.every((p) => p.p.opcional));
       el.style.setProperty('--color', this.colorDe(dia));
-      el.setAttribute('aria-label', grupo[0].p.nombre);
+      el.setAttribute('aria-label', rotuloMarcador(grupo, el));
       const etiqueta = numeros.length ? numeros.join('·') : 'H';
       el.innerHTML = `<span>${etiqueta}</span>`;
       el.addEventListener('click', (e) => {
@@ -449,7 +479,7 @@ export class VistaMapa {
       const el = x.m.getElement();
       el.classList.remove('oculto', 'racimo', 'junto-actual', 'junto-actual-dcha');
       el.querySelector('span')!.textContent = x.etiqueta;
-      el.setAttribute('aria-label', x.grupo[0].p.nombre);
+      el.setAttribute('aria-label', rotuloMarcador(x.grupo, el));
       return { x, el, p: this.mapa.project(x.grupo[0].pos), actual: el.classList.contains('actual') };
     });
     const actual = puntos.find((c) => c.actual);
@@ -558,6 +588,7 @@ export class VistaMapa {
       el.classList.toggle('actual', esActual);
       el.classList.toggle('hecha', !esActual && estados.includes('hecha'));
       el.classList.toggle('saltada', !esActual && estados.every((e) => e === 'saltada'));
+      if (!el.classList.contains('racimo')) el.setAttribute('aria-label', rotuloMarcador(grupo, el));
     }
 
     if (momento.tipo === 'camino') {
@@ -679,6 +710,18 @@ export class VistaMapa {
       });
       const m = new Marker({ element: el }).setLngLat(subs[0].pos!).addTo(this.mapa);
       this.subMarcadores.push({ m, letras });
+    }
+    this.ajustarSubs();
+  }
+
+  /** Un sello pegado en pantalla a su parada la taparía: se esconde hasta acercar el mapa. */
+  private ajustarSubs() {
+    const p = this.subsDe;
+    if (!p) return;
+    const centro = this.mapa.project(p.pos);
+    for (const { m } of this.subMarcadores) {
+      const q = this.mapa.project(m.getLngLat());
+      m.getElement().classList.toggle('oculto', Math.hypot(q.x - centro.x, q.y - centro.y) < 34);
     }
   }
 
