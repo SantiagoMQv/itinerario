@@ -55,7 +55,7 @@
       "tinta-suave": {
         "role": "neutral",
         "displayName": "Tinta suave",
-        "canonical": "#4f5b73",
+        "canonical": "#46526a",
         "oklch": "oklch(47.0% 0.042 -96.0)",
         "tonalRamp": [
           "#040a1d",
@@ -231,7 +231,7 @@
       "dia-naranja": {
         "role": "primary",
         "displayName": "Naranja (día 4)",
-        "canonical": "#c45200",
+        "canonical": "#b84c00",
         "oklch": "oklch(57.8% 0.163 45.8)",
         "tonalRamp": [
           "#190500",
@@ -407,7 +407,7 @@
       "tinta-suave-noche": {
         "role": "neutral",
         "displayName": "Tinta suave de noche",
-        "canonical": "#a5b0c3",
+        "canonical": "#b0bacb",
         "oklch": "oklch(75.5% 0.030 -98.5)",
         "tonalRamp": [
           "#050b18",
@@ -653,9 +653,9 @@
     "shadows": [
       {
         "name": "sombra-boton",
-        "value": "0 1px 2px rgba(20, 33, 61, 0.2), 0 4px 12px rgba(20, 33, 61, 0.14)",
-        "night": "0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.35)",
-        "purpose": "Botones sobre el mapa, «Seguir recorrido», panel en escritorio."
+        "value": "0 0 0 1px rgba(20, 33, 61, 0.16), 0 1px 2px rgba(20, 33, 61, 0.2), 0 4px 12px rgba(20, 33, 61, 0.14)",
+        "night": "0 0 0 1px rgba(232, 236, 242, 0.2), 0 1px 2px rgba(0, 0, 0, 0.5), 0 4px 12px rgba(0, 0, 0, 0.35)",
+        "purpose": "Botones sobre el mapa, píldoras, avisos y panel en escritorio; el filo de 1 px evita que se fundan con el mapa al sol o de noche."
       },
       {
         "name": "panel-movil",
@@ -790,7 +790,7 @@
       "refersTo": "precio",
       "description": "Pastilla de precio y etiqueta discontinua de plan opcional.",
       "html": "<span class=\"ds-precio\">¥120–180</span> <span class=\"ds-opcional\">opcional</span>",
-      "css": ".ds-precio{display:inline-block;padding:2px 7px;border-radius:5px;background:#e2ecf6;color:#33415c;font:600 13px var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif);font-stretch:90%;white-space:nowrap}.ds-opcional{display:inline-block;padding:0 6px;border:1.5px dashed rgba(20,33,61,.32);border-radius:5px;color:#4f5b73;font:600 12px var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif)}"
+      "css": ".ds-precio{display:inline-block;padding:2px 7px;border-radius:5px;background:#e2ecf6;color:#33415c;font:600 13px var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif);font-stretch:90%;white-space:nowrap}.ds-opcional{display:inline-block;padding:0 6px;border:1.5px dashed rgba(20,33,61,.32);border-radius:5px;color:#46526a;font:600 12px var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif)}"
     },
     {
       "name": "Fila del itinerario",
@@ -798,7 +798,7 @@
       "refersTo": "fila-actual",
       "description": "Número en anillo, hora tabular, nombre y precio; la activa con banda de rotulador pálido y sello de tinta.",
       "html": "<ol class=\"ds-lista\"><li><button class=\"ds-fila\"><span class=\"ds-marca ds-hecha\"><span>3</span></span><span class=\"ds-hora\">16:05</span><span class=\"ds-texto\">Nanjing Road: People’s Square <span class=\"ds-local\">(南京路步行街)</span></span></button></li><li class=\"ds-tramo\">A pie · 800 m · ~15 min</li><li><button class=\"ds-fila ds-actual\"><span class=\"ds-marca ds-ahora\"><span>4</span></span><span class=\"ds-hora\">17:20</span><span class=\"ds-texto\">Nanjing Road: tramo hacia el Bund</span><span class=\"ds-precio\">Gratis</span></button></li><li><button class=\"ds-fila\"><span class=\"ds-marca ds-opc\"><span>5</span></span><span class=\"ds-hora\">18:30</span><span class=\"ds-texto\">The Bund al encenderse las luces</span></button></li></ol>",
-      "css": ".ds-lista{margin:0;padding:12px;list-style:none;font-family:var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif);font-variant-numeric:tabular-nums;color:#14213d;background-color:#fff;background-image:linear-gradient(#dce7f2 1px,transparent 1px),linear-gradient(90deg,#dce7f2 1px,transparent 1px);background-size:12px 12px}.ds-fila{display:grid;grid-template-columns:28px 46px minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;min-height:50px;padding:7px 6px;border:none;border-radius:.5em .2em .6em .3em;background:linear-gradient(#ebfaaa,#ebfaaa) 0 0/0% 100% no-repeat;color:inherit;font:inherit;text-align:left;cursor:pointer;transition:background-size .45s cubic-bezier(.16,1,.3,1)}.ds-fila:hover{background-size:100% 100%;background-image:linear-gradient(rgba(20,33,61,.05),rgba(20,33,61,.05))}.ds-fila.ds-actual{background-size:100% 100%;background-image:linear-gradient(#ebfaaa,#ebfaaa)}.ds-fila:focus-visible{outline:2.5px solid #2453d1;outline-offset:2px}.ds-marca{display:grid;place-items:center;width:28px;height:28px;border:2px solid #2453d1;border-radius:50%;background:#fff;color:#2453d1;font-size:13.5px;font-weight:800;line-height:1}.ds-hecha{background:#2453d1;color:#fff;rotate:-8deg;box-shadow:inset 0 0 0 2px #2453d1,inset 0 0 0 3.5px rgba(255,255,255,.6)}.ds-opc{border-style:dashed}.ds-ahora{border-color:#14213d;background:#14213d;color:#ddf94a}.ds-hora{font-size:15.5px;font-weight:650;font-stretch:88%}.ds-texto{font-size:15.5px;font-weight:500;line-height:1.3}.ds-local{color:#4f5b73;font-size:14px}.ds-tramo{padding:14px 0 0 94px;color:#4f5b73;font-size:13.5px;font-stretch:90%}.ds-precio{padding:2px 7px;border-radius:5px;background:rgba(255,255,255,.6);font-size:13px;font-weight:600}"
+      "css": ".ds-lista{margin:0;padding:12px;list-style:none;font-family:var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif);font-variant-numeric:tabular-nums;color:#14213d;background-color:#fff;background-image:linear-gradient(#dce7f2 1px,transparent 1px),linear-gradient(90deg,#dce7f2 1px,transparent 1px);background-size:12px 12px}.ds-fila{display:grid;grid-template-columns:28px 46px minmax(0,1fr) auto;align-items:center;gap:10px;width:100%;min-height:50px;padding:7px 6px;border:none;border-radius:.5em .2em .6em .3em;background:linear-gradient(#ebfaaa,#ebfaaa) 0 0/0% 100% no-repeat;color:inherit;font:inherit;text-align:left;cursor:pointer;transition:background-size .45s cubic-bezier(.16,1,.3,1)}.ds-fila:hover{background-size:100% 100%;background-image:linear-gradient(rgba(20,33,61,.05),rgba(20,33,61,.05))}.ds-fila.ds-actual{background-size:100% 100%;background-image:linear-gradient(#ebfaaa,#ebfaaa)}.ds-fila:focus-visible{outline:2.5px solid #2453d1;outline-offset:2px}.ds-marca{display:grid;place-items:center;width:28px;height:28px;border:2px solid #2453d1;border-radius:50%;background:#fff;color:#2453d1;font-size:13.5px;font-weight:800;line-height:1}.ds-hecha{background:#2453d1;color:#fff;rotate:-8deg;box-shadow:inset 0 0 0 2px #2453d1,inset 0 0 0 3.5px rgba(255,255,255,.6)}.ds-opc{border-style:dashed}.ds-ahora{border-color:#14213d;background:#14213d;color:#ddf94a}.ds-hora{font-size:15.5px;font-weight:650;font-stretch:88%}.ds-texto{font-size:15.5px;font-weight:500;line-height:1.3}.ds-local{color:#46526a;font-size:14px}.ds-tramo{padding:14px 0 0 94px;color:#46526a;font-size:13.5px;font-stretch:90%}.ds-precio{padding:2px 7px;border-radius:5px;background:rgba(255,255,255,.6);font-size:13px;font-weight:600}"
     },
     {
       "name": "Ahora y después",
@@ -806,7 +806,7 @@
       "refersTo": "titulo-ahora",
       "description": "A la derecha del margen rojo: título de ahora con rotulador saturado y siguiente parada en gramática de fila, sin antetítulos.",
       "html": "<div class=\"ds-ahora-col\"><button class=\"ds-bloque\"><span class=\"ds-titulo\"><mark>Nanjing Road: tramo hacia el Bund</mark></span><span class=\"ds-det\">南京东路步行街</span><span class=\"ds-hasta\">hasta 18:20</span></button><hr><button class=\"ds-bloque\"><span class=\"ds-titulo ds-sig\"><b class=\"ds-cuando\">18:30</b> The Bund al encenderse las luces</span><span class=\"ds-det\">A pie · 1,1 km</span></button></div>",
-      "css": ".ds-ahora-col{position:relative;max-width:300px;padding:2px 0 0 14px;font-family:var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif);color:#14213d;background:#fff}.ds-ahora-col::before{content:'';position:absolute;left:0;top:-8px;bottom:-4px;width:1.5px;background:#e0454d}.ds-ahora-col hr{height:1px;margin:10px 0 9px;border:none;background:rgba(20,33,61,.32)}.ds-bloque{display:flex;flex-direction:column;gap:3px;width:100%;padding:0;border:none;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}.ds-bloque:focus-visible{outline:2.5px solid #2453d1;outline-offset:2px}.ds-titulo{font-size:17px;font-weight:700;font-stretch:92%;line-height:1.24}.ds-sig{font-size:16px}.ds-cuando{font-stretch:88%}.ds-titulo mark{padding:0 3px;margin-left:-3px;border-radius:.3em .12em .36em .2em;background:linear-gradient(#ddf94a,#ddf94a) 0 0/100% 100% no-repeat;color:#14213d;-webkit-box-decoration-break:clone;box-decoration-break:clone;animation:ds-trazo .5s cubic-bezier(.16,1,.3,1)}.ds-det{color:#4f5b73;font-size:14.5px;line-height:1.3}.ds-hasta{font-size:14.5px;font-weight:700;font-stretch:88%}@keyframes ds-trazo{from{background-size:0% 100%}}@media (prefers-reduced-motion:reduce){.ds-titulo mark{animation:none}}"
+      "css": ".ds-ahora-col{position:relative;max-width:300px;padding:2px 0 0 14px;font-family:var(--fuente, 'Archivo Variable', 'Archivo', system-ui, sans-serif);color:#14213d;background:#fff}.ds-ahora-col::before{content:'';position:absolute;left:0;top:-8px;bottom:-4px;width:1.5px;background:#e0454d}.ds-ahora-col hr{height:1px;margin:10px 0 9px;border:none;background:rgba(20,33,61,.32)}.ds-bloque{display:flex;flex-direction:column;gap:3px;width:100%;padding:0;border:none;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}.ds-bloque:focus-visible{outline:2.5px solid #2453d1;outline-offset:2px}.ds-titulo{font-size:17px;font-weight:700;font-stretch:92%;line-height:1.24}.ds-sig{font-size:16px}.ds-cuando{font-stretch:88%}.ds-titulo mark{padding:0 3px;margin-left:-3px;border-radius:.3em .12em .36em .2em;background:linear-gradient(#ddf94a,#ddf94a) 0 0/100% 100% no-repeat;color:#14213d;-webkit-box-decoration-break:clone;box-decoration-break:clone;animation:ds-trazo .5s cubic-bezier(.16,1,.3,1)}.ds-det{color:#46526a;font-size:14.5px;line-height:1.3}.ds-hasta{font-size:14.5px;font-weight:700;font-stretch:88%}@keyframes ds-trazo{from{background-size:0% 100%}}@media (prefers-reduced-motion:reduce){.ds-titulo mark{animation:none}}"
     },
     {
       "name": "Marcadores del mapa",

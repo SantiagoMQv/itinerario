@@ -226,7 +226,7 @@ export class VistaMapa {
       source: 'ruta',
       filter: ['==', ['get', 'hecho'], false],
       layout: redondo,
-      paint: { 'line-color': ['get', 'color'], 'line-width': 3.5, 'line-opacity': 0.85 },
+      paint: { 'line-color': ['get', 'color'], 'line-width': 3.5, 'line-opacity': 1 },
     });
     m.addLayer({
       id: 'ruta-hecha',
@@ -248,7 +248,7 @@ export class VistaMapa {
       type: 'line',
       source: 'todo',
       layout: { ...redondo, visibility: 'none' },
-      paint: { 'line-color': ['get', 'color'], 'line-width': 3, 'line-opacity': 0.9 },
+      paint: { 'line-color': ['get', 'color'], 'line-width': 3, 'line-opacity': 1 },
     });
     m.addLayer({
       id: 'todo-puntos',

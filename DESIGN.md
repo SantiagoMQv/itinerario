@@ -5,7 +5,7 @@ colors:
   papel: "#ffffff"
   reticula: "#dce7f2"
   tinta: "#14213d"
-  tinta-suave: "#4f5b73"
+  tinta-suave: "#46526a"
   tinta-fija-suave: "#3a4660"
   hecho: "#1e7f3e"
   margen: "#e0454d"
@@ -19,7 +19,7 @@ colors:
   dia-cobalto: "#2453d1"
   dia-verde-hoja: "#1e7f3e"
   dia-magenta: "#c8327e"
-  dia-naranja: "#c45200"
+  dia-naranja: "#b84c00"
   dia-verde-azulado: "#00777a"
   dia-ciruela: "#7a2e8e"
   dia-rojo: "#b3261e"
@@ -30,7 +30,7 @@ colors:
   mapa-parque: "#deecd6"
   papel-noche: "#121820"
   tinta-noche: "#e8ecf2"
-  tinta-suave-noche: "#a5b0c3"
+  tinta-suave-noche: "#b0bacb"
   margen-noche: "#ff6b72"
   fluor-suave-noche: "rgba(221, 249, 74, 0.16)"
   aviso-noche: "#ff8a8f"
@@ -272,7 +272,7 @@ Tinta casi negra sobre papel blanco, una paleta de pestañas saturadas por día 
 - **Papel** (`papel`): fondo de la página, de los botones sobre el mapa y relleno de los anillos pendientes.
 - **Retícula** (`reticula`): cuadrícula de 12 px pintada con dos degradados de 1 px sobre el panel.
 - **Tinta** (`tinta`): texto, aguja del deslizador, botón de acción principal (taxista), toasts, y sello de la parada actual. Su versión fija (`--tinta-fija`, el mismo valor) se usa sobre fluorescente en ambos temas.
-- **Tinta suave** (`tinta-suave`): horas de inicio y fin, nombres locales en chino, trayectos, metadatos y paradas ya hechas.
+- **Tinta suave** (`tinta-suave`): horas de inicio y fin, nombres locales en chino, trayectos, metadatos y paradas ya hechas. Está a 7,7:1 sobre el papel (8,5:1 de noche) para que no se lave con el reflejo del sol, y sigue claramente por debajo de la tinta.
 - **Etiqueta** (`etiqueta` / `etiqueta-texto`): fondo y texto de las pastillas de precio.
 - **Pestaña Todo** (`pestana-todo`): pestaña de la vista de todo el viaje, color de cartulina para no competir con los colores de día.
 - **Agua y parque del mapa** (`mapa-agua`, `mapa-parque`): retoques del mapa base para que parezca un plano dibujado en vez de gris.
@@ -327,7 +327,7 @@ En pantallas de 760 px o más, el panel se convierte en una página flotante de 
 Híbrido y discreto: la página es plana y la profundidad la dan objetos físicos del cuaderno. Los botones sobre el mapa y la página flotante de escritorio comparten una sombra ambiental doble; la pestaña activa sube 6 px y proyecta una sombra cálida hacia arriba; las inactivas quedan hundidas con un filo inferior. Los marcadores del mapa llevan un halo de papel de 2 px más una sombra corta para despegarse de las calles. De noche las sombras pasan a negro más denso.
 
 ### Shadow Vocabulary
-- **Botón sobre mapa** (`--sombra-boton`: `0 1px 2px rgba(20, 33, 61, 0.2), 0 4px 12px rgba(20, 33, 61, 0.14)`): botones redondos, «Seguir recorrido» y el panel en escritorio.
+- **Botón sobre mapa** (`--sombra-boton`: `0 0 0 1px rgba(20, 33, 61, 0.16), 0 1px 2px rgba(20, 33, 61, 0.2), 0 4px 12px rgba(20, 33, 61, 0.14)`; de noche, filo claro al 20 %): botones redondos, píldoras, avisos y el panel en escritorio. El filo de 1 px hace que el botón no se funda con el mapa al sol ni con el mapa oscuro de noche.
 - **Panel móvil** (`0 -2px 14px rgba(20, 33, 61, 0.18)`): la página que sube desde abajo.
 - **Pestaña activa** (`0 -2px 6px rgba(20, 16, 10, 0.28)`): sombra cálida de cartón sobre la tapa.
 - **Halo del marcador** (`0 0 0 2px papel, 0 2px 5px rgba(20, 33, 61, 0.3)`): paradas en el mapa; la actual cambia el halo por un anillo fluorescente de 5 px.
@@ -399,7 +399,7 @@ Sin etiquetas encima. «Ahora» se reconoce por el título trazado con rotulador
 Paradas a la misma distancia y el tiempo lineal dentro de cada tramo. Línea de 3 px en el color del día, un punto de 8 px por parada (vacío pendiente, relleno hecho, discontinuo saltado), zona de toque de 40 px, con teclado de 5 en 5 minutos y la hora anunciada como texto («17:41»), el segmento de ahora como un trazo fluorescente de 17 px de alto con extremos irregulares, y una aguja de tinta fina de 6 × 26 px con filo de papel para no tapar el fluorescente.
 
 ### Mapa
-Mapa base real (OpenFreeMap) con agua azul y parques verdes retocados. Rutas en arcos del color del día: pendiente a 3,5 px y 85 % de opacidad, recorrida a 4,5 px, y el tramo de ahora en tinta de 3 px sobre un trazo fluorescente de 12–20 px según el zoom. De noche, cada color del estilo base se recolorea en sitio (suelo y calles en azul noche, rótulos claros con halo oscuro), sin descargar otro estilo, para que siga funcionando sin conexión. Los marcadores y pastillas reservan su hueco con símbolos invisibles para que los rótulos del mapa se aparten. Por dónde va el plan se marca con un rombo de tinta con fluorescente dentro, sin latido: no es un GPS. Los botones del mapa llevan rótulo («Día», «Mapas» y «Noche», que pasa a «Claro» de noche: dicen lo que hacen, no el estado). Solo los grupos de paradas se apartan de la parada actual; un marcador suelto nunca se mueve de su sitio.
+Mapa base real (OpenFreeMap) con agua azul y parques verdes retocados. Rutas en arcos del color del día: pendiente a 3,5 px y opaca (al sol, una ruta translúcida se lava), recorrida a 4,5 px, y el tramo de ahora en tinta de 3 px sobre un trazo fluorescente de 12–20 px según el zoom. De noche, cada color del estilo base se recolorea en sitio (suelo y calles en azul noche, rótulos claros con halo oscuro), sin descargar otro estilo, para que siga funcionando sin conexión. Los marcadores y pastillas reservan su hueco con símbolos invisibles para que los rótulos del mapa se aparten. Por dónde va el plan se marca con un rombo de tinta con fluorescente dentro, sin latido: no es un GPS. Los botones del mapa llevan rótulo («Día», «Mapas» y «Noche», que pasa a «Claro» de noche: dicen lo que hacen, no el estado). Solo los grupos de paradas se apartan de la parada actual; un marcador suelto nunca se mueve de su sitio.
 
 ### Tarjeta para el taxista
 Pantalla completa en blanco y tinta fijos en ambos temas, con la petición en chino, el nombre en chino a min(17vw, 20vh, 112 px) y la dirección a min(7vw, 9vh, 34 px), de modo que cabe entera también en horizontal. Arriba, la petición: «请带我去这里 · Lléveme aquí, por favor» para el taxista, o «我想去这里，怎么走？ · Quiero ir aquí. ¿Cómo llego?» si se va a pie o en metro. Es para enseñarla a otra persona, no para leerla uno mismo: el chino se parte solo entre palabras y cada número va pegado a lo que le sigue («688号», «1號»), así que nunca sale una dirección partida, la pantalla no se apaga mientras está abierta, el resto de la app queda inerte (el foco no se escapa) y solo se cierra con ✕, Escape o el gesto de volver, nunca con un roce; el foco vuelve al botón que la abrió.

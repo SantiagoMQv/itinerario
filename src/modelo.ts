@@ -69,7 +69,7 @@ export const COLORES_DIA = [
   '#2453d1', // cobalto
   '#1e7f3e', // verde hoja
   '#c8327e', // magenta
-  '#c45200', // naranja
+  '#b84c00', // naranja
   '#00777a', // verde azulado
   '#7a2e8e', // ciruela
   '#b3261e', // rojo
