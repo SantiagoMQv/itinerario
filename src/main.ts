@@ -1027,7 +1027,7 @@ function abrirFicha(p: ParadaC) {
   expandir(true);
   estado.abierta = p.id;
   marcarLista(momentoActual());
-  requestAnimationFrame(() => mostrarFila(el.contenido.querySelector(`li.parada[data-id="${p.id}"]`)));
+  alLlegarArriba(() => mostrarFila(el.contenido.querySelector(`li.parada[data-id="${p.id}"]`)));
 }
 
 // ---------- Lista del día ----------
@@ -1532,14 +1532,13 @@ el.fichaCorta.addEventListener('click', (e) => {
   cerrarFichaCorta(false);
   abrirFicha(p);
   if (sub) {
-    requestAnimationFrame(() => {
-      const fila = el.contenido.querySelector<HTMLElement>(`li.parada[data-id="${p.id}"] li.sub[data-sub="${sub.i}"]`);
-      for (const li of el.contenido.querySelectorAll('li.sub.vista')) li.classList.remove('vista');
-      if (!fila) return;
-      fila.classList.add('vista');
-      desplegarSub(fila);
-      fila.scrollIntoView({ block: 'center' });
-    });
+    const fila = el.contenido.querySelector<HTMLElement>(`li.parada[data-id="${p.id}"] li.sub[data-sub="${sub.i}"]`);
+    for (const li of el.contenido.querySelectorAll('li.sub.vista')) li.classList.remove('vista');
+    if (!fila) return;
+    fila.classList.add('vista');
+    desplegarSub(fila);
+    // Se va al sitio cuando la hoja ya está arriba: con la lista a su altura final, y sin que nada lo pise.
+    alLlegarArriba(() => fila.scrollIntoView({ block: 'center' }));
   }
 });
 
@@ -1777,9 +1776,13 @@ function asentarHoja(pos: AlturaHoja) {
   for (const e of [el.pildoras, el.botonesMapa]) e.style.opacity = '';
   document.body.dataset.hoja = pos;
   if (pos === 'media') hoja.fija = { media: hoja.alturas.media, clave: claveHoja() };
-  // Arriba, venga del asa o del dedo, a la vista lo de ahora (o la ficha abierta), con contexto.
-  // (Si el foco del teclado está en la lista, manda lo enfocado.)
-  if (cambio && pos === 'alta' && estado.vista === 'dia' && !el.contenido.contains(document.activeElement)) {
+  // Arriba: si se pidió ir a algo concreto (una ficha, un sitio de dentro), eso; si no, venga del asa o
+  // del dedo, lo de ahora (o la ficha abierta) con contexto. Si el foco del teclado está en la lista,
+  // manda lo enfocado.
+  const pendiente = pendienteArriba;
+  pendienteArriba = null;
+  if (pos === 'alta' && pendiente) pendiente();
+  else if (cambio && pos === 'alta' && estado.vista === 'dia' && !el.contenido.contains(document.activeElement)) {
     mostrarFila(el.contenido.querySelector('li.abierta, li.actual'), false);
   }
   // Una ficha abierta que ha quedado fuera de la vista no sigue «abierta» a escondidas.
@@ -1798,6 +1801,17 @@ function asentarHoja(pos: AlturaHoja) {
   const antes = hoja.alturas[pos];
   medirHoja();
   if (Math.abs(hoja.alturas[pos] - antes) > 1) requestAnimationFrame(() => animarHoja(pos));
+}
+
+/** Lo que hay que enseñar en la lista cuando la hoja termine de subir (lo último que la mueve). */
+let pendienteArriba: (() => void) | null = null;
+
+/** Hace `accion` cuando la hoja llegue arriba, o enseguida si ya está (o no hay hoja: ordenador). */
+function alLlegarArriba(accion: () => void) {
+  if (!esMovil() || (hoja.pos === 'alta' && !hoja.animacion)) {
+    pendienteArriba = null;
+    requestAnimationFrame(accion);
+  } else pendienteArriba = accion;
 }
 
 /** Lleva la hoja a una altura con un muelle casi crítico, partiendo de la velocidad del dedo (px/ms). */
@@ -1849,7 +1863,8 @@ function expandir(abrir = hoja.destino !== 'alta') {
   if (esMovil()) animarHoja(abrir ? 'alta' : 'media');
   else fijarDestino(abrir ? 'alta' : 'media');
   if (estado.vista !== 'dia') return;
-  if (abrir) requestAnimationFrame(() => mostrarFila(el.contenido.querySelector('li.abierta, li.actual'), false));
+  // Al empezar a subir ya se coloca la lista (lo pedido, o lo abierto o lo de ahora); al llegar se reajusta.
+  if (abrir) requestAnimationFrame(() => (pendienteArriba ?? (() => mostrarFila(el.contenido.querySelector('li.abierta, li.actual'), false)))());
   else if (estado.abierta === null) requestAnimationFrame(() => marcarLista(momentoActual()));
 }
 
