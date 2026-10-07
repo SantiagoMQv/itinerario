@@ -680,10 +680,11 @@ export class VistaMapa {
       else if (!this.visible(punto) && !this.mapa.isMoving()) this.centrar(punto, undefined, 500);
     } else if (cambio) {
       // Parado: se encuadra la parada con la siguiente, que es el tramo subrayado, y con sus sitios
-      // de dentro. Sin tramo que dibujar (lo siguiente está en el mismo sitio), de cerca.
+      // de dentro seguros (los de «si da tiempo» pueden estar más lejos y alejarían el mapa). Sin tramo
+      // que dibujar (lo siguiente está en el mismo sitio), de cerca.
       const p = momento.parada;
       const siguiente = this.dia?.tramos.find((t) => t.desde === p && !t.nulo);
-      const subs = p.subs.flatMap((x) => (x.pos ? [x.pos] : []));
+      const subs = p.subs.flatMap((x) => (x.pos && !x.s.opcional ? [x.pos] : []));
       if (siguiente) this.encuadrar([siguiente.desde.pos, siguiente.hasta.pos, ...subs], true, 15);
       else if (subs.length) this.encuadrar([p.pos, ...subs], true, 16);
       else if (forzar || !this.visible(p.pos) || this.mapa.getZoom() < 14) this.centrar(p.pos, Math.max(this.mapa.getZoom(), 15));
