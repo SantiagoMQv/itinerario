@@ -1389,11 +1389,23 @@ el.contenido.addEventListener('click', (e) => {
   // Leer una parada no cambia la hora: abre su ficha y la enseña en el mapa.
   const p = modelo.paradas[Number(fila.dataset.id)];
   const yaAbierta = fila.classList.contains('abierta');
+  const c = rollo();
+  const antes = fila.getBoundingClientRect().top;
   estado.abierta = yaAbierta ? -1 : p.id;
   if (!yaAbierta) enfocar(p);
   marcarLista(momentoActual());
-  // Abrir una ficha que no se ve no sirve: si la hoja no está arriba, sube.
-  if (!yaAbierta && esMovil() && hoja.destino !== 'alta') expandir(true);
+  // La fila tocada se queda bajo el dedo: la ficha que se pliega encima (la de la parada anterior,
+  // por ejemplo) no la mueve de sitio.
+  c.scrollTop += fila.getBoundingClientRect().top - antes;
+  // Abrir una ficha que no se ve no sirve: si la hoja no está arriba, sube (y al llegar la enseña).
+  if (!yaAbierta && esMovil() && hoja.destino !== 'alta') return expandir(true);
+  // Si la ficha abierta no cabe debajo, la lista sube lo justo para verla, sin pasar la fila de arriba.
+  if (!yaAbierta) {
+    const r = fila.getBoundingClientRect();
+    const caja = c.getBoundingClientRect();
+    const falta = Math.min(r.bottom - caja.bottom + 12, r.top - caja.top - 8);
+    if (falta > 0) c.scrollBy({ top: falta, behavior: reducirMovimiento.matches ? 'auto' : 'smooth' });
+  }
 });
 
 /** La parada cuyos sitios de dentro se enseñan en el mapa: la de la ficha abierta, o la de ahora. */
