@@ -1131,28 +1131,70 @@ function botonEnsenar(p: ParadaC): string {
 /** Los sitios de dentro de una parada, en dos grupos: «Aquí» (seguros) y «Si da tiempo». */
 function subparadasHtml(p: ParadaC): string {
   if (!p.subs.length) return '';
-  const fila = (x: SubC) => `
+  const fila = (x: SubC) => {
+    const id = `sub-${p.id}-${x.i}`;
+    const enChino = x.s.local || x.s.direccionLocal;
+    return `
     <li class="sub${x.s.opcional ? ' opcional' : ''}" data-sub="${x.i}">
-      <button type="button" class="sub-fila" data-ver-sub="${p.id}:${x.i}">
+      <button type="button" class="sub-fila" aria-expanded="false" aria-controls="${id}">
         <span class="sub-marca" aria-hidden="true">${x.letra}</span>
-        <span class="sub-texto">
-          <span class="sub-nombre">${esc(x.s.nombre)}</span>${x.s.local ? ` <span class="local">(${chino(x.s.local)})</span>` : ''}
-          ${x.s.notas ? `<span class="sub-nota">${esc(x.s.notas)}</span>` : ''}
-          <span class="sr">${x.pos ? 'Ver en el mapa' : 'Está en la misma parada'}</span>
-        </span>
+        <span class="sub-nombre">${esc(x.s.nombre)}</span>
+        ${ICONO_PLEGAR}
       </button>
-      ${
-        x.s.local || x.s.direccionLocal
-          ? `<button type="button" class="mini suave sub-chino" data-chino-sub="${p.id}:${x.i}" aria-label="${esc(`Enseñar «${x.s.nombre}» en chino`)}">En chino</button>`
-          : ''
-      }
+      <div class="sub-detalle" id="${id}" hidden>
+        ${x.s.local ? `<p class="local">${chino(x.s.local)}</p>` : ''}
+        ${x.s.notas ? `<p class="sub-nota">${esc(x.s.notas)}</p>` : ''}
+        <div class="acciones-bloque">
+          ${
+            x.pos
+              ? `<button type="button" class="mini" data-ver-sub="${p.id}:${x.i}">${ICONO_MAPA}Ver en el mapa</button>`
+              : '<span class="sub-aqui">En la misma parada</span>'
+          }
+          ${
+            enChino
+              ? `<button type="button" class="mini" data-chino-sub="${p.id}:${x.i}" aria-label="${esc(`Enseñar «${x.s.nombre}» en chino`)}">${ICONO_CHINO}En chino</button>`
+              : ''
+          }
+        </div>
+      </div>
     </li>`;
-  const grupo = (titulo: string, lista: SubC[]) =>
-    lista.length ? `<p class="subs-titulo">${titulo}</p><ol class="subs">${lista.map(fila).join('')}</ol>` : '';
+  };
+  const seguras = p.subs.filter((x) => !x.s.opcional);
+  const opcionales = p.subs.filter((x) => x.s.opcional);
+  const idOpcionales = `subs-opcionales-${p.id}`;
+  // Los seguros, un nombre por línea; los de «si da tiempo», plegados en una sola línea con sus nombres.
   return `<div class="subparadas">
-    ${grupo('Aquí', p.subs.filter((x) => !x.s.opcional))}
-    ${grupo('Si da tiempo', p.subs.filter((x) => x.s.opcional))}
+    ${seguras.length ? `<p class="subs-titulo">Aquí</p><ol class="subs">${seguras.map(fila).join('')}</ol>` : ''}
+    ${
+      opcionales.length
+        ? `<button type="button" class="subs-grupo" aria-expanded="false" aria-controls="${idOpcionales}">
+            <span class="subs-titulo">Si da tiempo</span>
+            <span class="subs-resumen">${esc(opcionales.map((x) => x.s.nombre).join(', '))}</span>
+            ${ICONO_PLEGAR}
+          </button>
+          <ol class="subs" id="${idOpcionales}" hidden>${opcionales.map(fila).join('')}</ol>`
+        : ''
+    }
   </div>`;
+}
+
+const ICONO_PLEGAR = `<svg class="plegar" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>`;
+const ICONO_MAPA = `<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4.5 3.5 6.8v12.7L9 17.2l6 2.3 5.5-2.3V4.5L15 6.8zM9 4.5v12.7M15 6.8v12.7" /></svg>`;
+
+/** Abre o cierra lo que controla un botón plegable (una subparada o el grupo «Si da tiempo»). */
+function plegar(boton: HTMLElement, abrir = boton.getAttribute('aria-expanded') !== 'true') {
+  boton.setAttribute('aria-expanded', String(abrir));
+  const panel = document.getElementById(boton.getAttribute('aria-controls') ?? '');
+  if (panel) panel.hidden = !abrir;
+}
+
+/** Despliega una subparada de la lista (y su grupo, si es de «si da tiempo»). */
+function desplegarSub(li: HTMLElement) {
+  const grupo = li.closest<HTMLElement>('ol.subs');
+  const botonGrupo = grupo?.id ? el.contenido.querySelector<HTMLElement>(`[aria-controls="${grupo.id}"]`) : null;
+  if (botonGrupo) plegar(botonGrupo, true);
+  const boton = li.querySelector<HTMLElement>('.sub-fila');
+  if (boton) plegar(boton, true);
 }
 
 /** Etiqueta con el gasto de la parada. */
@@ -1311,6 +1353,8 @@ el.contenido.addEventListener('click', (e) => {
   }
   const taxi = objetivo.closest<HTMLElement>('[data-taxi]');
   if (taxi) return mostrarTaxi(modelo.paradas[Number(taxi.dataset.taxi)].p, taxi, !('pie' in taxi.dataset));
+  const plegable = objetivo.closest<HTMLElement>('.sub-fila, .subs-grupo');
+  if (plegable) return plegar(plegable);
   const chinoSub = objetivo.closest<HTMLElement>('[data-chino-sub]');
   if (chinoSub) {
     const [pid, i] = chinoSub.dataset.chinoSub!.split(':').map(Number);
@@ -1479,8 +1523,10 @@ el.fichaCorta.addEventListener('click', (e) => {
     requestAnimationFrame(() => {
       const fila = el.contenido.querySelector<HTMLElement>(`li.parada[data-id="${p.id}"] li.sub[data-sub="${sub.i}"]`);
       for (const li of el.contenido.querySelectorAll('li.sub.vista')) li.classList.remove('vista');
-      fila?.classList.add('vista');
-      fila?.scrollIntoView({ block: 'center' });
+      if (!fila) return;
+      fila.classList.add('vista');
+      desplegarSub(fila);
+      fila.scrollIntoView({ block: 'center' });
     });
   }
 });
