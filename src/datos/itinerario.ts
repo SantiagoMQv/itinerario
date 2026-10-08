@@ -110,6 +110,14 @@ const D = {
   lunaErrante: [31.145798, 121.657258],
   avenidaM: [31.143503, 121.657315],
   estrellaDeseos: [31.140777, 121.6627],
+  // Halloween (días «Spook-tacular»): coordenadas oficiales convertidas a WGS-84 u OSM.
+  fiestaTomorrowland: [31.14423, 121.653023],
+  fiestaTesoro: [31.147112, 121.658622],
+  bosqueFestival: [31.147177, 121.654316],
+  evergreen: [31.146867, 121.65252],
+  meetingPost: [31.145849, 121.652628],
+  stargazer: [31.143343, 121.653849],
+  timothy: [31.144417, 121.655589],
 } satisfies Record<string, [number, number]>;
 
 const en = ([lat, lng]: [number, number]) => ({ lat, lng });
@@ -699,7 +707,7 @@ export const itinerario: Itinerario = {
     },
     {
       fecha: '2026-10-23',
-      titulo: 'Shanghai Disneyland',
+      titulo: 'Shanghai Disneyland en Halloween',
       ciudad: 'Shanghái',
       notas:
         'Levantarnos a las 08:00 y dedicarle el día completo. No añadir otro plan obligatorio después.\n' +
@@ -714,13 +722,14 @@ export const itinerario: Itinerario = {
           ...en(C.disney),
           llegada: { modo: 'metro', detalle: 'Metro hasta Disney Resort (línea 11) o taxi/DiDi', min: 60 },
           notas:
-            'Viernes 23: día especial de Halloween («Spook-tacular Day»). Horario y espectáculos del día, pendientes de confirmar en el calendario oficial; confirmarlo también en la app la víspera.\n' +
-            'Entrada del 23: 629 ¥ por adulto. En la web o la app oficial, o en Trip.com (socio oficial), con los datos del pasaporte: se entra pasándolo por el torno.\n' +
-            'Premier Access (saltarse la cola): 180 ¥ por atracción grande y 140 ¥ las pequeñas, solo el mismo día, en la app y ya dentro del parque; Zootopia y TRON se agotan pronto. No hay fila virtual gratis.\n' +
-            'Si se puede, entrar a la apertura: Zootopia, Seven Dwarfs y Peter Pan a primera hora; fila single rider en TRON, Seven Dwarfs y Roaring Rapids. Explorer Canoes, cerrada por reforma.\n' +
+            'Viernes 23: día especial de Halloween («Spook-tacular Day»), todo incluido en la entrada. Parque de 8:30 a 22:00 (calendario oficial). Desfile de Mickey a las 12:15 y 15:45; desfile de Halloween a las 14:15 y 18:15, seguido de la celebración de villanos en el castillo; zonas de fiesta de 18:00 a 22:00; espectáculo nocturno a las 21:15. Confirmarlo en la app la víspera.\n' +
+            'Disfraces: se puede ir disfrazado, también los adultos. Nada que llegue por debajo del tobillo, sin máscara ni maquillaje que tape toda la cara, nada puntiagudo ni que parezca un arma y accesorios de 50 cm como máximo; no se puede cambiar en los aseos.\n' +
+            'Entrada del 23: 629 ¥ por adulto (Early Bird, 579 ¥, comprándola antes del 13 de octubre, sin reembolso ni cambios; la normal se reembolsa gratis hasta el 16). Paquete de Halloween, 1.288 ¥: entrada, Premier Access de Piratas, sitio reservado para el desfile de las 18:15 y para el espectáculo nocturno, y bebida con corona. En la web o la app oficial, o en Trip.com (socio oficial), con los datos del pasaporte: se entra pasándolo por el torno.\n' +
+            'Premier Access (saltarse la cola): 180 ¥ por atracción grande y 140 ¥ las pequeñas, solo el mismo día, en la app y ya dentro del parque; Zootopia y TRON se agotan pronto. Early Park Entry (1 h antes): 199 ¥ en viernes. No hay fila virtual gratis.\n' +
+            'Si se puede, entrar a la apertura: Zootopia, Seven Dwarfs y Peter Pan a primera hora; fila single rider en TRON, Seven Dwarfs y Roaring Rapids. Explorer Canoes, cerrada por reforma. Por la tarde, Halloween: desfile de las 18:15, villanos en el castillo y zonas de fiesta hasta el espectáculo de las 21:15.\n' +
             'El punto del mapa es el centro del parque, no la puerta de entrada.',
           gastos: [
-            { concepto: 'entrada del 23', min: 629 },
+            { concepto: 'entrada del 23 (Early Bird: 579 ¥)', min: 629 },
             { concepto: 'Premier Access de Zootopia (opcional)', min: 0, max: 180 },
             { concepto: 'comida y cena de servicio rápido', min: 120, max: 240 },
             { concepto: 'snacks (pata de pavo 85 ¥, polo de Zootopia 45 ¥)', min: 20, max: 130 },
@@ -736,13 +745,13 @@ export const itinerario: Itinerario = {
               nombre: 'Seven Dwarfs Mine Train',
               local: '七个小矮人矿山车',
               ...en(D.sieteEnanitos),
-              notas: 'Montaña rusa familiar con vagones que se balancean (97 cm). Unos 70 min de cola: a primera hora o por la fila single rider.',
+              notas: 'Montaña rusa familiar con vagones que se balancean (97 cm). Unos 70 min de cola: a primera hora o por la fila single rider. En Halloween, la Reina Malvada ronda por aquí.',
             },
             {
               nombre: 'Castillo y «Once Upon a Time» Adventure',
               local: '奇幻童话城堡 · 漫游童话时光',
               ...en(D.castillo),
-              notas: 'El castillo Disney más grande del mundo y la foto del día; dentro, un recorrido a pie de Blancanieves (unos 10 min de cola).',
+              notas: 'El castillo Disney más grande del mundo y la foto del día; dentro, un recorrido a pie de Blancanieves (unos 10 min de cola). En Halloween salen villanos al balcón de 8:30 a 17:45, con paseo de villanos a las 12:00.',
             },
             {
               nombre: 'Zootopia: Hot Pursuit',
@@ -775,6 +784,24 @@ export const itinerario: Itinerario = {
               notas: 'Vuelo simulado sobre maravillas del mundo, suave (102 cm). La cola más larga del parque (unos 80 min): Premier Access (180 ¥) o la última hora.',
             },
             {
+              nombre: 'Desfile de Halloween de Donald',
+              local: '唐老鸭和朋友们的反派巡游',
+              ...en(D.desfile),
+              notas: 'A las 14:15 y 18:15: los villanos de protagonistas, Mickey y compañía en versión steampunk y Pete; eligen a gente disfrazada para desfilar. El de las 18:15 enlaza con la celebración de villanos en el castillo.',
+            },
+            {
+              nombre: 'Celebración de villanos en el castillo',
+              local: '迪士尼反派魅影秀',
+              ...en(D.desfile),
+              notas: 'Solo en los días especiales de Halloween: proyecciones con los villanos sobre el castillo, después del desfile de las 18:15 (hacia las 18:45, sin confirmar). Se ve desde los jardines de delante del castillo.',
+            },
+            {
+              nombre: 'Zonas de fiesta de Halloween',
+              local: '怪好玩蹦迪舞池',
+              ...en(D.fiestaTomorrowland),
+              notas: 'Cinco pistas con DJ, bailarines y personajes, de 18:00 a 22:00 (horario de 2025): Tomorrowland (este punto), Treasure Cove, Adventure Isle, Fantasyland y Zootopia. Solo en los días especiales.',
+            },
+            {
               nombre: 'ILLUMINATE! y el final del 10.º aniversario',
               local: '奇梦之光幻影秀',
               ...en(D.illuminate),
@@ -788,17 +815,44 @@ export const itinerario: Itinerario = {
               notas: 'Más larga y moderna que la de París. Unos 30 min de cola; Premier Access, 140 ¥.',
             },
             {
-              nombre: 'Desfile de Halloween de Donald',
+              nombre: 'Villains’ Club',
+              local: '反派俱乐部',
               opcional: true,
-              ...en(D.desfile),
-              notas: 'Novedad de 2026, a las 14:15 y 18:15: los villanos de protagonistas, Mickey y compañía en versión steampunk y Pete. Entra con la entrada normal.',
+              ...en(D.fiestaTomorrowland),
+              notas: 'Espectáculo de villanos de Halloween en el escenario de Tomorrowland, a las 19:00 y 19:50 (horario de estos días).',
+            },
+            {
+              nombre: 'Buccaneer Bash',
+              opcional: true,
+              ...en(D.fiestaTesoro),
+              notas: 'Fiesta pirata de Halloween en Treasure Cove, de 17:50 a 20:20 (horario de estos días).',
+            },
+            {
+              nombre: 'Fiesta de Donald (Treat Party)',
+              local: '唐老鸭捣蛋派对',
+              opcional: true,
+              ...en(D.bosqueFestival),
+              notas: 'En Festival Forest (Fantasyland), de día: en 2025 a las 10:30, 11:30, 13:30 y 14:30.',
+            },
+            {
+              nombre: 'Truco o trato',
+              local: '不给糖就捣蛋',
+              opcional: true,
+              ...en(D.evergreen),
+              notas: 'De 18:30 a 21:30 (horario de 2025) en Evergreen Playhouse (este punto), Story House Stage y el Teatro Fandango.',
+            },
+            {
+              nombre: 'Personajes de Halloween',
+              opcional: true,
+              ...en(D.meetingPost),
+              notas: 'Lotso en Meeting Post (este punto), Chip y Dale en Trading Post, Jack y Sally en Fantasyland, Pete en Mickey Avenue, la Reina Malvada en Seven Dwarfs y Loki en Marvel Universe.',
             },
             {
               nombre: 'The Heart of Magic',
-              local: '奇妙之心',
+              local: '奇妙之心城堡秀',
               opcional: true,
               ...en(D.corazon),
-              notas: 'Espectáculo nuevo del 10.º aniversario frente al castillo (debutan Hércules y Miguel, de Coco): unos 4 pases al día de 20 min.',
+              notas: 'Espectáculo nuevo del 10.º aniversario frente al castillo (debutan Hércules y Miguel, de Coco): estos días a las 10:05, 11:30, 13:40 y 15:05 (el horario del 23, aún sin publicar).',
             },
             {
               nombre: 'Mickey’s Storybook Adventure',
@@ -839,7 +893,7 @@ export const itinerario: Itinerario = {
               local: '疯狂动物城 嚎叫节',
               opcional: true,
               ...en(D.zootopiaCentro),
-              notas: 'Sesiones de aullidos de Halloween (hacia las 17:10, 18:10 y 19:10, sin confirmar) y bebida azul de temporada. Judy y Nick: de 30 a 60 min de cola.',
+              notas: 'Aullidos de Halloween a las 17:10, 18:10 y 19:10, y la bebida azul de temporada en Jumbeaux’s Café. Judy y Nick: de 30 a 60 min de cola.',
             },
             {
               nombre: 'LinaBell',
@@ -860,7 +914,7 @@ export const itinerario: Itinerario = {
               local: '漫威英雄总部',
               opcional: true,
               ...en(D.marvel),
-              notas: 'Pabellón con Capitán América, Spider-Man y la experiencia de Iron Man. De 5 a 10 min de cola.',
+              notas: 'Pabellón con Capitán América, Spider-Man y la experiencia de Iron Man; en Halloween, también Loki. De 5 a 10 min de cola.',
             },
             {
               nombre: 'Pixar Adventurous Journey',
@@ -873,7 +927,7 @@ export const itinerario: Itinerario = {
               local: '爱丽丝梦游仙境迷宫',
               opcional: true,
               ...en(D.alicia),
-              notas: 'Laberinto fotogénico con la Reina Roja y la merienda del Sombrerero, sin cola.',
+              notas: 'Laberinto fotogénico con la Reina Roja y la merienda del Sombrerero, sin cola; en los días especiales de Halloween, con naipes y el Sombrerero de día.',
             },
             {
               nombre: 'Jardín de los Doce Amigos',
@@ -894,7 +948,19 @@ export const itinerario: Itinerario = {
               local: '大象甜品店',
               opcional: true,
               ...en(D.jumbeaux),
-              notas: 'El polo con forma de pata de la película, de espino y gofre: unos 45 ¥.',
+              notas: 'El polo con forma de pata de la película, de espino y gofre (unos 45 ¥); en Halloween, también la bebida azul de curaçao.',
+            },
+            {
+              nombre: 'Churros de sésamo negro (Stargazer Grill)',
+              opcional: true,
+              ...en(D.stargazer),
+              notas: 'Churros de Halloween, solo en temporada.',
+            },
+            {
+              nombre: 'Hot dog de calabaza (Timothy’s Treats)',
+              opcional: true,
+              ...en(D.timothy),
+              notas: 'Hot dog con salsa de calabaza, solo en temporada.',
             },
             {
               nombre: 'CookieAnn Bakery Café',
@@ -915,7 +981,7 @@ export const itinerario: Itinerario = {
               local: 'M大街购物廊',
               opcional: true,
               ...en(D.avenidaM),
-              notas: 'La tienda más grande del parque (10.º aniversario, Halloween, Duffy y LinaBell): mejor al final, junto a la salida.',
+              notas: 'La tienda más grande del parque (10.º aniversario, las cuatro colecciones de Halloween, Duffy y LinaBell): mejor al final, junto a la salida.',
             },
             {
               nombre: 'Disneytown y World of Disney',
@@ -935,6 +1001,8 @@ export const itinerario: Itinerario = {
           enlaces: [
             enlace('Entradas (web oficial)', 'https://www.shanghaidisneyresort.com/en/commerce/ticketing-v2/tickets/shdr-theme-park-tickets/ThemePark/booth'),
             enlace('Calendario del parque', 'https://www.shanghaidisneyresort.com/en/park-calendar'),
+            enlace('Halloween 2026 (nota oficial)', 'https://shcorporate.shanghaidisneyresort.com/en/step-into-a-golden-autumn-with-duffy-month-halloween-and-seasonal-discoveries-at-shanghai-disney-resort.html'),
+            enlace('Normas de disfraces', 'https://www.shanghaidisneyresort.com/en/announcement/halloween-guest-costume-guideline'),
             enlace('Premier Access: condiciones', 'https://www.shanghaidisneyresort.com/en/legal/disney-premier-access-terms-conditions'),
           ],
         },
