@@ -27,13 +27,17 @@ export interface SubC {
   pos: LngLat | null;
 }
 
+/** a, b… z y, si hay más de 26 sitios (Disneyland), aa, ab… */
+const letraDe = (i: number) =>
+  i < 26 ? String.fromCharCode(97 + i) : String.fromCharCode(96 + Math.floor(i / 26)) + String.fromCharCode(97 + (i % 26));
+
 function subsDe(p: Parada): SubC[] {
   const todas = p.subparadas ?? [];
   const ordenadas = [...todas.filter((s) => !s.opcional), ...todas.filter((s) => s.opcional)];
   return ordenadas.map((s, i) => {
     const pos: LngLat | null = Number.isFinite(s.lat) && Number.isFinite(s.lng) ? [s.lng!, s.lat!] : null;
     const aparte = pos && distanciaKm(pos, [p.lng, p.lat]) >= 0.025;
-    return { i, letra: String.fromCharCode(97 + i), s, pos: aparte ? pos : null };
+    return { i, letra: letraDe(i), s, pos: aparte ? pos : null };
   });
 }
 
