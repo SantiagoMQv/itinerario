@@ -215,7 +215,7 @@ export const itinerario: Itinerario = {
           direccion: '97 Huanghe Road, junto a People’s Square',
           direccionLocal: '黄河路97号',
           notas:
-            'Shengjian (bollos fritos de sopa), distintos de los xiaolongbao del sábado: un plato de 4 cuesta unos 12 ¥. Abre hasta tarde.\n' +
+            'Shengjian (bollos fritos de sopa), distintos de los xiaolongbao del jueves: un plato de 4 cuesta unos 12 ¥. Abre hasta tarde.\n' +
             'Huanghe Road se puso de moda por la serie «Blossoms Shanghai» (繁花).',
           gastos: [{ concepto: 'comida', min: 25, max: 45 }],
           subparadas: [
@@ -546,6 +546,159 @@ export const itinerario: Itinerario = {
     },
     {
       fecha: '2026-10-22',
+      titulo: 'Moda china, casco antiguo y noche de salida',
+      ciudad: 'Shanghái',
+      notas: 'Levantarnos a las 10:00.',
+      paradas: [
+        {
+          hora: '10:30',
+          fin: '12:45',
+          nombre: 'Middle Huaihai Road: TX Huaihai',
+          corto: 'TX Huaihai',
+          local: 'TX淮海｜年轻力中心',
+          categoria: 'compras',
+          ...en(C.txHuaihai),
+          llegada: { modo: 'metro', detalle: 'Línea 1 hasta South Huangpi Road', min: 20 },
+          direccionLocal: '淮海中路523号',
+          notas:
+            'Prioridad a marcas locales, y otras tiendas que nos gusten al recorrer la calle.\n' +
+            'TX Huaihai abre de 11:00 a 22:00.',
+          subparadas: [
+            {
+              nombre: 'Pane',
+              notas: 'En TX Huaihai, planta baja (L1-05/06). En festivos ha tenido colas de más de 40 min.',
+            },
+            {
+              nombre: 'Mason Prince',
+              direccionLocal: '淮海中路528号',
+              notas: 'Enfrente de TX Huaihai.',
+            },
+          ],
+          enlaces: [
+            enlace('Guía de tiendas de Huaihai', 'https://english.shanghai.gov.cn/en-TrendyStores/20260525/8fc944e699224a4e9e9a609ad33fa0c0.html'),
+          ],
+        },
+        {
+          hora: '13:00',
+          fin: '14:00',
+          nombre: 'Lanxin (Lyceum Restaurant)',
+          local: '兰心餐厅',
+          categoria: 'comida',
+          ...en(C.lyceum),
+          llegada: { modo: 'a_pie' },
+          direccion: '130 Jinxian Road',
+          direccionLocal: '进贤路130号',
+          notas:
+            'Cocina shanghainesa. No admite reservas. Horario: 11:00–13:30 y 17:00–21:00: al mediodía cierra a las 13:30, así que conviene no llegar más tarde de las 13:00.\n' +
+            'Alternativa si preferimos pato pekinés: Quanjude (no imprescindible).',
+          gastos: [{ concepto: 'comida (gasto medio por persona en las reseñas: 60–80 ¥)', min: 60, max: 90 }],
+        },
+        {
+          hora: '14:10',
+          fin: '15:00',
+          nombre: 'Más tiendas por Huaihai',
+          local: '淮海中路',
+          categoria: 'compras',
+          ...en(C.huaihai),
+          llegada: { modo: 'a_pie' },
+          notas:
+            'Songmont para mirar bolsos, no como compra obligatoria porque sube de presupuesto (su tienda en esta calle está sin confirmar).',
+        },
+        {
+          ...HOTEL,
+          hora: '15:30',
+          fin: '16:15',
+          llegada: { modo: 'metro', detalle: 'Línea 1 o taxi', min: 25 },
+          notas: 'Dejar las compras y descansar.',
+        },
+        {
+          hora: '16:45',
+          fin: '18:25',
+          nombre: 'Yuyuan y Shanghai Old Street',
+          corto: 'Yuyuan',
+          local: '上海老街',
+          categoria: 'barrio',
+          ...en(C.yuyuan),
+          llegada: { modo: 'taxi', min: 25 },
+          notas:
+            'Arquitectura, ambiente y tiendas.\n' +
+            'El jardín interior de Yuyuan no está incluido: cierra pronto y chocaría con las compras.',
+          subparadas: [
+            {
+              nombre: 'Semir, tienda insignia',
+              local: '森马',
+              notas: 'Marca china de ropa diaria, con artículos exclusivos de Shanghái.',
+            },
+          ],
+          enlaces: [
+            enlace('Semir en Yuyuan', 'https://english.shanghai.gov.cn/en-Latest-WhatsNew/20260917/1213b27578094564b1ad9630d36c24f2.html'),
+          ],
+        },
+        {
+          hora: '18:30',
+          fin: '19:30',
+          nombre: 'Xiaolongbao en Nanxiang',
+          local: '南翔馒头店',
+          categoria: 'comida',
+          ...en(C.nanxiang),
+          llegada: { modo: 'a_pie' },
+          notas:
+            'Cena, en el bazar de Yuyuan. Ajustar según la cola y el horario efectivo.\n' +
+            'Cada planta tiene un precio: en la planta baja, para llevar, 6 xiaolongbao cuestan 30 ¥; en la primera planta, 38 ¥ (o 48 ¥ los de cangrejo); en la segunda, con vistas, menús de 80–100 ¥.',
+          gastos: [{ concepto: 'cena (según la planta)', min: 40, max: 100 }],
+        },
+        {
+          hora: '20:00',
+          fin: '21:30',
+          nombre: 'The Bund',
+          local: '外滩',
+          categoria: 'mirador',
+          ...en(C.bund),
+          llegada: { modo: 'a_pie' },
+          notas: 'Paseo y vistas nocturnas de Lujiazui.',
+        },
+        {
+          hora: '22:00',
+          fin: '23:30',
+          nombre: 'Speak Low',
+          local: 'Speak Low',
+          categoria: 'ocio',
+          ...en(C.speakLow),
+          llegada: { modo: 'taxi', min: 20 },
+          direccion: '579 Middle Fuxing Road',
+          direccionLocal: '复兴中路579号',
+          notas: 'Cócteles de estilo japonés. Cada planta del bar tiene su ambiente; la tercera es la más cuidada.',
+          gastos: [{ concepto: 'dos cócteles (75–150 ¥ cada uno)', min: 160, max: 260 }],
+          enlaces: [enlace('Speak Low', 'https://rachelgouk.com/listings/speak-low/')],
+        },
+        {
+          hora: '23:45',
+          fin: '26:00',
+          nombre: 'Hush (INS Land)',
+          local: 'INS新乐园',
+          categoria: 'ocio',
+          ...en(C.hush),
+          opcional: true,
+          llegada: { modo: 'a_pie' },
+          direccion: '109 Yandang Road',
+          direccionLocal: '雁荡路109号',
+          notas:
+            'Si apetece hip-hop/R&B. Comprobar la sesión y el precio de la entrada de esa noche antes de comprar pases: es jueves, así que puede haber menos ambiente que un fin de semana.\n' +
+            'Es la víspera de Disneyland: si se quiere entrar al parque a las 8:30, mejor terminar la noche en Speak Low.\n' +
+            'Si llegamos cansados, el bar ya cumple el plan nocturno y la discoteca se puede omitir. Hora de salida orientativa.\n' +
+            'INS Land está en el lado norte del parque Fuxing; el punto del mapa es aproximado.',
+          gastos: [{ concepto: 'entrada (la de fin de semana; la del jueves, por confirmar)', min: 198, max: 288 }],
+          enlaces: [enlace('Hush', 'https://www.smartshanghai.com/venue/28730/smshwxmpqr.jpeg?share=true28730')],
+        },
+        {
+          ...HOTEL,
+          hora: '26:30',
+          llegada: { modo: 'taxi', min: 20 },
+        },
+      ],
+    },
+    {
+      fecha: '2026-10-23',
       titulo: 'Shanghai Disneyland',
       ciudad: 'Shanghái',
       notas:
@@ -561,13 +714,13 @@ export const itinerario: Itinerario = {
           ...en(C.disney),
           llegada: { modo: 'metro', detalle: 'Metro hasta Disney Resort (línea 11) o taxi/DiDi', min: 60 },
           notas:
-            'Horario del jueves 22 según el calendario oficial: 8:30–21:30. Desfile de Mickey a las 12:15 y 15:45, desfile de Halloween a las 14:15 y 18:15 y espectáculo nocturno a las 21:15. Confirmarlo en la app la víspera.\n' +
-            'Entrada del 22: 539 ¥ por adulto (Early Bird, 489 ¥, comprándola antes del 12 de octubre, sin reembolso ni cambios). En la web o la app oficial, o en Trip.com (socio oficial), con los datos del pasaporte: se entra pasándolo por el torno.\n' +
+            'Viernes 23: día especial de Halloween («Spook-tacular Day»). Horario y espectáculos del día, pendientes de confirmar en el calendario oficial; confirmarlo también en la app la víspera.\n' +
+            'Entrada del 23: 629 ¥ por adulto. En la web o la app oficial, o en Trip.com (socio oficial), con los datos del pasaporte: se entra pasándolo por el torno.\n' +
             'Premier Access (saltarse la cola): 180 ¥ por atracción grande y 140 ¥ las pequeñas, solo el mismo día, en la app y ya dentro del parque; Zootopia y TRON se agotan pronto. No hay fila virtual gratis.\n' +
-            'Si se puede, entrar a las 8:30: Zootopia, Seven Dwarfs y Peter Pan a primera hora; fila single rider en TRON, Seven Dwarfs y Roaring Rapids. Explorer Canoes, cerrada por reforma. El 22 no es día de fiesta de Halloween (el 23 sí).\n' +
+            'Si se puede, entrar a la apertura: Zootopia, Seven Dwarfs y Peter Pan a primera hora; fila single rider en TRON, Seven Dwarfs y Roaring Rapids. Explorer Canoes, cerrada por reforma.\n' +
             'El punto del mapa es el centro del parque, no la puerta de entrada.',
           gastos: [
-            { concepto: 'entrada del 22 (Early Bird: 489 ¥)', min: 539 },
+            { concepto: 'entrada del 23', min: 629 },
             { concepto: 'Premier Access de Zootopia (opcional)', min: 0, max: 180 },
             { concepto: 'comida y cena de servicio rápido', min: 120, max: 240 },
             { concepto: 'snacks (pata de pavo 85 ¥, polo de Zootopia 45 ¥)', min: 20, max: 130 },
@@ -820,12 +973,13 @@ export const itinerario: Itinerario = {
       ],
     },
     {
-      fecha: '2026-10-23',
+      fecha: '2026-10-24',
       titulo: 'Nankín: Museo Paleontológico',
       ciudad: 'Nankín',
       notas:
         'La excursión es para el Museo Paleontológico, no para encadenar monumentos. Levantarnos a las 10:00.\n' +
-        'Billetes: comprobar ya la app oficial 12306. La venta suele abrir 15 días antes, pero en 2026 hay solicitud anticipada para algunos trenes del corredor Pekín–Shanghái. Solicitar plaza no es tenerla confirmada.\n' +
+        'Es sábado: trenes y museo con más gente que entre semana.\n' +
+        'Billetes: comprobar ya la app oficial 12306. La venta suele abrir 15 días antes (para el 24, hacia el 9 de octubre), pero en 2026 hay solicitud anticipada para algunos trenes del corredor Pekín–Shanghái. Solicitar plaza no es tenerla confirmada.\n' +
         'Fuera del plan: Niushoushan, Mausoleo Ming Xiaoling, Palacio Presidencial y los demás museos.',
       paradas: [
         {
@@ -878,7 +1032,7 @@ export const itinerario: Itinerario = {
           direccionLocal: '北京东路39号',
           notas:
             'Gratuito. Abre de miércoles a domingo de 09:00 a 17:00, último acceso a las 16:00 (lunes y martes cerrado).\n' +
-            'Cada adulto necesita reserva nominal y su propio código en el WeChat oficial del museo.',
+            'Cada adulto necesita reserva nominal y su propio código en el WeChat oficial del museo; en sábado las plazas se acaban antes, así que conviene reservar en cuanto se abran.',
           gastos: [{ concepto: 'entrada', min: 0 }],
           enlaces: [enlace('Guía oficial del museo', 'https://www.nmp.ac.cn/bwggk/cgzn/')],
         },
@@ -924,163 +1078,11 @@ export const itinerario: Itinerario = {
       ],
     },
     {
-      fecha: '2026-10-24',
-      titulo: 'Moda china, casco antiguo y noche de salida',
-      ciudad: 'Shanghái',
-      notas: 'Levantarnos a las 10:00.',
-      paradas: [
-        {
-          hora: '10:30',
-          fin: '12:45',
-          nombre: 'Middle Huaihai Road: TX Huaihai',
-          corto: 'TX Huaihai',
-          local: 'TX淮海｜年轻力中心',
-          categoria: 'compras',
-          ...en(C.txHuaihai),
-          llegada: { modo: 'metro', detalle: 'Línea 1 hasta South Huangpi Road', min: 20 },
-          direccionLocal: '淮海中路523号',
-          notas:
-            'Prioridad a marcas locales, y otras tiendas que nos gusten al recorrer la calle.\n' +
-            'TX Huaihai abre de 11:00 a 22:00.',
-          subparadas: [
-            {
-              nombre: 'Pane',
-              notas: 'En TX Huaihai, planta baja (L1-05/06). En festivos ha tenido colas de más de 40 min.',
-            },
-            {
-              nombre: 'Mason Prince',
-              direccionLocal: '淮海中路528号',
-              notas: 'Enfrente de TX Huaihai.',
-            },
-          ],
-          enlaces: [
-            enlace('Guía de tiendas de Huaihai', 'https://english.shanghai.gov.cn/en-TrendyStores/20260525/8fc944e699224a4e9e9a609ad33fa0c0.html'),
-          ],
-        },
-        {
-          hora: '13:00',
-          fin: '14:00',
-          nombre: 'Lanxin (Lyceum Restaurant)',
-          local: '兰心餐厅',
-          categoria: 'comida',
-          ...en(C.lyceum),
-          llegada: { modo: 'a_pie' },
-          direccion: '130 Jinxian Road',
-          direccionLocal: '进贤路130号',
-          notas:
-            'Cocina shanghainesa. No admite reservas. Horario: 11:00–13:30 y 17:00–21:00: al mediodía cierra a las 13:30, así que conviene no llegar más tarde de las 13:00.\n' +
-            'Alternativa si preferimos pato pekinés: Quanjude (no imprescindible).',
-          gastos: [{ concepto: 'comida (gasto medio por persona en las reseñas: 60–80 ¥)', min: 60, max: 90 }],
-        },
-        {
-          hora: '14:10',
-          fin: '15:00',
-          nombre: 'Más tiendas por Huaihai',
-          local: '淮海中路',
-          categoria: 'compras',
-          ...en(C.huaihai),
-          llegada: { modo: 'a_pie' },
-          notas:
-            'Songmont para mirar bolsos, no como compra obligatoria porque sube de presupuesto (su tienda en esta calle está sin confirmar).',
-        },
-        {
-          ...HOTEL,
-          hora: '15:30',
-          fin: '16:15',
-          llegada: { modo: 'metro', detalle: 'Línea 1 o taxi', min: 25 },
-          notas: 'Dejar las compras y descansar.',
-        },
-        {
-          hora: '16:45',
-          fin: '18:25',
-          nombre: 'Yuyuan y Shanghai Old Street',
-          corto: 'Yuyuan',
-          local: '上海老街',
-          categoria: 'barrio',
-          ...en(C.yuyuan),
-          llegada: { modo: 'taxi', min: 25 },
-          notas:
-            'Arquitectura, ambiente y tiendas.\n' +
-            'El jardín interior de Yuyuan no está incluido: cierra pronto y chocaría con las compras.',
-          subparadas: [
-            {
-              nombre: 'Semir, tienda insignia',
-              local: '森马',
-              notas: 'Marca china de ropa diaria, con artículos exclusivos de Shanghái.',
-            },
-          ],
-          enlaces: [
-            enlace('Semir en Yuyuan', 'https://english.shanghai.gov.cn/en-Latest-WhatsNew/20260917/1213b27578094564b1ad9630d36c24f2.html'),
-          ],
-        },
-        {
-          hora: '18:30',
-          fin: '19:30',
-          nombre: 'Xiaolongbao en Nanxiang',
-          local: '南翔馒头店',
-          categoria: 'comida',
-          ...en(C.nanxiang),
-          llegada: { modo: 'a_pie' },
-          notas:
-            'Cena, en el bazar de Yuyuan. Ajustar según la cola y el horario efectivo.\n' +
-            'Cada planta tiene un precio: en la planta baja, para llevar, 6 xiaolongbao cuestan 30 ¥; en la primera planta, 38 ¥ (o 48 ¥ los de cangrejo); en la segunda, con vistas, menús de 80–100 ¥.',
-          gastos: [{ concepto: 'cena (según la planta)', min: 40, max: 100 }],
-        },
-        {
-          hora: '20:00',
-          fin: '21:30',
-          nombre: 'The Bund',
-          local: '外滩',
-          categoria: 'mirador',
-          ...en(C.bund),
-          llegada: { modo: 'a_pie' },
-          notas: 'Paseo y vistas nocturnas de Lujiazui.',
-        },
-        {
-          hora: '22:00',
-          fin: '23:30',
-          nombre: 'Speak Low',
-          local: 'Speak Low',
-          categoria: 'ocio',
-          ...en(C.speakLow),
-          llegada: { modo: 'taxi', min: 20 },
-          direccion: '579 Middle Fuxing Road',
-          direccionLocal: '复兴中路579号',
-          notas: 'Cócteles de estilo japonés. Cada planta del bar tiene su ambiente; la tercera es la más cuidada.',
-          gastos: [{ concepto: 'dos cócteles (75–150 ¥ cada uno)', min: 160, max: 260 }],
-          enlaces: [enlace('Speak Low', 'https://rachelgouk.com/listings/speak-low/')],
-        },
-        {
-          hora: '23:45',
-          fin: '26:00',
-          nombre: 'Hush (INS Land)',
-          local: 'INS新乐园',
-          categoria: 'ocio',
-          ...en(C.hush),
-          opcional: true,
-          llegada: { modo: 'a_pie' },
-          direccion: '109 Yandang Road',
-          direccionLocal: '雁荡路109号',
-          notas:
-            'Si apetece hip-hop/R&B. Comprobar la sesión y el precio de la entrada de esa noche antes de comprar pases.\n' +
-            'Si llegamos cansados, el bar ya cumple el plan nocturno y la discoteca se puede omitir. Hora de salida orientativa.\n' +
-            'INS Land está en el lado norte del parque Fuxing; el punto del mapa es aproximado.',
-          gastos: [{ concepto: 'entrada de sábado (suele incluir bebidas)', min: 198, max: 288 }],
-          enlaces: [enlace('Hush', 'https://www.smartshanghai.com/venue/28730/smshwxmpqr.jpeg?share=true28730')],
-        },
-        {
-          ...HOTEL,
-          hora: '26:30',
-          llegada: { modo: 'taxi', min: 20 },
-        },
-      ],
-    },
-    {
       fecha: '2026-10-25',
       titulo: 'Historia Natural, Wukang/Anfu, cafés y vistas',
       ciudad: 'Shanghái',
       notas:
-        'Después de la salida del sábado, levantarnos sobre las 11:00.\n' +
+        'Después de Nankín, levantarnos sobre las 11:00.\n' +
         'Con el museo, los cafés pasan a la tarde y Lujiazui se ve ya de noche.',
       paradas: [
         {
@@ -1287,9 +1289,9 @@ export const itinerario: Itinerario = {
     'Museo de Historia Natural (domingo 25): reservar la entrada (no venden en taquilla).',
     'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.',
     'Tren y museo: comprobar 12306, elegir estaciones y horarios reales y hacer la reserva nominal del museo.',
-    'Disneyland: comprar la entrada y consultar el horario del 22.',
+    'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.',
     'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.',
     'Domingo noche: decidir cena giratoria en la Perla o solo vistas; reservar solo tras ver el precio final.',
-    'Sábado noche: mirar la programación y la entrada de Hush/INS para el 24.',
+    'Jueves noche: mirar la programación y la entrada de Hush/INS para el 22.',
   ],
 };
