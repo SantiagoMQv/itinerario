@@ -50,7 +50,8 @@ const C = {
   daimaru: [31.240375, 121.4810468],
   disneytown: [31.1423191, 121.6569261],
   // Sitios recomendados del día 1 (OpenStreetMap). Shanxi South Road: punto medio del tramo.
-  baihe: [31.25184, 121.44623],
+  // Puente Baihe: punto medio de la pasarela curva de ~250 m (OSM way 1346332993).
+  baihe: [31.24835, 121.44524],
   m50: [31.24988, 121.44474],
   qianShu: [31.25087, 121.44089],
   yufo: [31.24359, 121.43985],
@@ -73,6 +74,9 @@ const C = {
   fotografiska: [31.24166, 121.46527],
   zhejiangQiao: [31.24334, 121.47202],
   suheMixc: [31.24437, 121.47387],
+  // Noche del día 2, junto al hotel.
+  lawson: [31.25015, 121.44684],
+  mcdonaldsChangshou: [31.24144, 121.4324],
 } satisfies Record<string, [number, number]>;
 
 /** Shanghai Disneyland (OpenStreetMap). Los espectáculos van en su mejor punto para verlos. */
@@ -785,6 +789,33 @@ export const itinerario: Itinerario = {
           ...HOTEL,
           hora: '22:50',
           llegada: { modo: 'metro', detalle: 'Metro (línea 11 y transbordo) o taxi/DiDi', min: 70 },
+          notas: 'Después de Disney, cerca del hotel quedan pocas cosas abiertas: lo de abajo es lo que se ha podido confirmar.',
+          subparadas: [
+            {
+              nombre: 'Paseo por el río y el puente Baihe',
+              local: '苏州河百合桥',
+              opcional: true,
+              ...en(C.baihe),
+              direccionLocal: '恒丰路苏州河百合桥（苏河1号旁）',
+              notas: 'A dos minutos: el puente peatonal nuevo y el paseo del río. A esa hora ya sin las luces decorativas (se apagan a las 21:30): paseo tranquilo más que foto.',
+            },
+            {
+              nombre: 'Lawson',
+              local: '罗森便利店',
+              opcional: true,
+              ...en(C.lawson),
+              direccionLocal: '恒丰路688号（苏河1号）旁 罗森',
+              notas: 'Junto al hotel: agua, cerveza, fruta y oden (关东煮) caliente. Horario sin confirmar; hay un FamilyMart (全家) a 160 m.',
+            },
+            {
+              nombre: 'McDonald’s 24 h (Changshou Road)',
+              local: '麦当劳（长寿路店）',
+              opcional: true,
+              ...en(C.mcdonaldsChangshou),
+              direccionLocal: '上海市普陀区长寿路393号',
+              notas: 'Plan B si se llega con hambre y está todo cerrado: abre las 24 horas (lista oficial de 2026). A 2 km, 5–8 min en taxi.',
+            },
+          ],
         },
       ],
     },
