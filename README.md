@@ -39,11 +39,18 @@ Los hoteles no llevan número en el mapa (salen con una H). Si hay algo incohere
 
 ## Desarrollo
 
+Con Node 22 (ver `.nvmrc`):
+
 ```sh
-npm install
-npm run dev      # servidor local
-npm run build    # comprueba tipos y genera dist/
+npm ci                            # dependencias
+npm run dev                       # servidor local
+npm test                          # pruebas del plan: horas, coordenadas, chino para el taxista…
+npx playwright install chromium   # solo la primera vez, para las pruebas de humo
+npm run verify                    # tipos + pruebas del plan + pruebas de humo en un móvil simulado
+npm run build                     # comprueba tipos y genera dist/
 ```
+
+**Ramas y publicación:** `main` es lo publicado. Cada push a `main` pasa las comprobaciones en GitHub Actions y, si todo va bien, se publica en GitHub Pages; si algo falla, la web se queda como estaba. Los cambios se hacen en otra rama (que también se comprueba en cada push) y se integran en `main` cuando están listos. Las normas para agentes (Claude Code y otros) están en [`AGENTS.md`](AGENTS.md).
 
 Hecho con Vite, TypeScript y MapLibre GL. El mapa usa [OpenFreeMap](https://openfreemap.org) (datos de OpenStreetMap), que no necesita clave. La web es estática: cualquier hosting gratuito sirve (GitHub Pages, Cloudflare Pages, Vercel…).
 

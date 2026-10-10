@@ -1,0 +1,2 @@
+# Saltos de línea LF en todos los sistemas (también al clonar en Windows).
+* text=auto eol=lf

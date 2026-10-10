@@ -13,3 +13,7 @@ dist
 .impeccable/review/diff/
 # Impeccable: estado del servidor en vivo (temporal)
 .impeccable/live/
+
+# Pruebas
+test-results/
+playwright-report/

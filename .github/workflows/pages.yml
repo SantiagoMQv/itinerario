@@ -1,41 +1,58 @@
-name: Publicar en GitHub Pages
+name: Comprobar y publicar
 
+# Cada push se comprueba (tipos, pruebas de datos y de humo, compilación). Solo `main` se publica en
+# GitHub Pages, y solo si todo pasa: un fallo deja la web como estaba.
 on:
   push:
-    branches: [main, claude/travel-itinerary-app-10gep8]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
 concurrency:
-  group: pages
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 jobs:
-  compilar:
+  comprobar:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
-          node-version: 22
+          node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npm run build
-      - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v4
+      - run: npm run check
+      - run: npm test
+      - run: npx playwright install --with-deps chromium
+      # Compila (npm run build) y prueba la web compilada en un móvil simulado.
+      - run: npm run test:e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pruebas-fallidas
+          path: test-results/
+          retention-days: 7
+      - if: github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v4
         with:
           path: dist
 
   publicar:
-    needs: compilar
+    if: github.ref == 'refs/heads/main'
+    needs: comprobar
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    concurrency:
+      group: pages
+      cancel-in-progress: false
     environment:
       name: github-pages
       url: ${{ steps.despliegue.outputs.page_url }}
     steps:
+      - uses: actions/configure-pages@v5
       - id: despliegue
         uses: actions/deploy-pages@v4
