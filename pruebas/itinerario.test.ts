@@ -38,9 +38,7 @@ const CLAVES_HEREDADAS = [
   '2026-10-22|16:45|Yuyuan y Shanghai Old Street',
   '2026-10-22|18:30|Xiaolongbao en Nanxiang',
   '2026-10-22|20:00|The Bund',
-  '2026-10-22|22:00|Speak Low',
-  '2026-10-22|23:45|Hush (INS Land)',
-  '2026-10-22|26:30|Hotel Aqua Suhe NO.1',
+  '2026-10-22|22:00|Hotel Aqua Suhe NO.1',
   '2026-10-23|09:45|Shanghai Disneyland',
   '2026-10-23|22:50|Hotel Aqua Suhe NO.1',
   '2026-10-24|10:45|Estación de Shanghái',
@@ -51,6 +49,9 @@ const CLAVES_HEREDADAS = [
   '2026-10-24|17:35|Estación de Nankín',
   '2026-10-24|19:40|Estación de Shanghái',
   '2026-10-24|20:00|Hotel Aqua Suhe NO.1',
+  '2026-10-24|22:00|Speak Low',
+  '2026-10-24|23:45|Hush (INS Land)',
+  '2026-10-24|26:30|Hotel Aqua Suhe NO.1',
   '2026-10-25|11:45|Museo de Historia Natural de Shanghái',
   '2026-10-25|14:20|Comida en el n.º 98 de Wukang Road',
   '2026-10-25|15:25|Wukang Road y Wukang Mansion',
@@ -70,23 +71,23 @@ const TEXTOS_HEREDADOS = [
   'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.',
   'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.',
   'Domingo noche: decidir cena giratoria en la Perla o solo vistas; reservar solo tras ver el precio final.',
-  'Jueves noche: mirar la programación y la entrada de Hush/INS para el 22.',
+  'Sábado noche: mirar la programación y la entrada de Hush/INS para el 24.',
 ];
 
 describe('identidades persistentes', () => {
-  test('las 133 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
+  test('las 134 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
     const subs = paradas.flatMap(({ p }) => p.subparadas ?? []);
     const pendientes = itinerario.pendientes ?? [];
-    expect(paradas).toHaveLength(41);
+    expect(paradas).toHaveLength(42);
     expect(subs).toHaveLength(84);
     expect(pendientes).toHaveLength(7);
     const ids = [itinerario.id, ...paradas.map(({ p }) => p.id), ...subs.map((s) => s.id), ...pendientes.map((p) => p.id)];
     for (const id of ids) expect(id).toMatch(/^[a-f0-9]{16}$/);
-    expect(new Set(ids).size).toBe(133);
+    expect(new Set(ids).size).toBe(134);
     // Cada identidad está escrita en los datos, no calculada a partir del contenido ni del orden.
     const fuente = readFileSync(new URL('../src/datos/itinerario.ts', import.meta.url), 'utf8');
     const literales = [...fuente.matchAll(/\bid: '([a-f0-9]{16})'/g)].map((m) => m[1]);
-    expect(literales).toHaveLength(133);
+    expect(literales).toHaveLength(134);
     expect(literales.sort()).toEqual([...ids].sort());
     expectTypeOf<Pick<Itinerario, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
     expectTypeOf<Pick<Parada, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
@@ -131,7 +132,7 @@ describe('identidades persistentes', () => {
     }
     expect(cambiado.paradas[0].id).toBe(0);
     expect(cambiado.paradas[0].p.id).toBe(modelo.paradas.at(-1)!.p.id);
-    expect(modelo.paradas.at(-1)!.id).toBe(40);
+    expect(modelo.paradas.at(-1)!.id).toBe(41);
     // Con tres sitios hay al menos dos del mismo grupo (seguros u opcionales): invertirlos cambia su índice.
     const conSubs = cambiado.paradas.find((p) => p.subs.length > 2)!;
     const original = modelo.paradas.find((p) => p.p.id === conSubs.p.id)!;

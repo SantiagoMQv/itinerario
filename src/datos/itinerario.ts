@@ -597,7 +597,7 @@ export const itinerario: Itinerario = {
     },
     {
       fecha: '2026-10-22',
-      titulo: 'Moda china, casco antiguo y noche de salida',
+      titulo: 'Moda china y casco antiguo',
       ciudad: 'Shanghái',
       notas: 'Levantarnos a las 10:00.',
       paradas: [
@@ -719,44 +719,9 @@ export const itinerario: Itinerario = {
           notas: 'Paseo y vistas nocturnas de Lujiazui.',
         },
         {
-          id: 'e90fb13c7a6428d5',
-          hora: '22:00',
-          fin: '23:30',
-          nombre: 'Speak Low',
-          local: 'Speak Low',
-          categoria: 'ocio',
-          ...en(C.speakLow),
-          llegada: { modo: 'taxi', min: 20 },
-          direccion: '579 Middle Fuxing Road',
-          direccionLocal: '复兴中路579号',
-          notas: 'Cócteles de estilo japonés. Cada planta del bar tiene su ambiente; la tercera es la más cuidada.',
-          gastos: [{ concepto: 'dos cócteles (75–150 ¥ cada uno)', min: 160, max: 260 }],
-          enlaces: [enlace('Speak Low', 'https://rachelgouk.com/listings/speak-low/')],
-        },
-        {
-          id: '46a3d805cf129be7',
-          hora: '23:45',
-          fin: '26:00',
-          nombre: 'Hush (INS Land)',
-          local: 'INS新乐园',
-          categoria: 'ocio',
-          ...en(C.hush),
-          opcional: true,
-          llegada: { modo: 'a_pie' },
-          direccion: '109 Yandang Road',
-          direccionLocal: '雁荡路109号',
-          notas:
-            'Si apetece hip-hop/R&B. Comprobar la sesión y el precio de la entrada de esa noche antes de comprar pases: es jueves, así que puede haber menos ambiente que un fin de semana.\n' +
-            'Es la víspera de Disneyland: si se quiere entrar al parque a las 8:30, mejor terminar la noche en Speak Low.\n' +
-            'Si llegamos cansados, el bar ya cumple el plan nocturno y la discoteca se puede omitir. Hora de salida orientativa.\n' +
-            'INS Land está en el lado norte del parque Fuxing; el punto del mapa es aproximado.',
-          gastos: [{ concepto: 'entrada (la de fin de semana; la del jueves, por confirmar)', min: 198, max: 288 }],
-          enlaces: [enlace('Hush', 'https://www.smartshanghai.com/venue/28730/smshwxmpqr.jpeg?share=true28730')],
-        },
-        {
           ...HOTEL,
-          id: 'c5d8792af064be13',
-          hora: '26:30',
+          id: '4d90e45a12604f67',
+          hora: '22:00',
           llegada: { modo: 'taxi', min: 20 },
         },
       ],
@@ -1143,13 +1108,14 @@ export const itinerario: Itinerario = {
     },
     {
       fecha: '2026-10-24',
-      titulo: 'Nankín: Museo Paleontológico',
+      titulo: 'Nankín y noche de salida',
       ciudad: 'Nankín',
       notas:
         'La excursión es para el Museo Paleontológico, no para encadenar monumentos. Levantarnos a las 10:00.\n' +
         'Es sábado: trenes y museo con más gente que entre semana.\n' +
         'Billetes: comprobar ya la app oficial 12306. La venta suele abrir 15 días antes (para el 24, hacia el 9 de octubre), pero en 2026 hay solicitud anticipada para algunos trenes del corredor Pekín–Shanghái. Solicitar plaza no es tenerla confirmada.\n' +
-        'Fuera del plan: Niushoushan, Mausoleo Ming Xiaoling, Palacio Presidencial y los demás museos.',
+        'Fuera del plan: Niushoushan, Mausoleo Ming Xiaoling, Palacio Presidencial y los demás museos.\n' +
+        'Por la noche, ya en Shanghái: cócteles en Speak Low y, si apetece, Hush.',
       paradas: [
         {
           id: 'f379b024eac5168d',
@@ -1249,8 +1215,48 @@ export const itinerario: Itinerario = {
           id: 'ed261f7c904ab835',
           hora: '20:00',
           llegada: { modo: 'a_pie', min: 10 },
-          notas: 'Cena sencilla cerca del hotel.',
+          notas: 'Cena sencilla cerca del hotel y arreglarse para salir.',
           gastos: [{ concepto: 'cena sencilla', min: 40, max: 80 }],
+        },
+        {
+          id: 'e90fb13c7a6428d5',
+          hora: '22:00',
+          fin: '23:30',
+          nombre: 'Speak Low',
+          local: 'Speak Low',
+          categoria: 'ocio',
+          ...en(C.speakLow),
+          llegada: { modo: 'taxi', min: 20 },
+          direccion: '579 Middle Fuxing Road',
+          direccionLocal: '复兴中路579号',
+          notas: 'Cócteles de estilo japonés. Cada planta del bar tiene su ambiente; la tercera es la más cuidada.',
+          gastos: [{ concepto: 'dos cócteles (75–150 ¥ cada uno)', min: 160, max: 260 }],
+          enlaces: [enlace('Speak Low', 'https://rachelgouk.com/listings/speak-low/')],
+        },
+        {
+          id: '46a3d805cf129be7',
+          hora: '23:45',
+          fin: '26:00',
+          nombre: 'Hush (INS Land)',
+          local: 'INS新乐园',
+          categoria: 'ocio',
+          ...en(C.hush),
+          opcional: true,
+          llegada: { modo: 'a_pie' },
+          direccion: '109 Yandang Road',
+          direccionLocal: '雁荡路109号',
+          notas:
+            'Si apetece hip-hop/R&B. Es sábado, la noche con más ambiente: comprobar la sesión y el precio de la entrada antes de comprar pases.\n' +
+            'Si llegamos cansados de Nankín, el bar ya cumple el plan nocturno y la discoteca se puede omitir. Hora de salida orientativa; al día siguiente nos levantamos sobre las 11:00.\n' +
+            'INS Land está en el lado norte del parque Fuxing; el punto del mapa es aproximado.',
+          gastos: [{ concepto: 'entrada de fin de semana (por confirmar)', min: 198, max: 288 }],
+          enlaces: [enlace('Hush', 'https://www.smartshanghai.com/venue/28730/smshwxmpqr.jpeg?share=true28730')],
+        },
+        {
+          ...HOTEL,
+          id: 'c5d8792af064be13',
+          hora: '26:30',
+          llegada: { modo: 'taxi', min: 20 },
         },
       ],
     },
@@ -1259,7 +1265,7 @@ export const itinerario: Itinerario = {
       titulo: 'Historia Natural, Wukang/Anfu, cafés y vistas',
       ciudad: 'Shanghái',
       notas:
-        'Después de Nankín, levantarnos sobre las 11:00.\n' +
+        'Después de Nankín y la noche de salida, levantarnos sobre las 11:00.\n' +
         'Con el museo, los cafés pasan a la tarde y Lujiazui se ve ya de noche.',
       paradas: [
         {
@@ -1482,6 +1488,6 @@ export const itinerario: Itinerario = {
     { id: '71ea52c093b6fd84', texto: 'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.' },
     { id: 'b1f8074a6d3c92e5', texto: 'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.' },
     { id: '095cbe73a24f681d', texto: 'Domingo noche: decidir cena giratoria en la Perla o solo vistas; reservar solo tras ver el precio final.' },
-    { id: 'ef64a20d831c7b95', texto: 'Jueves noche: mirar la programación y la entrada de Hush/INS para el 22.' },
+    { id: 'ef64a20d831c7b95', texto: 'Sábado noche: mirar la programación y la entrada de Hush/INS para el 24.' },
   ],
 };
