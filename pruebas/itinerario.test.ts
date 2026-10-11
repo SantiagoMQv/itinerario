@@ -77,19 +77,19 @@ const TEXTOS_HEREDADOS = [
 ];
 
 describe('identidades persistentes', () => {
-  test('las 141 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
+  test('las 142 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
     const subs = paradas.flatMap(({ p }) => p.subparadas ?? []);
     const pendientes = itinerario.pendientes ?? [];
     expect(paradas).toHaveLength(42);
-    expect(subs).toHaveLength(90);
+    expect(subs).toHaveLength(91);
     expect(pendientes).toHaveLength(8);
     const ids = [itinerario.id, ...paradas.map(({ p }) => p.id), ...subs.map((s) => s.id), ...pendientes.map((p) => p.id)];
     for (const id of ids) expect(id).toMatch(/^[a-f0-9]{16}$/);
-    expect(new Set(ids).size).toBe(141);
+    expect(new Set(ids).size).toBe(142);
     // Cada identidad está escrita en los datos, no calculada a partir del contenido ni del orden.
     const fuente = readFileSync(new URL('../src/datos/itinerario.ts', import.meta.url), 'utf8');
     const literales = [...fuente.matchAll(/\bid: '([a-f0-9]{16})'/g)].map((m) => m[1]);
-    expect(literales).toHaveLength(141);
+    expect(literales).toHaveLength(142);
     expect(literales.sort()).toEqual([...ids].sort());
     expectTypeOf<Pick<Itinerario, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
     expectTypeOf<Pick<Parada, 'id'>>().toEqualTypeOf<{ readonly id: string }>();

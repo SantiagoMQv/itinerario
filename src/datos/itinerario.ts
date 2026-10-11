@@ -16,6 +16,7 @@ const C = {
   nanjingOeste: [31.2370467, 121.4702684],
   nanjingEste: [31.2386, 121.4785],
   joyCity: [31.2457033, 121.4675727],
+  uniqloJoyCity: [31.244707, 121.467646],
   noria: [31.2461038, 121.4675959],
   disney: [31.1462523, 121.6562825],
   estacionShanghai: [31.2504165, 121.4505223],
@@ -508,9 +509,16 @@ export const itinerario: Itinerario = {
             'Maleta: las de 90分 (NINETYGO) y Mijia son la opción china con mejor calidad/precio (policarbonato, ruedas silenciosas, candado TSA). Precios orientativos: 20″ ~200–500 ¥, 24″ ~300–700 ¥, 28″ ~460 ¥ en adelante.\n' +
             'Para comparar o si no hay existencias: en JD o Taobao son algo más baratas y llegan al hotel en 1–2 días. En los grandes almacenes de Nanjing Road predominan marcas internacionales más caras.\n' +
             'Antes de elegir el tamaño, revisar la franquicia de equipaje de los cuatro vuelos, sobre todo el Barcelona–Málaga de Vueling (según la tarifa, podría hacer falta añadir la maleta).\n' +
-            'Ropa imprescindible para Disneyland. Las tiendas cierran a las 22:00.\n' +
+            'Ropa imprescindible para Disneyland. Las tiendas cierran a las 22:00. Una hora da para poco: venir con la lista de la maleta y la ropa hecha.\n' +
             'Las luces del río Suzhou se apagan hacia las 21:30 entre semana (estimado): mejor ver la orilla antes.',
           subparadas: [
+            {
+              id: '18c044a375c81fa1',
+              nombre: 'Uniqlo',
+              local: '优衣库',
+              ...en(C.uniqloJoyCity),
+              notas: 'La ropa normal que más compensa: un 20–35 % más barata que en España, mismo artículo (webs oficiales, octubre de 2026). Camiseta AIRism 79 ¥ (9,60 €; en España 14,90 €), sudadera 199 ¥ (24 €; 34,90 €), vaqueros 299 ¥ (36 €; 49,90 €), polar forrado 299 ¥ (36 €; 49,90 €), plumas Ultra Light Down 499 ¥ (61 €; 79,90 €). Las ofertas de la semana bajan algo más.',
+            },
             {
               id: '90d58e2a731fb6c4',
               nombre: 'Tienda Xiaomi',
@@ -695,7 +703,9 @@ export const itinerario: Itinerario = {
           categoria: 'compras',
           ...en(C.huaihai),
           llegada: { modo: 'a_pie' },
-          notas: 'Tramo oeste de la calle, hasta iapm: tiendas internacionales a precio europeo (Zara de cinco plantas, Uniqlo) y algunas marcas chinas.',
+          notas:
+            'Tramo oeste de la calle, hasta iapm: sobre todo marcas extranjeras, que aquí no salen más baratas (Zara es incluso un 15–40 % más cara que en España). House of H&M en el n.º 649 y un Zara de cinco plantas frente a iapm.\n' +
+            'El Uniqlo grande del n.º 887 se traslada al 755 (el nuevo abre el 30 de octubre): puede estar cerrado esos días. Para ropa barata, mejor el Uniqlo de Joy City (día 1) y Semir en Yuyuan.',
           subparadas: [
             {
               id: 'e9a56c44ae79c150',
@@ -775,7 +785,7 @@ export const itinerario: Itinerario = {
               id: 'c7031f9d6a84be25',
               nombre: 'Semir, tienda insignia',
               local: '森马',
-              notas: 'Marca china de ropa diaria, con artículos exclusivos de Shanghái.',
+              notas: 'Marca china de ropa diaria y básicos, tienda insignia de dos plantas con artículos exclusivos de Shanghái. De lo poco más barato que en Europa: camisetas 79–89 ¥ (10–11 €), vaqueros 189–259 ¥ (23–32 €), sudaderas 119–299 ¥ (15–36 €).',
             },
           ],
           enlaces: [
@@ -1563,6 +1573,7 @@ export const itinerario: Itinerario = {
         'Alipay y WeChat Pay con tarjeta extranjera: sin comisión hasta 200 ¥; por encima, un 3 % sobre el total. Para compras grandes, mejor pagar con la tarjeta (Visa o Mastercard) en el datáfono de la tienda, si la aceptan.',
         'Devolución de impuestos para turistas: comprando 200 ¥ o más en una misma tienda y el mismo día, con el pasaporte, en las tiendas adheridas (preguntar antes de pagar). Se recupera más o menos un 9 % (un 11 % menos la comisión).',
         'Las tiendas con el cartel «即买即退» lo devuelven en el momento, dejando la tarjeta preautorizada. Al salir, el lunes 26 en Pudong, enseñar las compras y los papeles en la aduana antes de facturar.',
+        'Ropa normal más barata que en España: Uniqlo (un 20–35 % menos, mismo artículo) y marcas chinas de básicos como Semir o HLA (vaqueros por 17–32 €). Zara, H&M y ONLY cuestan igual o más que en España.',
       ],
       enlaces: [
         enlace('Devolución de impuestos (Shanghái)', 'https://english.shanghai.gov.cn/en-InFocus/20250429/19697c0873294f9fbc9e8e6a158e5bbc.html'),
