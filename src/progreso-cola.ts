@@ -105,6 +105,25 @@ function esRechazo(plan: Itinerario, valor: unknown): valor is RechazoPersistido
     && esInstantaneaProgreso(plan, valor.instantanea)
     && !Object.hasOwn(valor.instantanea.estado.operaciones, valor.operacionId);
 }
+/** Fronteras DTO estrechas: validar antes de materializar campos propios ocultos para JSON.
+ * No son normalizadores de respaldos ni prueba de autenticidad/persistencia del servidor.
+ */
+export function capturarOperacionProgreso(valor: unknown): Operacion | null {
+  return datosPropios(valor) && esOperacion(valor) ? capturar(valor) : null;
+}
+export function capturarInstantaneaProgreso(plan: Itinerario, valor: unknown): InstantaneaProgreso | null {
+  return datosPropios(valor) && esInstantaneaProgreso(plan, valor) ? capturar(valor) : null;
+}
+export function capturarAcusePersistido(plan: Itinerario, valor: unknown): AcusePersistido | null {
+  if (!datosPropios(valor) || !campos(valor, ['operacionId', 'persistida', 'instantanea'])
+    || typeof valor.operacionId !== 'string' || !valor.operacionId.trim() || valor.persistida !== true
+    || !esInstantaneaProgreso(plan, valor.instantanea)) return null;
+  return capturar(valor) as unknown as AcusePersistido;
+}
+export function capturarRechazoPersistido(plan: Itinerario, valor: unknown): RechazoPersistido | null {
+  return esRechazo(plan, valor) ? capturar(valor) : null;
+}
+
 function contradiceNegativos(cola: Cola, instantanea: InstantaneaProgreso): boolean {
   return cola.entradas.some((e) => e.rechazo && Object.hasOwn(instantanea.estado.operaciones, e.operacion.id));
 }
