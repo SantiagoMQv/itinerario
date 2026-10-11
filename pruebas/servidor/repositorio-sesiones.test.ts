@@ -32,7 +32,7 @@ async function dos() { await repo.crear(registro()); await repo.crear(registro({
 describe('Cinco puertos de sesiones SQL nativas', () => {
   beforeAll(async () => {
     db = await PGlite.create('memory://');
-    for (const nombre of ['001_base.sql', '002_progreso.sql', '003_sesiones.sql']) {
+    for (const nombre of ['001_base.sql', '002_progreso.sql', '003_sesiones.sql', '004_limite.sql']) {
       const texto = await readFile(new URL('../../servidor/migraciones/' + nombre, import.meta.url), 'utf8');
       await db.exec(texto);
       if (nombre === '003_sesiones.sql') migracion = texto;
@@ -40,7 +40,7 @@ describe('Cinco puertos de sesiones SQL nativas', () => {
   }, 30000);
   afterAll(async () => { await db?.close(); });
   beforeEach(async () => {
-    await db.exec('TRUNCATE itinerario.decisiones, itinerario.sesiones, itinerario.viajes');
+    await db.exec('TRUNCATE itinerario.intentos_sesion, itinerario.decisiones, itinerario.sesiones, itinerario.viajes');
     for (const id of [viajeId, 'ajeno']) await db.query('INSERT INTO itinerario.viajes VALUES ($1,0,$2)',
       [id, '{"viajeId":"' + id + '","prueba":-0}']);
     ejecutar.mockClear();
@@ -54,7 +54,7 @@ describe('Cinco puertos de sesiones SQL nativas', () => {
     expect(ejecutar.mock.calls[0]).toEqual(['SELECT itinerario.crear_sesion($1, $2, $3, $4, $5, $6, $7) AS resultado',
       [idA, a, viajeId, 0, Number.MAX_SAFE_INTEGER, false,
         serializarProgreso({ dispositivoId: 'móvil\0设备', nombreDispositivo: ' teléfono\0📱 ' })]]);
-    expect(Reflect.ownKeys(repo).sort()).toEqual(['crear', 'leer', 'listar', 'revocar', 'revocarOtra'].sort());
+    expect(Reflect.ownKeys(repo).sort()).toEqual(['admitirIntento', 'crear', 'leer', 'listar', 'revocar', 'revocarOtra'].sort());
   });
   it('omite nombre ausente y acepta datos propios ocultos sin modificar el original congelado', async () => {
     const r = registro(); const { nombreDispositivo: _nombre, ...sinNombre } = r;
@@ -203,6 +203,101 @@ describe('Cinco puertos de sesiones SQL nativas', () => {
     expect(otra.indexOf('clock_timestamp()')).toBeGreaterThan(otra.indexOf('FOR UPDATE'));
     expect(migracion).not.toMatch(/::jsonb|metadatos_json\s*->|now\(\)/i);
   });
+  it('seis puertos nativos HTTP: red confiable limita antes de clave; cookie solo tras crear y DTO sin huella', async () => {
+    const clave = 'sintética opaca de prueba '.repeat(3) + '\0';
+    const credenciales = await crearCredenciales({ viajeId, claveCompartida: clave });
+    const controlador = crearControladorSesiones({ viajeId, credenciales, repositorio: repo });
+    await db.query('INSERT INTO itinerario.decisiones VALUES ($1,$2,$3,1,$4)',
+      [viajeId, 'historia-login', 'negativa', '{"prueba":-0}']);
+    const antes = await tablas();
+    const post = (claveEntrada: string, dispositivoId: string, origen = 'https://viaje.test') =>
+      new Request('https://viaje.test/api/sesion', { method: 'POST',
+        headers: { Origin: origen, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clave: claveEntrada, dispositivoId, nombreDispositivo: ' móvil\0设备 ' }) });
+    ejecutar.mockClear();
+    expect((await controlador.atender(post(clave, 'uno', 'https://ajeno.test'), { identidadRed: 'red sintética A' })).status).toBe(403);
+    expect(ejecutar).not.toHaveBeenCalled();
+    expect((await controlador.atender(post(clave, 'uno'))).status).toBe(503);
+    expect(ejecutar).not.toHaveBeenCalled();
+    const cuerpoNoConfiable = new Request('https://viaje.test/api/sesion', { method: 'POST',
+      headers: { Origin: 'https://viaje.test', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clave, dispositivoId: 'uno', identidadRed: 'inventada' }) });
+    expect((await controlador.atender(cuerpoNoConfiable)).status).toBe(400);
+    expect(ejecutar).not.toHaveBeenCalled();
+    for (let i = 0; i < 10; i++) {
+      const respuesta = await controlador.atender(post('incorrecta', 'cambiante-' + i), { identidadRed: 'red sintética A' });
+      expect(respuesta.status).toBe(401); expect(respuesta.headers.get('Set-Cookie')).toBeNull();
+    }
+    expect((await db.query('SELECT * FROM itinerario.sesiones')).rows).toEqual([]);
+    const buckets = (await db.query<{ huella_origen: string; intentos: number }>('SELECT huella_origen,intentos FROM itinerario.intentos_sesion')).rows;
+    expect(buckets).toHaveLength(1); expect(buckets[0]!.intentos).toBe(10);
+    const resumen = new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(
+      JSON.stringify(['itinerario', 'v1', 'intento-sesion', viajeId, 'red sintética A']))));
+    expect(buckets[0]!.huella_origen).toBe(Array.from(resumen, (v) => v.toString(16).padStart(2, '0')).join(''));
+    for (const candidata of ['incorrecta', clave]) {
+      const respuesta = await controlador.atender(post(candidata, 'otro dispositivo'), { identidadRed: 'red sintética A' });
+      expect(respuesta.status).toBe(429); expect(respuesta.headers.get('Retry-After')).toBe('600');
+      expect(respuesta.headers.get('Set-Cookie')).toBeNull();
+    }
+    expect((await db.query('SELECT intentos FROM itinerario.intentos_sesion')).rows).toEqual([{ intentos: 10 }]);
+    const entrada = await controlador.atender(post(clave, 'móvil\0设备'), { identidadRed: 'red sintética B' });
+    expect(entrada.status).toBe(201);
+    const setCookie = entrada.headers.get('Set-Cookie')!;
+    expect(setCookie).toContain('Secure'); expect(setCookie).toContain('HttpOnly');
+    const cookie = setCookie.split(';')[0]!;
+    const dto = await entrada.json();
+    const actor = await controlador.autenticar(new Request('https://viaje.test/api/sesion', { headers: { Cookie: cookie } }));
+    expect(actor).not.toBeNull();
+    expect(await repo.leer(actor!.huella)).toEqual(actor);
+    expect(actor!.creadaEn).toBeGreaterThan(Date.now() - 60000); // Clock real, no sesión antigua de fixture.
+    expect(dto).toEqual({ sesion: { id: actor!.id, viajeId, dispositivoId: 'móvil\0设备',
+      nombreDispositivo: ' móvil\0设备 ', venceEn: actor!.venceEn } });
+    expect(JSON.stringify(dto)).not.toContain(actor!.huella);
+    const obtener = await controlador.atender(new Request('https://viaje.test/api/sesion', { headers: { Cookie: cookie } }));
+    expect(obtener.status).toBe(200); expect(await obtener.json()).toEqual(dto);
+    const lista = await controlador.atender(new Request('https://viaje.test/api/sesiones', { headers: { Cookie: cookie } }));
+    expect(lista.status).toBe(200); expect(await lista.json()).toEqual({ sesiones: [{ id: actor!.id, viajeId,
+      dispositivoId: 'móvil\0设备', nombreDispositivo: ' móvil\0设备 ', venceEn: actor!.venceEn, actual: true }] });
+    const self = await controlador.atender(new Request('https://viaje.test/api/sesiones/' + actor!.id,
+      { method: 'DELETE', headers: { Origin: 'https://viaje.test', Cookie: cookie } }));
+    expect(self.status).toBe(200); expect(self.headers.get('Set-Cookie')).toContain('Max-Age=0');
+    expect(await repo.leer(actor!.huella)).toMatchObject({ revocada: true });
+    expect((await controlador.atender(new Request('https://viaje.test/api/sesion', { headers: { Cookie: cookie } }))).status).toBe(401);
+    // Completar logout por el quinto algoritmo también con creación HTTP nativa.
+    const otra = await controlador.atender(post(clave, 'otro'), { identidadRed: 'red sintética B' });
+    expect(otra.status).toBe(201);
+    const otroCookie = otra.headers.get('Set-Cookie')!.split(';')[0]!;
+    const salida = await controlador.atender(new Request('https://viaje.test/api/sesion', { method: 'DELETE',
+      headers: { Origin: 'https://viaje.test', Cookie: otroCookie } }));
+    expect(salida.status).toBe(200); expect(salida.headers.get('Set-Cookie')).toContain('Max-Age=0');
+    expect(await tablas()).toEqual(antes);
+  });
+  it('HTTP con limiter nativo pierde acuse tras commit: 503 sin cookie ni sesión, bucket consumido', async () => {
+    const clave = 'sintética opaca de prueba '.repeat(3);
+    const credenciales = await crearCredenciales({ viajeId, claveCompartida: clave });
+    const perdida = crearRepositorioSesionesSql({ viajeId, ejecutor: { async ejecutar(sql, parametros) {
+      const resultado = await ejecutar(sql, parametros);
+      if (sql.includes('admitir_intento')) throw new Error('postgres://privado clave token');
+      return resultado;
+    } } });
+    const controlador = crearControladorSesiones({ viajeId, credenciales, repositorio: perdida });
+    const entrada = await controlador.atender(new Request('https://viaje.test/api/sesion', { method: 'POST',
+      headers: { Origin: 'https://viaje.test', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ clave, dispositivoId: 'sintético' }) }), { identidadRed: 'red sintética' });
+    expect(entrada.status).toBe(503); expect(entrada.headers.get('Set-Cookie')).toBeNull();
+    expect(await entrada.json()).toEqual({ error: fallo });
+    expect((await db.query('SELECT * FROM itinerario.sesiones')).rows).toEqual([]);
+    expect((await db.query('SELECT intentos FROM itinerario.intentos_sesion')).rows).toEqual([{ intentos: 1 }]);
+  });
+  it('dos repositorios completos usan el mismo bucket nativo sin autoridad del viaje configurado', async () => {
+    const otro = crearRepositorioSesionesSql({ viajeId: 'ajeno', ejecutor: { ejecutar } });
+    const resultados = await Promise.all(Array.from({ length: 12 }, (_, i) =>
+      (i % 2 ? repo : otro).admitirIntento(a, 0)));
+    expect(resultados.filter(Boolean)).toHaveLength(10);
+    expect((await db.query('SELECT intentos FROM itinerario.intentos_sesion')).rows).toEqual([{ intentos: 10 }]);
+    // El caller debe derivar hashes diferentes por viaje; la factoría no vuelve a hashear.
+    expect(await otro.admitirIntento(b, 0)).toBe(true);
+  });
   it('HTTP no emite cookie tras perder acuse de creación; logout perdido admite retry duradero', async () => {
     const credenciales = await crearCredenciales({ viajeId, claveCompartida: 'sintética de prueba '.repeat(3) });
     const perdida = crearRepositorioSesionesSql({ viajeId, ejecutor: { async ejecutar(sql, parametros) {
@@ -277,6 +372,15 @@ describe('Frontera privada y captura estricta de sesiones SQL', () => {
   });
   it.each(['', 'x\0y', 'é'.repeat(65), '\ud800'])('configuración viaje %j falla de forma constante', (viaje) => {
     expect(() => crearRepositorioSesionesSql({ viajeId: viaje, ejecutor: { ejecutar } })).toThrow(fallo);
+  });
+  it('configuración completa rechaza getters y trampas de reflexión con error privado', () => {
+    const getter = vi.fn(() => { throw new Error('postgres://privado'); });
+    for (const config of [Object.defineProperty({ ejecutor: { ejecutar } }, 'viajeId', { get: getter }),
+      { viajeId, ejecutor: Object.defineProperty({}, 'ejecutar', { get: getter }) },
+      new Proxy({}, { ownKeys() { throw new Error('postgres://privado'); } })]) {
+      expect(() => crearRepositorioSesionesSql(config as Parameters<typeof crearRepositorioSesionesSql>[0])).toThrow(fallo);
+    }
+    expect(getter).not.toHaveBeenCalled();
   });
   it('una consulta ligada por puerto; nunca interpola metadatos hostiles', async () => {
     const llamar = vi.fn(async (_sql: string, _parametros: readonly unknown[]) => respuesta({ tipo: 'creada' }));

@@ -1,4 +1,5 @@
 import type { EjecutorSql } from './contratos';
+import { crearAlmacenIntentosSql } from './almacen-intentos';
 import type { RegistroSesion, RepositorioSesiones, ResultadoRevocacion } from './sesiones';
 import { parsearProgreso, serializarProgreso } from '../src/progreso-json';
 
@@ -69,16 +70,23 @@ function decodificar(v: unknown, viajeId: string): RegistroSesion {
     creadaEn: r.creadaEn, venceEn: r.venceEn, revocada: r.revocada, ...m }, viajeId);
 }
 
-/** Cinco puertos reales; NO incluye admitirIntento ni se conecta al controlador aún.
+/** Seis puertos reales, incluido el límite persistente con el mismo ejecutor.
  * Cada método ejecuta un SELECT ligado. El ejecutor resuelve solo después del commit.
  * Autoridad: id/huella/viaje/fechas/revocada; metadatosTexto contiene exclusivamente
  * dispositivoId y nombreDispositivo opcional. NUL permanece escapado en TEXT hasta Worker.
  * Argumentos de otro viaje fallan antes de SQL; no hay secretos por defecto ni bootstrap.
  */
-export function crearRepositorioSesionesSql({ ejecutor, viajeId }: {
+export function crearRepositorioSesionesSql(configuracion: {
   readonly ejecutor: EjecutorSql; readonly viajeId: string;
-}): Pick<RepositorioSesiones, 'crear' | 'leer' | 'revocar' | 'listar' | 'revocarOtra'> {
-  if (!viaje(viajeId) || !ejecutor || typeof ejecutor.ejecutar !== 'function') return fallar();
+}): RepositorioSesiones {
+  let ejecutor: EjecutorSql, viajeId: string;
+  let intentos: Pick<RepositorioSesiones, 'admitirIntento'>;
+  try {
+    const c = capturar(configuracion, ['ejecutor', 'viajeId']);
+    if (!viaje(c.viajeId)) return fallar();
+    viajeId = c.viajeId; ejecutor = c.ejecutor as EjecutorSql;
+    intentos = crearAlmacenIntentosSql({ ejecutor });
+  } catch { return fallar(); }
   function alcance(huella: unknown, solicitado: unknown = viajeId): void {
     if (!huellaValida(huella) || solicitado !== viajeId) return fallar();
   }
@@ -99,6 +107,7 @@ export function crearRepositorioSesionesSql({ ejecutor, viajeId }: {
     return r.tipo;
   }
   return Object.freeze({
+    ...intentos,
     crear(r: RegistroSesion): Promise<void> {
       return seguro(async () => {
         const c = registro(r, viajeId, true);
