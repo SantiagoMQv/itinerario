@@ -1,15 +1,29 @@
 import { aplicarOperacion, crearProgreso, importarLegado } from './progreso';
-import { campos, densa, esOperacion, iguales } from './progreso-validacion';
+import { campos, densa, esOperacion, esEstadoProgreso, iguales } from './progreso-validacion';
+import { iniciarCola, agregarIntencion, proyectarCola, recibirInstantanea, marcarEnviada, cancelarIntencion, recibirAcuse } from './progreso-cola';
+import type { Cola, EntradaCola, ResultadoCola, AcusePersistido } from './progreso-cola';
+import type { InstantaneaProgreso } from './progreso-validacion';
 import type { EntradasLegadas, EstadoProgreso, Operacion, OperacionPendiente, RecuperacionLegada, ResultadoOperacion } from './progreso';
 import type { Itinerario } from './tipos';
 
-/** Un registro por viaje: toda modificación sustituye esta raíz en una única transacción. */
-export interface RegistroLocal {
+/** Formato anterior, solo para validar antes de migrar; IDB mantiene su versión 1. */
+interface RegistroV1 {
   readonly formato: 1;
   readonly confirmado: EstadoProgreso;
   readonly estado: EstadoProgreso;
   readonly cola: readonly OperacionPendiente[];
   readonly legado?: { readonly originales: EntradasLegadas; readonly recuperacion: readonly RecuperacionLegada[] };
+}
+/** Una raíz por viaje. estado es exclusivamente la proyección cacheada de confirmado + cola.
+ * revisionServidor ordena snapshots; no es una revisión de entidad ni prueba de autenticidad.
+ */
+export interface RegistroLocal {
+  readonly formato: 2;
+  readonly revisionServidor: number;
+  readonly confirmado: EstadoProgreso;
+  readonly estado: EstadoProgreso;
+  readonly cola: readonly EntradaCola[];
+  readonly legado?: RegistroV1['legado'];
 }
 export interface OpcionesProgresoLocal {
   readonly fabrica?: IDBFactory | null;
@@ -23,6 +37,11 @@ export interface OpcionesProgresoLocal {
 export interface ProgresoLocal {
   leer(): Promise<RegistroLocal>;
   registrar(operacion: Operacion): Promise<ResultadoOperacion>;
+  recibirInstantanea(instantanea: InstantaneaProgreso): Promise<ResultadoCola>;
+  /** Disponibilidad durable, no autorización: resolver precede cualquier IO del futuro emisor. */
+  marcarEnviada(operacionId: string): Promise<ResultadoCola>;
+  cancelarIntencion(operacionId: string): Promise<ResultadoCola>;
+  recibirAcuse(acuse: AcusePersistido): Promise<ResultadoCola>;
   /** No cancela transacciones ya iniciadas. Volver a abrir requiere abrirProgresoLocal. */
   cerrar(): void;
 }
@@ -31,11 +50,11 @@ const objeto = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && !Array.isArray(v);
 
 /**
- * Frontera T2B1: confirmado sigue vacío y la cola completa reconstruye la proyección.
- * Acuses remotos, eliminación de cola, snapshots existentes y rebase pertenecen a T2B2/T4.
- * Rechazamos otros formatos en lugar de resetear o perder intenciones pendientes.
+ * Invariantes históricas T2B1: base vacía y dependencias de toda la cola anterior.
+ * Validamos el formato original completo antes de refinarlo con iniciarCola.
+ * Nunca reinterpretamos un registro corrupto como un viaje nuevo.
  */
-function validar(plan: Itinerario, valor: unknown): RegistroLocal {
+function validarV1(plan: Itinerario, valor: unknown): RegistroV1 {
   try {
     if (!campos(valor, ['formato', 'confirmado', 'estado', 'cola'], ['legado']) || valor.formato !== 1 || !densa(valor.cola)
       || !iguales(valor.confirmado, crearProgreso(plan))) throw new Error();
@@ -51,36 +70,69 @@ function validar(plan: Itinerario, valor: unknown): RegistroLocal {
       ids.push(operacion.id);
     }
     if (!iguales(valor.estado, estado)) throw new Error();
-    if (Object.hasOwn(valor, 'legado')) {
-      const legado = valor.legado;
-      if (!campos(legado, ['originales', 'recuperacion']) || !objeto(legado.originales) || !densa(legado.recuperacion)) throw new Error();
-      for (const r of legado.recuperacion) {
-        if (!campos(r, ['campo', 'valor', 'motivo'], ['clave']) || typeof r.campo !== 'string' || !['marcas', 'marcas-hora', 'pendientes-hechos'].includes(r.campo)
-          || typeof r.motivo !== 'string' || !['malformada', 'desconocida', 'ambigua', 'estado-existente', 'conflicto-aqui'].includes(r.motivo)
-          || !Object.hasOwn(r, 'valor') || (r.clave !== undefined && typeof r.clave !== 'string')) throw new Error();
-      }
-    }
-    return valor as unknown as RegistroLocal;
+    validarLegado(valor);
+    return valor as unknown as RegistroV1;
   } catch {
     throw new Error('Registro de progreso corrupto o formato no soportado');
   }
 }
 
+function validarLegado(valor: Record<string, unknown>): void {
+  if (!Object.hasOwn(valor, 'legado')) return;
+  const legado = valor.legado;
+  if (!campos(legado, ['originales', 'recuperacion']) || !objeto(legado.originales) || !densa(legado.recuperacion)) throw new Error();
+  for (const r of legado.recuperacion) {
+    if (!campos(r, ['campo', 'valor', 'motivo'], ['clave']) || typeof r.campo !== 'string'
+      || !['marcas', 'marcas-hora', 'pendientes-hechos'].includes(r.campo) || typeof r.motivo !== 'string'
+      || !['malformada', 'desconocida', 'ambigua', 'estado-existente', 'conflicto-aqui'].includes(r.motivo)
+      || (Object.hasOwn(r, 'clave') && typeof r.clave !== 'string')) throw new Error();
+  }
+}
+function comoCola(raiz: RegistroLocal): Cola {
+  return { confirmado: { revisionServidor: raiz.revisionServidor, estado: raiz.confirmado }, entradas: raiz.cola };
+}
+function desdeResultado(raiz: Pick<RegistroLocal, 'legado'>, resultado: ResultadoCola): RegistroLocal {
+  if (!resultado.cola || !resultado.proyeccion) throw new Error('No se pudo reconstruir la cola');
+  return { formato: 2, revisionServidor: resultado.cola.confirmado.revisionServidor,
+    confirmado: resultado.cola.confirmado.estado, estado: resultado.proyeccion.estado,
+    cola: resultado.cola.entradas, ...(raiz.legado === undefined ? {} : { legado: raiz.legado }) };
+}
+function validar(plan: Itinerario, valor: unknown): RegistroLocal {
+  try {
+    if (!campos(valor, ['formato', 'revisionServidor', 'confirmado', 'estado', 'cola'], ['legado'])
+      || valor.formato !== 2 || !esEstadoProgreso(plan, valor.estado)) throw new Error();
+    const raiz = valor as unknown as RegistroLocal;
+    const resultado = proyectarCola(plan, comoCola(raiz));
+    if (!resultado.proyeccion || !iguales(valor.estado, resultado.proyeccion.estado)) throw new Error();
+    validarLegado(valor);
+    // El helper materializa el dominio; el legado conserva su clon estructurado, no se normaliza.
+    return desdeResultado(raiz, resultado);
+  } catch {
+    throw new Error('Registro de progreso corrupto o formato no soportado');
+  }
+}
+function migrar(plan: Itinerario, valor: unknown): RegistroLocal {
+  const anterior = validarV1(plan, valor);
+  return desdeResultado(anterior, iniciarCola(plan, { revisionServidor: 0, estado: anterior.confirmado },
+    anterior.cola.map((e) => e.operacion)));
+}
 function encolar(plan: Itinerario, raiz: RegistroLocal, operacion: Operacion): {
   raiz: RegistroLocal; resultado: ResultadoOperacion;
 } {
   if (!esOperacion(operacion)) return { raiz,
     resultado: { tipo: 'invalida', estado: raiz.estado, motivo: 'Esquema de operación o recibo inválido' } };
+  const existente = raiz.cola.find((e) => e.operacion.id === operacion.id);
+  if (existente) return { raiz, resultado: iguales(operacion, existente.operacion)
+    ? { tipo: 'duplicada', estado: raiz.estado }
+    : { tipo: 'invalida', estado: raiz.estado, motivo: 'ID reutilizado con otra intención' } };
   const resultado = aplicarOperacion(plan, raiz.estado, operacion);
   if (resultado.tipo !== 'aplicada' && resultado.tipo !== 'sin-cambio') return { raiz, resultado };
-  return { resultado, raiz: { ...raiz, estado: resultado.estado,
-    // Dependencia conservadora: no presupone que futuras operaciones se puedan reordenar.
-    cola: [...raiz.cola, { operacion, dependeDe: raiz.cola.map((p) => p.operacion.id) }] } };
+  return { resultado, raiz: desdeResultado(raiz, agregarIntencion(plan, comoCola(raiz), operacion)) };
 }
 
 function inicializar(plan: Itinerario, opciones: OpcionesProgresoLocal): RegistroLocal {
   const confirmado = crearProgreso(plan);
-  let raiz: RegistroLocal = { formato: 1, confirmado, estado: confirmado, cola: [] };
+  let raiz = desdeResultado({}, iniciarCola(plan, { revisionServidor: 0, estado: confirmado }));
   if (opciones.entradasLegadas === undefined) return raiz;
   const importado = importarLegado(plan, confirmado, opciones.entradasLegadas);
   raiz = { ...raiz, legado: { originales: importado.originales, recuperacion: importado.recuperacion } };
@@ -150,7 +202,7 @@ export async function abrirProgresoLocal(plan: Itinerario, opciones: OpcionesPro
   db.onclose = () => { cerrado = true; };
 
   /** Ningún await dentro de la transacción: solo callbacks síncronos de requests. */
-  function transaccion<T>(modo: IDBTransactionMode, trabajo: (raiz: RegistroLocal | undefined) => {
+  function transaccion<T>(modo: IDBTransactionMode, trabajo: (valor: unknown) => {
     valor: T; guardar?: RegistroLocal;
   }): Promise<T> {
     return new Promise((resolve, reject) => {
@@ -165,8 +217,7 @@ export async function abrirProgresoLocal(plan: Itinerario, opciones: OpcionesPro
       const solicitud = tabla.get(copiaPlan.id);
       solicitud.onsuccess = () => {
         try {
-          const raiz = solicitud.result === undefined ? undefined : validar(copiaPlan, solicitud.result);
-          const salida = trabajo(raiz);
+          const salida = trabajo(solicitud.result);
           valor = structuredClone(salida.valor);
           if (salida.guardar) tabla.put(salida.guardar, copiaPlan.id);
         } catch (causa) {
@@ -177,27 +228,78 @@ export async function abrirProgresoLocal(plan: Itinerario, opciones: OpcionesPro
     });
   }
   try {
-    await transaccion('readwrite', (raiz) => {
-      if (raiz) return { valor: undefined };
-      return { valor: undefined, guardar: inicializar(copiaPlan, copiaOpciones) };
+    await transaccion('readwrite', (valor) => {
+      if (valor === undefined) return { valor: undefined, guardar: inicializar(copiaPlan, copiaOpciones) };
+      if (campos(valor, ['formato', 'confirmado', 'estado', 'cola'], ['legado']) && valor.formato === 1) {
+        return { valor: undefined, guardar: migrar(copiaPlan, valor) };
+      }
+      validar(copiaPlan, valor);
+      return { valor: undefined };
     });
   } catch (error) {
     cerrar();
     throw error;
   }
+  function raizExistente(valor: unknown): RegistroLocal {
+    if (valor === undefined) throw new Error('Falta el registro de progreso; no se restablece automáticamente');
+    return validar(copiaPlan, valor);
+  }
+  function modificar(trabajo: (cola: Cola) => ResultadoCola): Promise<ResultadoCola> {
+    return transaccion('readwrite', (valor) => {
+      const raiz = raizExistente(valor);
+      const resultado = trabajo(comoCola(raiz));
+      const guardar = resultado.cola && resultado.proyeccion && !iguales(resultado.cola, comoCola(raiz));
+      return { valor: resultado, ...(guardar ? { guardar: desdeResultado(raiz, resultado) } : {}) };
+    });
+  }
+  // Capturamos mediante la frontera pura ANTES del clon IDB: structuredClone omite propios
+  // no enumerables. Nunca aplicamos esta materialización a respaldos arbitrarios legados.
+  function capturarInstantanea(valor: unknown): InstantaneaProgreso | null {
+    const resultado = iniciarCola(copiaPlan, valor);
+    if (resultado.cola) return resultado.cola.confirmado;
+    structuredClone(valor); // Propaga DataCloneError aun si el esquema es inválido.
+    return null;
+  }
   return {
     cerrar,
-    leer: () => transaccion('readonly', (raiz) => {
-      if (!raiz) throw new Error('Falta el registro de progreso; no se restablece automáticamente');
-      return { valor: raiz };
-    }),
+    leer: () => transaccion('readonly', (valor) => ({ valor: raizExistente(valor) })),
     registrar: async (operacion) => {
-      const copia = structuredClone(operacion);
-      return transaccion('readwrite', (raiz) => {
-        if (!raiz) throw new Error('Falta el registro de progreso; no se restablece automáticamente');
+      const valida = esOperacion(operacion);
+      const copia = valida
+        ? iniciarCola(copiaPlan, { revisionServidor: 0, estado: crearProgreso(copiaPlan) }, [operacion]).cola!.entradas[0].operacion
+        : structuredClone(operacion);
+      return transaccion('readwrite', (valor) => {
+        const raiz = raizExistente(valor);
+        if (!valida) return { valor: { tipo: 'invalida' as const, estado: raiz.estado, motivo: 'Esquema de operación inválido' } };
         const siguiente = encolar(copiaPlan, raiz, copia);
         return { valor: siguiente.resultado, ...(siguiente.raiz === raiz ? {} : { guardar: siguiente.raiz }) };
       });
+    },
+    recibirInstantanea: async (instantanea) => {
+      const copia = capturarInstantanea(instantanea);
+      return modificar((cola) => recibirInstantanea(copiaPlan, cola, copia));
+    },
+    marcarEnviada: (id) => modificar((cola) => {
+      const entrada = cola.entradas.find((e) => e.operacion.id === id);
+      if (entrada && !entrada.enviada) {
+        const proyeccion = proyectarCola(copiaPlan, cola).proyeccion!;
+        if (entrada.dependeDe.length || proyeccion.entradas.find((e) => e.operacionId === id)?.tipo !== 'lista') {
+          return { tipo: 'conflicto', cola, proyeccion, motivo: 'Requiere acuse causal explícito y proyección lista' };
+        }
+      }
+      return marcarEnviada(copiaPlan, cola, id);
+    }),
+    cancelarIntencion: (id) => modificar((cola) => cancelarIntencion(copiaPlan, cola, id)),
+    recibirAcuse: async (acuse) => {
+      // El reconciliador valida el acuse, incluso sin entrada: no duplicamos su esquema.
+      const vacia = iniciarCola(copiaPlan, { revisionServidor: 0, estado: crearProgreso(copiaPlan) }).cola!;
+      if (recibirAcuse(copiaPlan, vacia, acuse).tipo === 'invalida') {
+        structuredClone(acuse);
+        return modificar((cola) => recibirAcuse(copiaPlan, cola, null));
+      }
+      const copia = { operacionId: acuse.operacionId, persistida: true,
+        instantanea: capturarInstantanea(acuse.instantanea) };
+      return modificar((cola) => recibirAcuse(copiaPlan, cola, copia));
     },
   };
 }
