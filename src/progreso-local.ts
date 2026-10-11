@@ -1,4 +1,5 @@
 import { aplicarOperacion, crearProgreso, importarLegado } from './progreso';
+import { campos, densa, esOperacion, iguales } from './progreso-validacion';
 import type { EntradasLegadas, EstadoProgreso, Operacion, OperacionPendiente, RecuperacionLegada, ResultadoOperacion } from './progreso';
 import type { Itinerario } from './tipos';
 
@@ -29,64 +30,6 @@ const almacen = 'viajes';
 const objeto = (v: unknown): v is Record<string, unknown> =>
   v !== null && typeof v === 'object' && !Array.isArray(v);
 
-const plano = (v: unknown): v is Record<string, unknown> => objeto(v)
-  && (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
-const densa = (v: unknown): v is unknown[] => Array.isArray(v)
-  && Reflect.ownKeys(v).length === v.length + 1
-  && Array.from({ length: v.length }, (_, i) => Object.hasOwn(v, i)).every(Boolean);
-function campos(v: unknown, obligatorios: readonly string[], opcionales: readonly string[] = []): v is Record<string, unknown> {
-  return plano(v) && obligatorios.every((k) => Object.hasOwn(v, k))
-    && Reflect.ownKeys(v).every((k) => typeof k === 'string' && [...obligatorios, ...opcionales].includes(k));
-}
-
-// Compara únicamente dominio reconstruido: no convierte NaN/Infinity/Map/undefined a JSON.
-// El esperado es acíclico y tipado; el respaldo legado nunca pasa por esta comparación.
-function iguales(valor: unknown, esperado: unknown): boolean {
-  if (Array.isArray(esperado)) return densa(valor) && valor.length === esperado.length
-    && esperado.every((v, i) => iguales(valor[i], v));
-  if (plano(esperado)) return campos(valor, Object.keys(esperado))
-    && Object.keys(esperado).every((k) => iguales(valor[k], esperado[k]));
-  return (typeof valor !== 'number' || Number.isFinite(valor)) && Object.is(valor, esperado);
-}
-const texto = (v: unknown): v is string => typeof v === 'string' && v.trim().length > 0;
-const revision = (v: unknown) => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
-const marca = (v: unknown) => v === null || v === 'hecha' || v === 'saltada' || v === 'aqui';
-const finito = (v: unknown) => typeof v === 'number' && Number.isFinite(v);
-const opcional = (v: Record<string, unknown>, k: string, prueba: (valor: unknown) => boolean) =>
-  !Object.hasOwn(v, k) || prueba(v[k]);
-function registroParada(v: unknown): boolean {
-  return campos(v, ['marca', 'revision'], ['horaReal']) && marca(v.marca) && revision(v.revision)
-    && opcional(v, 'horaReal', (hora) => v.marca !== null && finito(hora));
-}
-function registroPendiente(v: unknown): boolean {
-  return campos(v, ['hecho', 'revision']) && typeof v.hecho === 'boolean' && revision(v.revision);
-}
-function registroAqui(v: unknown): boolean {
-  return campos(v, ['paradaId', 'revision']) && (v.paradaId === null || texto(v.paradaId)) && revision(v.revision);
-}
-function reciboValido(v: unknown): boolean {
-  if (!campos(v, ['operacionId', 'registros'], ['aqui']) || !texto(v.operacionId) || !densa(v.registros)) return false;
-  for (const cambio of v.registros) {
-    if (!campos(cambio, ['tipo', 'id', 'antes', 'despues']) || !texto(cambio.id)) return false;
-    const prueba = cambio.tipo === 'parada' ? registroParada : cambio.tipo === 'pendiente' ? registroPendiente : undefined;
-    if (!prueba || !prueba(cambio.antes) || !prueba(cambio.despues)) return false;
-  }
-  return opcional(v, 'aqui', (aqui) => campos(aqui, ['antes', 'despues'])
-    && registroAqui(aqui.antes) && registroAqui(aqui.despues));
-}
-/** Frontera runtime, también para recibos de deshacer que el núcleo asume ya tipados. */
-function operacionValida(v: unknown): v is Operacion {
-  if (!plano(v) || !texto(v.id) || !texto(v.dispositivoId)) return false;
-  const identidad = ['id', 'dispositivoId', 'tipo'];
-  if (v.tipo === 'parada') return campos(v, [...identidad, 'paradaId', 'marca', 'revision'],
-    ['horaReal', 'revisionAqui', 'revisionAnterior']) && texto(v.paradaId) && marca(v.marca) && revision(v.revision)
-    && opcional(v, 'horaReal', (hora) => v.marca !== null && finito(hora))
-    && opcional(v, 'revisionAqui', revision) && opcional(v, 'revisionAnterior', revision);
-  if (v.tipo === 'pendiente') return campos(v, [...identidad, 'pendienteId', 'hecho', 'revision'])
-    && texto(v.pendienteId) && typeof v.hecho === 'boolean' && revision(v.revision);
-  return v.tipo === 'deshacer' && campos(v, [...identidad, 'cambios']) && reciboValido(v.cambios);
-}
-
 /**
  * Frontera T2B1: confirmado sigue vacío y la cola completa reconstruye la proyección.
  * Acuses remotos, eliminación de cola, snapshots existentes y rebase pertenecen a T2B2/T4.
@@ -99,7 +42,7 @@ function validar(plan: Itinerario, valor: unknown): RegistroLocal {
     let estado = crearProgreso(plan);
     const ids: string[] = [];
     for (const entrada of valor.cola) {
-      if (!campos(entrada, ['operacion', 'dependeDe']) || !operacionValida(entrada.operacion)
+      if (!campos(entrada, ['operacion', 'dependeDe']) || !esOperacion(entrada.operacion)
         || !iguales(entrada.dependeDe, ids)) throw new Error();
       const operacion = entrada.operacion;
       const resultado = aplicarOperacion(plan, estado, operacion);
@@ -126,7 +69,7 @@ function validar(plan: Itinerario, valor: unknown): RegistroLocal {
 function encolar(plan: Itinerario, raiz: RegistroLocal, operacion: Operacion): {
   raiz: RegistroLocal; resultado: ResultadoOperacion;
 } {
-  if (!operacionValida(operacion)) return { raiz,
+  if (!esOperacion(operacion)) return { raiz,
     resultado: { tipo: 'invalida', estado: raiz.estado, motivo: 'Esquema de operación o recibo inválido' } };
   const resultado = aplicarOperacion(plan, raiz.estado, operacion);
   if (resultado.tipo !== 'aplicada' && resultado.tipo !== 'sin-cambio') return { raiz, resultado };
