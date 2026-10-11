@@ -10,6 +10,10 @@ export interface EntradaCola {
   readonly dependeDe: readonly string[];
   /** Un envío incierto sigue enviado incluso tras reiniciar, perder respuesta o recibir un 401. */
   readonly enviada: boolean;
+  /** Decisión negativa irreversible; no equivale a progreso aplicado. */
+  readonly rechazo?: RechazoPersistido;
+  /** Revisión manual: conserva el confirmado, sin cumplir dependencias ni borrar historia. */
+  readonly resolucion?: 'conservar-confirmado';
 }
 export interface Cola {
   readonly confirmado: InstantaneaProgreso;
@@ -19,14 +23,14 @@ export interface Proyeccion {
   readonly estado: EstadoProgreso;
   readonly entradas: readonly {
     readonly operacionId: string;
-    readonly tipo: 'lista' | 'conflicto' | 'invalida' | 'bloqueada';
+    readonly tipo: 'lista' | 'conflicto' | 'invalida' | 'bloqueada' | 'rechazada' | 'resuelta';
     readonly resultado?: 'aplicada' | 'sin-cambio' | 'duplicada';
     readonly motivo?: string;
   }[];
 }
 export interface ResultadoCola {
   readonly tipo: 'iniciada' | 'agregada' | 'proyectada' | 'actualizada' | 'ignorada'
-    | 'enviada' | 'cancelada' | 'confirmada' | 'ausente' | 'conflicto' | 'invalida';
+    | 'enviada' | 'cancelada' | 'confirmada' | 'ausente' | 'conflicto' | 'invalida' | 'rechazada' | 'resuelta';
   readonly cola?: Cola;
   readonly proyeccion?: Proyeccion;
   readonly motivo?: string;
@@ -38,6 +42,27 @@ export interface ResultadoCola {
 export interface AcusePersistido {
   readonly operacionId: string;
   readonly persistida: true;
+  readonly instantanea: InstantaneaProgreso;
+}
+
+/** Solo un transporte autenticado (TLS/sesión) entrega este DTO; ni GET ni status HTTP lo prueban.
+ * El servidor futuro persiste atómicamente viaje/ID/payload completo y decisión antes de emitirlo.
+ * Positivo y negativo son mutuamente excluyentes y retenidos: mismo ID/payload repite el DTO
+ * histórico completo, incluida su instantánea original (no una lectura posterior).
+ * Otro payload para el mismo ID requiere cuarentena, fuera de este contrato.
+ * decisionPersistida confirma el resultado negativo, NO progreso aplicado. Timeout, 401,
+ * aborto o error de parseo no son rechazos. El guard solo verifica forma y correspondencia,
+ * no autenticidad, historia, firma ni reloj; jamás reejecutar un ID negativamente decidido.
+ * Próxima unidad IDB: raíz serializada v3 con rechazo/resolucion opcionales y migración
+ * atómica/validada de raíces v1/v2; mantener versión física de base 1. No guardar en raíz v2.
+ */
+export interface RechazoPersistido {
+  readonly viajeId: string;
+  readonly protocolo: 1;
+  readonly operacionId: string;
+  readonly operacionOriginal: Operacion;
+  readonly decisionPersistida: true;
+  readonly motivo: 'conflicto' | 'invalida';
   readonly instantanea: InstantaneaProgreso;
 }
 
@@ -58,15 +83,45 @@ function capturar<T>(valor: T): T {
 }
 const invalida = (motivo: string): ResultadoCola => ({ tipo: 'invalida', motivo });
 
+/** Inspecciona descriptores antes de leer: no ejecuta getters, admite datos ocultos/congelados. */
+function datosPropios(valor: unknown, ancestros = new Set<object>()): boolean {
+  if (valor === null || typeof valor !== 'object') return true;
+  if (ancestros.has(valor)) return false;
+  ancestros.add(valor);
+  for (const clave of Reflect.ownKeys(valor)) {
+    const descriptor = Object.getOwnPropertyDescriptor(valor, clave)!;
+    if (typeof clave !== 'string' || !Object.hasOwn(descriptor, 'value')
+      || !datosPropios(descriptor.value, ancestros)) return false;
+  }
+  ancestros.delete(valor);
+  return true;
+}
+function esRechazo(plan: Itinerario, valor: unknown): valor is RechazoPersistido {
+  return datosPropios(valor) && campos(valor, ['viajeId', 'protocolo', 'operacionId',
+    'operacionOriginal', 'decisionPersistida', 'motivo', 'instantanea'])
+    && valor.viajeId === plan.id && valor.protocolo === 1 && valor.decisionPersistida === true
+    && (valor.motivo === 'conflicto' || valor.motivo === 'invalida')
+    && esOperacion(valor.operacionOriginal) && valor.operacionId === valor.operacionOriginal.id
+    && esInstantaneaProgreso(plan, valor.instantanea)
+    && !Object.hasOwn(valor.instantanea.estado.operaciones, valor.operacionId);
+}
+function contradiceNegativos(cola: Cola, instantanea: InstantaneaProgreso): boolean {
+  return cola.entradas.some((e) => e.rechazo && Object.hasOwn(instantanea.estado.operaciones, e.operacion.id));
+}
 function validarCola(plan: Itinerario, valor: unknown): valor is Cola {
-  if (!campos(valor, ['confirmado', 'entradas']) || !esInstantaneaProgreso(plan, valor.confirmado)
+  if (!datosPropios(valor) || !campos(valor, ['confirmado', 'entradas']) || !esInstantaneaProgreso(plan, valor.confirmado)
     || !densa(valor.entradas)) return false;
   const ids = new Set<string>();
   for (const e of valor.entradas) {
-    if (!campos(e, ['operacion', 'dependeDe', 'enviada']) || !esOperacion(e.operacion)
+    if (!campos(e, ['operacion', 'dependeDe', 'enviada'], ['rechazo', 'resolucion']) || !esOperacion(e.operacion)
       || typeof e.enviada !== 'boolean' || !densa(e.dependeDe)
       || e.dependeDe.some((id) => typeof id !== 'string' || !ids.has(id))
       || new Set(e.dependeDe).size !== e.dependeDe.length || ids.has(e.operacion.id)) return false;
+    if (Object.hasOwn(e, 'rechazo') && (!e.enviada || !esRechazo(plan, e.rechazo)
+      || !iguales(capturar(e.rechazo.operacionOriginal), capturar(e.operacion))
+      || Object.hasOwn(valor.confirmado.estado.operaciones, e.operacion.id))) return false;
+    if (Object.hasOwn(e, 'resolucion') && (!Object.hasOwn(e, 'rechazo')
+      || e.resolucion !== 'conservar-confirmado')) return false;
     ids.add(e.operacion.id);
   }
   return true;
@@ -95,6 +150,11 @@ function proyectar(plan: Itinerario, cola: Cola): { proyeccion: Proyeccion; auto
   const entradas: Proyeccion['entradas'][number][] = [];
   for (const e of cola.entradas) {
     const operacionId = e.operacion.id;
+    // Nunca aplicar un negativo, ni siquiera si ahora sería sin-cambio. No es autor causal.
+    if (e.rechazo) {
+      entradas.push({ operacionId, tipo: e.resolucion ? 'resuelta' : 'rechazada' });
+      continue;
+    }
     if (e.dependeDe.some((id) => !listas.has(id))) {
       entradas.push({ operacionId, tipo: 'bloqueada', motivo: 'Una intención causal no se pudo proyectar' });
       continue;
@@ -166,15 +226,59 @@ export function recibirInstantanea(plan: Itinerario, valor: unknown, instantanea
   if (!validarCola(plan, valor) || !esInstantaneaProgreso(plan, instantanea)) return invalida('Cola o instantánea inválida');
   const cola = capturar(valor);
   const nueva = capturar(instantanea);
+  if (contradiceNegativos(cola, nueva)) return salida(plan, cola, 'conflicto', 'Recibo positivo para un ID rechazado');
   const orden = comparar(cola.confirmado, nueva);
   if (orden === 'contradictoria') return salida(plan, cola, 'conflicto', 'Misma revisión del servidor con distinto contenido');
   if (orden !== 'nueva') return salida(plan, cola, 'ignorada');
   return salida(plan, { ...cola, confirmado: nueva }, 'actualizada');
 }
+/** Registra exclusivamente la decisión negativa autenticada; nunca resuelve la revisión manual. */
+export function recibirRechazo(plan: Itinerario, valor: unknown, rechazo: unknown): ResultadoCola {
+  if (!validarCola(plan, valor)) return invalida('Cola inválida');
+  const cola = capturar(valor);
+  if (!esRechazo(plan, rechazo)) return salida(plan, cola, 'invalida', 'Rechazo persistido inválido');
+  const decision = capturar(rechazo);
+  const entrada = cola.entradas.find((e) => e.operacion.id === decision.operacionId);
+  if (Object.hasOwn(cola.confirmado.estado.operaciones, decision.operacionId)
+    || contradiceNegativos(cola, decision.instantanea)) {
+    return salida(plan, cola, 'conflicto', 'Decisiones positiva y negativa incompatibles');
+  }
+  if (!entrada) return salida(plan, cola, 'ignorada');
+  if (!entrada.enviada || !iguales(decision.operacionOriginal, entrada.operacion)) {
+    return salida(plan, cola, 'conflicto', 'El rechazo no corresponde al original enviado');
+  }
+  if (entrada.rechazo) {
+    return iguales(decision, entrada.rechazo) ? salida(plan, cola, 'ignorada')
+      : salida(plan, cola, 'conflicto', 'Otra decisión para un ID ya rechazado');
+  }
+  const orden = comparar(cola.confirmado, decision.instantanea);
+  if (orden === 'contradictoria') return salida(plan, cola, 'conflicto', 'Rechazo con revisión contradictoria');
+  return salida(plan, {
+    confirmado: orden === 'nueva' ? decision.instantanea : cola.confirmado,
+    entradas: cola.entradas.map((e) => e.operacion.id === decision.operacionId ? { ...e, rechazo: decision } : e),
+  }, 'rechazada');
+}
+
+/** Acción explícita del usuario, nunca automática desde transporte. Conserva historia y causalidad:
+ * resuelta deja de requerir revisión, pero los hijos siguen bloqueados con sus payloads originales.
+ * No cancela, no crea IDs, no rebasa ni muta servidor: una nueva intención exige decisión manual.
+ */
+export function resolverRechazo(plan: Itinerario, valor: unknown, id: string): ResultadoCola {
+  if (!validarCola(plan, valor)) return invalida('Cola inválida');
+  const cola = capturar(valor);
+  const entrada = cola.entradas.find((e) => e.operacion.id === id);
+  if (!entrada) return salida(plan, cola, 'ausente');
+  if (!entrada.rechazo) return salida(plan, cola, 'conflicto', 'No existe una decisión negativa persistida');
+  if (entrada.resolucion) return salida(plan, cola, 'resuelta');
+  return salida(plan, { ...cola, entradas: cola.entradas.map((e) => e.operacion.id === id
+    ? { ...e, resolucion: 'conservar-confirmado' as const } : e) }, 'resuelta');
+}
 export function marcarEnviada(plan: Itinerario, valor: unknown, id: string): ResultadoCola {
   if (!validarCola(plan, valor)) return invalida('Cola inválida');
   const cola = capturar(valor);
-  if (!cola.entradas.some((e) => e.operacion.id === id)) return salida(plan, cola, 'ausente');
+  const entrada = cola.entradas.find((e) => e.operacion.id === id);
+  if (!entrada) return salida(plan, cola, 'ausente');
+  if (entrada.rechazo) return salida(plan, cola, 'conflicto', 'Una decisión negativa no admite reintento');
   return salida(plan, { ...cola, entradas: cola.entradas.map((e) => e.operacion.id === id ? { ...e, enviada: true } : e) }, 'enviada');
 }
 export function cancelarIntencion(plan: Itinerario, valor: unknown, id: string): ResultadoCola {
@@ -192,11 +296,14 @@ export function cancelarIntencion(plan: Itinerario, valor: unknown, id: string):
 export function recibirAcuse(plan: Itinerario, valor: unknown, acuse: unknown): ResultadoCola {
   if (!validarCola(plan, valor)) return invalida('Cola inválida');
   const cola = capturar(valor);
-  if (!campos(acuse, ['operacionId', 'persistida', 'instantanea']) || typeof acuse.operacionId !== 'string'
+  if (!datosPropios(acuse) || !campos(acuse, ['operacionId', 'persistida', 'instantanea']) || typeof acuse.operacionId !== 'string'
     || !acuse.operacionId.trim() || acuse.persistida !== true || !esInstantaneaProgreso(plan, acuse.instantanea)) {
     return salida(plan, cola, 'invalida', 'Acuse persistido inválido');
   }
   const entrada = cola.entradas.find((e) => e.operacion.id === acuse.operacionId);
+  if (entrada?.rechazo || contradiceNegativos(cola, acuse.instantanea)) {
+    return salida(plan, cola, 'conflicto', 'Acuse positivo incompatible con decisión negativa');
+  }
   // Un acuse repetido/ajeno no es una lectura: no modifica la base ni otras intenciones.
   if (!entrada) return salida(plan, cola, 'ignorada');
   const instantanea = capturar(acuse.instantanea);
