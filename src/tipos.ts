@@ -40,6 +40,8 @@ export interface Llegada {
  * tiene hora propia: se hace dentro del horario de su parada.
  */
 export interface Subparada {
+  /** Identidad opaca persistente; no cambia al editar el contenido ni el orden. */
+  readonly id: string;
   nombre: string;
   /** Nombre en chino, para enseñarlo y preguntar. */
   local?: string;
@@ -54,6 +56,8 @@ export interface Subparada {
 }
 
 export interface Parada {
+  /** Identidad de esta aparición, incluso si se visita otra vez el mismo sitio. */
+  readonly id: string;
   /** "HH:MM". Se admite "24:30" para pasada la medianoche del mismo día de itinerario. */
   hora: string;
   /** Hora de salida "HH:MM". Si falta, se calcula a partir de la siguiente parada. */
@@ -103,7 +107,15 @@ export interface Seccion {
   enlaces?: Enlace[];
 }
 
+/** Cosa por comprobar o reservar, con identidad independiente de su texto y posición. */
+export interface Pendiente {
+  readonly id: string;
+  texto: string;
+}
+
 export interface Itinerario {
+  /** Identidad opaca persistente del viaje, independiente de título y fechas. */
+  readonly id: string;
   titulo: string;
   subtitulo?: string;
   /** Yuanes por euro, para mostrar la equivalencia aproximada de los gastos. */
@@ -113,5 +125,5 @@ export interface Itinerario {
   dias: Dia[];
   secciones?: Seccion[];
   /** Cosas por comprobar o reservar; se pueden ir marcando en la app. */
-  pendientes?: string[];
+  pendientes?: Pendiente[];
 }

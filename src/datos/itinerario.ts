@@ -129,18 +129,19 @@ const HOTEL = {
   ...en(C.hotel),
   direccion: '688 Hengfeng Road, Jing’an',
   direccionLocal: '上海市静安区恒丰路688号',
-} satisfies Omit<Parada, 'hora'>;
+} satisfies Omit<Parada, 'hora' | 'id'>;
 
 const PVG = {
   nombre: 'Aeropuerto de Pudong (PVG), T1',
   local: '浦东国际机场1号航站楼',
   categoria: 'transporte',
   ...en(C.pvg),
-} satisfies Omit<Parada, 'hora'>;
+} satisfies Omit<Parada, 'hora' | 'id'>;
 
 const enlace = (texto: string, url: string) => ({ texto, url });
 
 export const itinerario: Itinerario = {
+  id: 'd64bf870a2c193e5',
   titulo: 'Shanghái y Nankín',
   subtitulo: '21–26 de octubre de 2026 · 2 personas',
   // Cambio aproximado de julio de 2026; solo sirve para dar una idea en euros.
@@ -156,6 +157,7 @@ export const itinerario: Itinerario = {
       paradas: [
         {
           ...PVG,
+          id: 'ac721d9e4068bf35',
           hora: '07:00',
           fin: '08:50',
           notas:
@@ -164,6 +166,7 @@ export const itinerario: Itinerario = {
         },
         {
           ...HOTEL,
+          id: 'f506ca1e938d24b7',
           hora: '10:00',
           fin: '15:00',
           llegada: {
@@ -177,6 +180,7 @@ export const itinerario: Itinerario = {
           reserva: '5 noches, del 21 al 26. Salida antes de las 12:00.',
           subparadas: [
             {
+              id: '93c1a67fe5204bd8',
               nombre: 'Puente Baihe (Lily Bridge)',
               local: '苏州河百合桥',
               opcional: true,
@@ -185,6 +189,7 @@ export const itinerario: Itinerario = {
               notas: 'Pasarela colgante sobre el Suzhou, abierta en 2025, con forma de pétalos de azucena: paseo corto y atajo a M50. Gratis.',
             },
             {
+              id: 'a60e53bc7d8214f9',
               nombre: 'M50, barrio de arte',
               local: 'M50创意园',
               opcional: true,
@@ -193,6 +198,7 @@ export const itinerario: Itinerario = {
               notas: 'Fábricas textiles convertidas en galerías (ShanghART, Island6), murales y cafés con terraza. Galerías de ~10:00 a 18:00; casi todas gratis.',
             },
             {
+              id: 'f0471b9da3e562c8',
               nombre: '1000 Trees',
               local: '天安千树',
               opcional: true,
@@ -201,6 +207,7 @@ export const itinerario: Itinerario = {
               notas: 'El «bosque colgante» de Heatherwick, la foto más compartida de la zona en Xiaohongshu. Mejor de día; la mejor vista, desde el puente de Changhua Road.',
             },
             {
+              id: '4ae70c6f931d8b25',
               nombre: 'Templo del Buda de Jade',
               local: '玉佛禅寺',
               opcional: true,
@@ -212,6 +219,7 @@ export const itinerario: Itinerario = {
           enlaces: [enlace('Ficha del hotel', 'https://sg.trip.com/hotels/jing-an-district-hotel-detail-2895314/aqua-suhe-no-1-hotel-shanghai-jingan/')],
         },
         {
+          id: '92de703ca851bf64',
           hora: '15:15',
           fin: '16:00',
           nombre: 'Comida en Huanghe Road: Yang’s Dumpling',
@@ -228,6 +236,7 @@ export const itinerario: Itinerario = {
           gastos: [{ concepto: 'comida', min: 25, max: 45 }],
           subparadas: [
             {
+              id: 'c12bd67e8549a03f',
               nombre: 'Jia Jia Tang Bao',
               local: '佳家汤包',
               opcional: true,
@@ -236,6 +245,7 @@ export const itinerario: Itinerario = {
               notas: 'En la misma calle: de los xiaolongbao más famosos de Shanghái (unos 40 ¥ por persona). Abre de 07:30 a 20:00.',
             },
             {
+              id: '7bc3495a0d8ef612',
               nombre: 'Park Hotel: vestíbulo y pastelería',
               local: '国际饭店',
               opcional: true,
@@ -244,6 +254,7 @@ export const itinerario: Itinerario = {
               notas: 'Rascacielos art déco de Hudec (1934), con la marca del «kilómetro cero» de Shanghái en el vestíbulo. Su 蝴蝶酥 (~30 ¥ la bolsa) tiene colas de 1 a 4 h: mirar, no hacer cola.',
             },
             {
+              id: 'e861c2b745a0df39',
               nombre: 'Tai Sheng Yuan, el restaurante de «Blossoms»',
               local: '苔圣园酒家',
               opcional: true,
@@ -252,6 +263,7 @@ export const itinerario: Itinerario = {
               notas: 'El restaurante de 1993 que inspiró el 至真园 de la serie 繁花. A esa hora está cerrado (abre a las 16:30): foto de la fachada.',
             },
             {
+              id: '59d7a01be4cf6832',
               nombre: 'Grand Cinema',
               local: '大光明电影院',
               opcional: true,
@@ -260,6 +272,7 @@ export const itinerario: Itinerario = {
               notas: 'Cine art déco de Hudec (1933), todavía en activo: el vestíbulo, con su firma en latón en el suelo, y la escalera se ven en 10 minutos.',
             },
             {
+              id: 'b7934d8a1ce026f5',
               nombre: 'Museo de Historia de Shanghái',
               local: '上海市历史博物馆',
               opcional: true,
@@ -268,6 +281,7 @@ export const itinerario: Itinerario = {
               notas: 'En el antiguo hipódromo, con su torre del reloj; cuenta muy bien la historia de la ciudad. Gratis y sin reserva, pero la última entrada es a las 16:00: solo si se termina de comer pronto.',
             },
             {
+              id: '0ca9f1437bd5682e',
               nombre: 'Vistas desde la planta 38 del JW Marriott',
               local: '上海明天广场JW万豪酒店',
               opcional: true,
@@ -279,6 +293,7 @@ export const itinerario: Itinerario = {
           enlaces: [enlace('Huanghe Road', 'https://english.shanghai.gov.cn/en-Latest-WhatsNew/20240110/1ba02195e1ef4de49fabee498555c64d.html')],
         },
         {
+          id: 'b783d5e490ca261f',
           hora: '16:05',
           fin: '17:05',
           nombre: 'Nanjing Road: tramo de People’s Square',
@@ -292,12 +307,14 @@ export const itinerario: Itinerario = {
             'Para compras grandes, preguntar en atención al cliente por la devolución de impuestos para turistas (con el pasaporte; se cobra en el aeropuerto).',
           subparadas: [
             {
+              id: 'd4b718e69f03ca25',
               nombre: 'No. 1 Department Store',
               local: '上海市第一百货商店',
               ...en(C.primerBaihuo),
               notas: 'Grandes almacenes históricos, con zona de anime y figuras.',
             },
             {
+              id: '83af6502e9d14cb7',
               nombre: 'First Food Store',
               local: '第一食品商店',
               ...en(C.primerAlimentacion),
@@ -305,6 +322,7 @@ export const itinerario: Itinerario = {
               notas: 'Snacks y dulces de todo el país.',
             },
             {
+              id: '2d01be8c7536fa49',
               nombre: 'Shimao Plaza: LEGO, M&M’s y Pop Mart',
               local: '上海世茂广场',
               opcional: true,
@@ -312,6 +330,7 @@ export const itinerario: Itinerario = {
               notas: 'Tiendas insignia de LEGO y M&M’s y, desde diciembre de 2025, una de Pop Mart de 800 m².',
             },
             {
+              id: 'fa82c76d15903be4',
               nombre: 'Shen Da Cheng',
               local: '沈大成',
               opcional: true,
@@ -320,6 +339,7 @@ export const itinerario: Itinerario = {
               notas: 'Dulces de arroz glutinoso desde 1875, con cola de gente de aquí: 条头糕 o 双酿团, a 4–8 ¥ la pieza (las ventanillas 10 y 11 venden sueltas). 7:30–20:30.',
             },
             {
+              id: '674b3a91e0fd825c',
               nombre: 'Wing On, grandes almacenes de 1918',
               local: '永安百货',
               opcional: true,
@@ -328,6 +348,7 @@ export const itinerario: Itinerario = {
               notas: 'Edificio protegido que sale en 繁花, unido por pasarelas a la torre Wing On de 1933. Enfrente de Shen Da Cheng: basta con la fachada.',
             },
             {
+              id: '19ed8f3c4a7206b5',
               nombre: 'Iglesia de Mu’en',
               local: '沐恩堂',
               opcional: true,
@@ -341,6 +362,7 @@ export const itinerario: Itinerario = {
           ],
         },
         {
+          id: '0f48a925bc731de6',
           hora: '17:20',
           fin: '18:10',
           nombre: 'Nanjing Road: tramo hacia el Bund',
@@ -352,6 +374,7 @@ export const itinerario: Itinerario = {
             'Marcas chinas y cosas curiosas. Por la tarde-noche se encienden los neones de la calle. Posición en el mapa aproximada.',
           subparadas: [
             {
+              id: 'be509d2f73a168c4',
               nombre: 'Miniso Land',
               local: '名创优品 MINISO LAND',
               ...en(C.minisoLand),
@@ -359,12 +382,14 @@ export const itinerario: Itinerario = {
               notas: 'La tienda Miniso que más vende del mundo: tres plantas de licencias (Disney, Sanrio, Harry Potter, anime) y un pasillo de cajas sorpresa.',
             },
             {
+              id: '402af8c613b9ed75',
               nombre: 'Pop Mart Global Flagship',
               local: '泡泡玛特 · 宏伊国际广场',
               ...en(C.hongyi),
               notas: 'En Hongyi Plaza: figuras sorpresa de edición Shanghái.',
             },
             {
+              id: 'c6e371b9a2048df5',
               nombre: 'Bailian ZX',
               local: '百联ZX',
               opcional: true,
@@ -372,6 +397,7 @@ export const itinerario: Itinerario = {
               notas: 'Seis plantas de anime y videojuegos.',
             },
             {
+              id: '85b6a24fe1390dc7',
               nombre: 'NEW ONE (antes New World Daimaru)',
               local: '新世界新丸中心',
               opcional: true,
@@ -379,6 +405,7 @@ export const itinerario: Itinerario = {
               notas: 'Famoso por sus escaleras mecánicas doradas en espiral. Desde 2026 se llama NEW ONE y se reforma sin cerrar: puede haber zonas en obras.',
             },
             {
+              id: 'd9318b0ca57e624f',
               nombre: 'Calle de los laozihao (Shanxi South Road)',
               local: '春启新巷 · 山西南路老字号美食街',
               opcional: true,
@@ -387,6 +414,7 @@ export const itinerario: Itinerario = {
               notas: 'Desde febrero de 2026 están aquí, de forma provisional, las casas de siempre de Yunnan Road: shengjian de 大壶春, pollo blanco y congee de 小绍兴, café de 德大 (1897).',
             },
             {
+              id: '2f50d79ab1648ce3',
               nombre: 'Zhen Lao Da Fang',
               local: '真老大房',
               opcional: true,
@@ -395,6 +423,7 @@ export const itinerario: Itinerario = {
               notas: 'La cola más famosa de Nanjing Road: 鲜肉月饼, hojaldre relleno de cerdo recién horneado, para comer caliente (5–10 ¥). Pasado el Medio Otoño hay menos cola.',
             },
             {
+              id: 'a748e63d0bf9152c',
               nombre: 'Huawei Flagship',
               local: '华为旗舰店',
               opcional: true,
@@ -405,6 +434,7 @@ export const itinerario: Itinerario = {
           ],
         },
         {
+          id: '8ce406b79a3d152f',
           hora: '18:30',
           fin: '19:05',
           nombre: 'The Bund al encenderse las luces',
@@ -418,6 +448,7 @@ export const itinerario: Itinerario = {
             'El ferry de 2 ¥ que cruza desde Jinling East Road deja de salir hacia las 18:30.',
           subparadas: [
             {
+              id: 'f26a5097c3e81bd4',
               nombre: 'Peace Hotel: vestíbulo y Jazz Bar',
               local: '和平饭店',
               opcional: true,
@@ -426,6 +457,7 @@ export const itinerario: Itinerario = {
               notas: 'Hotel de Sassoon (1929): la cúpula octogonal del vestíbulo es la foto clásica. La Old Jazz Band toca desde ~19:00 (una bebida obligatoria, 100–300 ¥ + 15 %). Está en obras: será Raffles en 2027.',
             },
             {
+              id: '3be4d608a719c25f',
               nombre: 'Garden Bridge (Waibaidu)',
               local: '外白渡桥',
               opcional: true,
@@ -434,6 +466,7 @@ export const itinerario: Itinerario = {
               notas: 'Puente de acero de 1907, iluminado, con Broadway Mansions detrás: el mejor sitio para fotos con gente. A unos 10 minutos por el paseo.',
             },
             {
+              id: 'ca194f3e8075bd62',
               nombre: 'Puente de Zhapu Road',
               local: '乍浦路桥',
               opcional: true,
@@ -442,6 +475,7 @@ export const itinerario: Itinerario = {
               notas: 'El mirador de los fotógrafos chinos: desde el centro, mirando al este, salen juntos Broadway Mansions, el Garden Bridge y las tres torres de Lujiazui, con reflejos en el río.',
             },
             {
+              id: '6e23b9f40a8c751d',
               nombre: 'Yuanmingyuan Road (Bund Origin)',
               local: '圆明园路 · 外滩源',
               opcional: true,
@@ -452,6 +486,7 @@ export const itinerario: Itinerario = {
           ],
         },
         {
+          id: '6b1ad38f925e704c',
           hora: '19:20',
           fin: '20:20',
           nombre: 'Jing’an Joy City: maleta y ropa',
@@ -468,11 +503,13 @@ export const itinerario: Itinerario = {
             'Las luces del río Suzhou se apagan hacia las 21:30 entre semana (estimado): mejor ver la orilla antes.',
           subparadas: [
             {
+              id: '90d58e2a731fb6c4',
               nombre: 'Tienda Xiaomi',
               local: '小米之家',
               notas: 'Maletas 90分 (NINETYGO) y Mijia. En el edificio sur, planta baja, según información de hace unos años: confirmarlo.',
             },
             {
+              id: '4c72f1a5eb306d98',
               nombre: 'Sihang Warehouse',
               local: '四行仓库',
               opcional: true,
@@ -481,6 +518,7 @@ export const itinerario: Itinerario = {
               notas: 'Escenario de la defensa de 1937 (la película «The Eight Hundred»): de noche, el muro oeste con los impactos desde la plaza, y el río desde el puente de Xizang Road. El museo cierra a las 16:30.',
             },
             {
+              id: 'e517a8d9c46b023f',
               nombre: 'Fotografiska Shanghai',
               local: 'Fotografiska影像艺术中心',
               opcional: true,
@@ -489,6 +527,7 @@ export const itinerario: Itinerario = {
               notas: 'Museo sueco de fotografía en un almacén junto al río, con bar dentro: de lo poco cultural abierto de noche (10:30–23:00, última entrada hacia las 22:00; 80 ¥).',
             },
             {
+              id: 'b86f3c205da9714e',
               nombre: 'Puente de Zhejiang Road',
               local: '浙江路桥',
               opcional: true,
@@ -497,6 +536,7 @@ export const itinerario: Itinerario = {
               notas: 'Puente de celosía de acero de 1906, uno de los dos centenarios del centro (el otro es el Garden Bridge). Muy fotogénico, y de camino a Suhe MixC.',
             },
             {
+              id: '17a9de486f30cb52',
               nombre: 'Suhe MixC World y Shenyu Li',
               local: '苏河湾万象天地 · 慎余里',
               opcional: true,
@@ -511,6 +551,7 @@ export const itinerario: Itinerario = {
           ],
         },
         {
+          id: 'ead714086b3cf925',
           hora: '20:25',
           fin: '21:00',
           nombre: 'Noria Sky Ring',
@@ -526,6 +567,7 @@ export const itinerario: Itinerario = {
           gastos: [{ concepto: 'entrada (desde)', min: 60 }],
         },
         {
+          id: '731c8fe4a629bd50',
           hora: '21:00',
           fin: '21:50',
           nombre: 'Cena en Top Banana Market',
@@ -538,15 +580,16 @@ export const itinerario: Itinerario = {
             'Está en la planta baja del edificio norte de Joy City. Confirmar a qué hora cierra; si cierra pronto, cenar antes de subir a la noria.',
           gastos: [{ concepto: 'cena (estimado, sin precios publicados)', min: 60, max: 120 }],
           subparadas: [
-            { nombre: 'Opalm Asia', notas: 'Cocina del sudeste asiático.' },
-            { nombre: 'Nuu Nuu', notas: 'Tempura.' },
-            { nombre: 'Karasuma', notas: 'Sukiyaki de wagyu para comer en barra.' },
-            { nombre: 'Wen Made', notas: 'Fideos salteados.' },
+            { id: 'd80c7e5ab391f264', nombre: 'Opalm Asia', notas: 'Cocina del sudeste asiático.' },
+            { id: '5639b1df20e7ac84', nombre: 'Nuu Nuu', notas: 'Tempura.' },
+            { id: 'a3f0682ce9157bd4', nombre: 'Karasuma', notas: 'Sukiyaki de wagyu para comer en barra.' },
+            { id: '79ce2405bd8a631f', nombre: 'Wen Made', notas: 'Fideos salteados.' },
           ],
           enlaces: [enlace('Top Banana Market', 'https://english.shanghai.gov.cn/en-FirstStores/20260211/4976961a80794cf495e4eb67df6371ee.html')],
         },
         {
           ...HOTEL,
+          id: '30bf5ad687e219c4',
           hora: '22:05',
           llegada: { modo: 'taxi', min: 10 },
         },
@@ -559,6 +602,7 @@ export const itinerario: Itinerario = {
       notas: 'Levantarnos a las 10:00.',
       paradas: [
         {
+          id: 'c80e3471f9ab562d',
           hora: '10:30',
           fin: '12:45',
           nombre: 'Middle Huaihai Road: TX Huaihai',
@@ -573,10 +617,12 @@ export const itinerario: Itinerario = {
             'TX Huaihai abre de 11:00 a 22:00.',
           subparadas: [
             {
+              id: 'eb6438fa172dc905',
               nombre: 'Pane',
               notas: 'En TX Huaihai, planta baja (L1-05/06). En festivos ha tenido colas de más de 40 min.',
             },
             {
+              id: '0d92ca85b37e164f',
               nombre: 'Mason Prince',
               direccionLocal: '淮海中路528号',
               notas: 'Enfrente de TX Huaihai.',
@@ -587,6 +633,7 @@ export const itinerario: Itinerario = {
           ],
         },
         {
+          id: '9df146a2e730cb58',
           hora: '13:00',
           fin: '14:00',
           nombre: 'Lanxin (Lyceum Restaurant)',
@@ -602,6 +649,7 @@ export const itinerario: Itinerario = {
           gastos: [{ concepto: 'comida (gasto medio por persona en las reseñas: 60–80 ¥)', min: 60, max: 90 }],
         },
         {
+          id: '452ea1cf8d93706b',
           hora: '14:10',
           fin: '15:00',
           nombre: 'Más tiendas por Huaihai',
@@ -614,12 +662,14 @@ export const itinerario: Itinerario = {
         },
         {
           ...HOTEL,
+          id: 'f827b609ca351d4e',
           hora: '15:30',
           fin: '16:15',
           llegada: { modo: 'metro', detalle: 'Línea 1 o taxi', min: 25 },
           notas: 'Dejar las compras y descansar.',
         },
         {
+          id: '2a97c5e4b1308df6',
           hora: '16:45',
           fin: '18:25',
           nombre: 'Yuyuan y Shanghai Old Street',
@@ -633,6 +683,7 @@ export const itinerario: Itinerario = {
             'El jardín interior de Yuyuan no está incluido: cierra pronto y chocaría con las compras.',
           subparadas: [
             {
+              id: 'c7031f9d6a84be25',
               nombre: 'Semir, tienda insignia',
               local: '森马',
               notas: 'Marca china de ropa diaria, con artículos exclusivos de Shanghái.',
@@ -643,6 +694,7 @@ export const itinerario: Itinerario = {
           ],
         },
         {
+          id: 'db65f821a4c0739e',
           hora: '18:30',
           fin: '19:30',
           nombre: 'Xiaolongbao en Nanxiang',
@@ -656,6 +708,7 @@ export const itinerario: Itinerario = {
           gastos: [{ concepto: 'cena (según la planta)', min: 40, max: 100 }],
         },
         {
+          id: '710ca6d32e98bf45',
           hora: '20:00',
           fin: '21:30',
           nombre: 'The Bund',
@@ -666,6 +719,7 @@ export const itinerario: Itinerario = {
           notas: 'Paseo y vistas nocturnas de Lujiazui.',
         },
         {
+          id: 'e90fb13c7a6428d5',
           hora: '22:00',
           fin: '23:30',
           nombre: 'Speak Low',
@@ -680,6 +734,7 @@ export const itinerario: Itinerario = {
           enlaces: [enlace('Speak Low', 'https://rachelgouk.com/listings/speak-low/')],
         },
         {
+          id: '46a3d805cf129be7',
           hora: '23:45',
           fin: '26:00',
           nombre: 'Hush (INS Land)',
@@ -700,6 +755,7 @@ export const itinerario: Itinerario = {
         },
         {
           ...HOTEL,
+          id: 'c5d8792af064be13',
           hora: '26:30',
           llegada: { modo: 'taxi', min: 20 },
         },
@@ -714,6 +770,7 @@ export const itinerario: Itinerario = {
         'Comida y cena: huecos flexibles dentro del parque o a la salida, según hambre, colas y hora de cierre.',
       paradas: [
         {
+          id: '189fca74d30eb526',
           hora: '09:45',
           fin: '21:40',
           nombre: 'Shanghai Disneyland',
@@ -736,78 +793,91 @@ export const itinerario: Itinerario = {
           ],
           subparadas: [
             {
+              id: '8d6e04b2fa53917c',
               nombre: 'TRON Lightcycle Power Run',
               local: '创极速光轮',
               ...en(D.tron),
               notas: 'La montaña rusa más rápida del parque, en moto y con lanzamiento (122 cm). Unos 50 min de cola: fila single rider o Premier Access (180 ¥). De noche luce más.',
             },
             {
+              id: '291ac5f7e60db438',
               nombre: 'Seven Dwarfs Mine Train',
               local: '七个小矮人矿山车',
               ...en(D.sieteEnanitos),
               notas: 'Montaña rusa familiar con vagones que se balancean (97 cm). Unos 70 min de cola: a primera hora o por la fila single rider. En Halloween, la Reina Malvada ronda por aquí.',
             },
             {
+              id: 'f98c71b40e3a625d',
               nombre: 'Castillo y «Once Upon a Time» Adventure',
               local: '奇幻童话城堡 · 漫游童话时光',
               ...en(D.castillo),
               notas: 'El castillo Disney más grande del mundo y la foto del día; dentro, un recorrido a pie de Blancanieves (unos 10 min de cola). En Halloween salen villanos al balcón de 8:30 a 17:45, con paseo de villanos a las 12:00.',
             },
             {
+              id: '3a57ed18bc6920f4',
               nombre: 'Zootopia: Hot Pursuit',
               local: '疯狂动物城：热力追踪',
               ...en(D.zootopia),
               notas: 'La única zona Zootopia del mundo y la atracción más popular del parque (suave, 81 cm). Colas de 60–90 min: a primera hora o con Premier Access (180 ¥).',
             },
             {
+              id: 'bd01f96a274ec835',
               nombre: 'Desfile Mickey’s Storybook Express',
               local: '米奇童话专列',
               ...en(D.desfile),
               notas: 'A las 12:15 y 15:45 (unos 14 min, con el pre-desfile de Duffy y la carroza de Zootopia). Delante del castillo se llena: más hueco en Tomorrowland y Toy Story Land, 15–20 min antes.',
             },
             {
+              id: '6287ba0e91f4d3c5',
               nombre: 'Pirates of the Caribbean: Battle for the Sunken Treasure',
               local: '加勒比海盗——沉落宝藏之战',
               ...en(D.piratas),
               notas: 'Versión exclusiva de Shanghái, con una batalla submarina: para muchos, el mejor dark ride de Disney. Unos 25 min de cola: buena para mediodía.',
             },
             {
+              id: 'e4ad319f86c5072b',
               nombre: 'Roaring Rapids',
               local: '雷鸣山漂流',
               ...en(D.rapidos),
               notas: 'Rápidos con un monstruo animatrónico gigante; te mojas bastante (107 cm). Mejor a primera hora de la tarde; single rider o Premier Access (180 ¥).',
             },
             {
+              id: '15cf902be6a8473d',
               nombre: 'Soaring Over the Horizon',
               local: '翱翔•飞越地平线',
               ...en(D.soaring),
               notas: 'Vuelo simulado sobre maravillas del mundo, suave (102 cm). La cola más larga del parque (unos 80 min): Premier Access (180 ¥) o la última hora.',
             },
             {
+              id: 'ae7294d130bf8c65',
               nombre: 'Desfile de Halloween de Donald',
               local: '唐老鸭和朋友们的反派巡游',
               ...en(D.desfile),
               notas: 'A las 14:15 y 18:15: los villanos de protagonistas, Mickey y compañía en versión steampunk y Pete; eligen a gente disfrazada para desfilar. El de las 18:15 enlaza con la celebración de villanos en el castillo.',
             },
             {
+              id: '7048dc62bf3e19a5',
               nombre: 'Celebración de villanos en el castillo',
               local: '迪士尼反派魅影秀',
               ...en(D.desfile),
               notas: 'Solo en los días especiales de Halloween: proyecciones con los villanos sobre el castillo, después del desfile de las 18:15 (hacia las 18:45, sin confirmar). Se ve desde los jardines de delante del castillo.',
             },
             {
+              id: 'd3f961ac082e7b45',
               nombre: 'Zonas de fiesta de Halloween',
               local: '怪好玩蹦迪舞池',
               ...en(D.fiestaTomorrowland),
               notas: 'Cinco pistas con DJ, bailarines y personajes, de 18:00 a 22:00 (horario de 2025): Tomorrowland (este punto), Treasure Cove, Adventure Isle, Fantasyland y Zootopia. Solo en los días especiales.',
             },
             {
+              id: '45b8e017c92ad63f',
               nombre: 'ILLUMINATE! y el final del 10.º aniversario',
               local: '奇梦之光幻影秀',
               ...en(D.illuminate),
               notas: 'A las 21:15: proyecciones, fuegos y láser sobre el castillo. Coger sitio en el eje central, junto a la estatua Storytellers, 30–40 min antes (zona reservada: 299 ¥).',
             },
             {
+              id: 'c27d9a5361ef084b',
               nombre: 'Peter Pan’s Flight',
               local: '小飞侠天空奇遇',
               opcional: true,
@@ -815,6 +885,7 @@ export const itinerario: Itinerario = {
               notas: 'Más larga y moderna que la de París. Unos 30 min de cola; Premier Access, 140 ¥.',
             },
             {
+              id: '8a16f40eb5372cd9',
               nombre: 'Villains’ Club',
               local: '反派俱乐部',
               opcional: true,
@@ -822,12 +893,14 @@ export const itinerario: Itinerario = {
               notas: 'Espectáculo de villanos de Halloween en el escenario de Tomorrowland, a las 19:00 y 19:50 (horario de estos días).',
             },
             {
+              id: 'f503d87c1e9a642b',
               nombre: 'Buccaneer Bash',
               opcional: true,
               ...en(D.fiestaTesoro),
               notas: 'Fiesta pirata de Halloween en Treasure Cove, de 17:50 a 20:20 (horario de estos días).',
             },
             {
+              id: '3d8a6b19cf0472e5',
               nombre: 'Fiesta de Donald (Treat Party)',
               local: '唐老鸭捣蛋派对',
               opcional: true,
@@ -835,6 +908,7 @@ export const itinerario: Itinerario = {
               notas: 'En Festival Forest (Fantasyland), de día: en 2025 a las 10:30, 11:30, 13:30 y 14:30.',
             },
             {
+              id: 'b49102fc7a6e358d',
               nombre: 'Truco o trato',
               local: '不给糖就捣蛋',
               opcional: true,
@@ -842,12 +916,14 @@ export const itinerario: Itinerario = {
               notas: 'De 18:30 a 21:30 (horario de 2025) en Evergreen Playhouse (este punto), Story House Stage y el Teatro Fandango.',
             },
             {
+              id: '69ce5a13d870fb24',
               nombre: 'Personajes de Halloween',
               opcional: true,
               ...en(D.meetingPost),
               notas: 'Lotso en Meeting Post (este punto), Chip y Dale en Trading Post, Jack y Sally en Fantasyland, Pete en Mickey Avenue, la Reina Malvada en Seven Dwarfs y Loki en Marvel Universe.',
             },
             {
+              id: 'e7a6d4b802fc3159',
               nombre: 'The Heart of Magic',
               local: '奇妙之心城堡秀',
               opcional: true,
@@ -855,6 +931,7 @@ export const itinerario: Itinerario = {
               notas: 'Espectáculo nuevo del 10.º aniversario frente al castillo (debutan Hércules y Miguel, de Coco): estos días a las 10:05, 11:30, 13:40 y 15:05 (el horario del 23, aún sin publicar).',
             },
             {
+              id: '108be973c5d6a24f',
               nombre: 'Mickey’s Storybook Adventure',
               local: '华特迪士尼大剧院',
               opcional: true,
@@ -862,12 +939,14 @@ export const itinerario: Itinerario = {
               notas: 'Musical de calidad Broadway de 28 min en el Walt Disney Grand Theatre; para varias guías, el mejor espectáculo del parque. De 5 a 8 pases al día.',
             },
             {
+              id: 'a64f08d9be712c35',
               nombre: 'Eye of the Storm: Captain Jack’s Stunt Spectacular',
               opcional: true,
               ...en(D.tormenta),
               notas: 'Espectáculo de especialistas de 30 min a cubierto: buen descanso. Muchos pases al día.',
             },
             {
+              id: '7b29e5f0ac638d14',
               nombre: 'Rex’s Racer',
               local: '抱抱龙冲天赛车',
               opcional: true,
@@ -875,6 +954,7 @@ export const itinerario: Itinerario = {
               notas: 'Montaña rusa en U que va y viene, intensa y corta (120 cm). Unos 50 min de cola.',
             },
             {
+              id: 'd182b7ca4f096e35',
               nombre: 'Jet Packs',
               local: '喷气背包飞行器',
               opcional: true,
@@ -882,6 +962,7 @@ export const itinerario: Itinerario = {
               notas: 'Giratoria en la que se vuela tumbado boca abajo (112 cm). Unos 35 min de cola.',
             },
             {
+              id: '492f6c8be1d703a5',
               nombre: 'Challenge Trails',
               local: '古迹探索营 · 绳索挑战道',
               opcional: true,
@@ -889,6 +970,7 @@ export const itinerario: Itinerario = {
               notas: 'Circuito de cuerdas con arnés por las paredes de la montaña, exclusivo de Shanghái (106 cm). Solo de día.',
             },
             {
+              id: 'c5a318f29d64be07',
               nombre: 'Zootopia en Halloween y Judy & Nick',
               local: '疯狂动物城 嚎叫节',
               opcional: true,
@@ -896,6 +978,7 @@ export const itinerario: Itinerario = {
               notas: 'Aullidos de Halloween a las 17:10, 18:10 y 19:10, y la bebida azul de temporada en Jumbeaux’s Café. Judy y Nick: de 30 a 60 min de cola.',
             },
             {
+              id: '8f70ce43a5192bd6',
               nombre: 'LinaBell',
               local: '萌友小站 · 玲娜贝儿',
               opcional: true,
@@ -903,6 +986,7 @@ export const itinerario: Itinerario = {
               notas: 'El personaje fenómeno en China, con la cola más larga del parque (horas): vale la pena ver el ambiente. Posición aproximada.',
             },
             {
+              id: 'f69b241edc8307a5',
               nombre: 'Duffy y sus amigos',
               local: '达菲和朋友们',
               opcional: true,
@@ -910,6 +994,7 @@ export const itinerario: Itinerario = {
               notas: 'Encuentros cortos en las tiendas de Mickey Avenue; las horas salen en la app del día.',
             },
             {
+              id: '37d85a0cf162eb94',
               nombre: 'Marvel Universe',
               local: '漫威英雄总部',
               opcional: true,
@@ -917,12 +1002,14 @@ export const itinerario: Itinerario = {
               notas: 'Pabellón con Capitán América, Spider-Man y la experiencia de Iron Man; en Halloween, también Loki. De 5 a 10 min de cola.',
             },
             {
+              id: 'b250f9a74ce1683d',
               nombre: 'Pixar Adventurous Journey',
               opcional: true,
               ...en(D.pixar),
               notas: 'Exposición inmersiva de siete mundos Pixar (2025), rápida y muy fotogénica. Posición aproximada.',
             },
             {
+              id: '6c1e7db4a903f852',
               nombre: 'Laberinto de Alicia',
               local: '爱丽丝梦游仙境迷宫',
               opcional: true,
@@ -930,6 +1017,7 @@ export const itinerario: Itinerario = {
               notas: 'Laberinto fotogénico con la Reina Roja y la merienda del Sombrerero, sin cola; en los días especiales de Halloween, con naipes y el Sombrerero de día.',
             },
             {
+              id: 'e902a57f13bc6d48',
               nombre: 'Jardín de los Doce Amigos',
               local: '十二朋友园',
               opcional: true,
@@ -937,6 +1025,7 @@ export const itinerario: Itinerario = {
               notas: 'Mosaicos del zodiaco chino con personajes Disney, exclusivo de Shanghái: buscad vuestro signo.',
             },
             {
+              id: '142c8f6de7a9530b',
               nombre: 'Pata de pavo (Tortuga Treats)',
               local: '土图嘉风味',
               opcional: true,
@@ -944,6 +1033,7 @@ export const itinerario: Itinerario = {
               notas: 'El snack más famoso del parque, unos 85 ¥ (puede que se venda a partir de las 14:30).',
             },
             {
+              id: 'a91df4c762e035b8',
               nombre: 'Pawpsicle (Jumbeaux’s Café)',
               local: '大象甜品店',
               opcional: true,
@@ -951,18 +1041,21 @@ export const itinerario: Itinerario = {
               notas: 'El polo con forma de pata de la película, de espino y gofre (unos 45 ¥); en Halloween, también la bebida azul de curaçao.',
             },
             {
+              id: '70b65e8ac41d239f',
               nombre: 'Churros de sésamo negro (Stargazer Grill)',
               opcional: true,
               ...en(D.stargazer),
               notas: 'Churros de Halloween, solo en temporada.',
             },
             {
+              id: 'd4e82b91fa6703c5',
               nombre: 'Hot dog de calabaza (Timothy’s Treats)',
               opcional: true,
               ...en(D.timothy),
               notas: 'Hot dog con salsa de calabaza, solo en temporada.',
             },
             {
+              id: '4ba039d5c728e16f',
               nombre: 'CookieAnn Bakery Café',
               local: '琦妙美味屋',
               opcional: true,
@@ -970,6 +1063,7 @@ export const itinerario: Itinerario = {
               notas: 'La pastelería de Duffy y sus amigos: dulces con forma de personaje.',
             },
             {
+              id: 'c8f1a462d97b350e',
               nombre: 'Wandering Moon Teahouse',
               local: '漫月食府',
               opcional: true,
@@ -977,6 +1071,7 @@ export const itinerario: Itinerario = {
               notas: 'Servicio rápido con cocinas de varias regiones de China en un pabellón de jardín: buena para comer.',
             },
             {
+              id: '82e5d91bf0643ca7',
               nombre: 'Avenue M Arcade',
               local: 'M大街购物廊',
               opcional: true,
@@ -984,6 +1079,7 @@ export const itinerario: Itinerario = {
               notas: 'La tienda más grande del parque (10.º aniversario, las cuatro colecciones de Halloween, Duffy y LinaBell): mejor al final, junto a la salida.',
             },
             {
+              id: 'f2c79a0e3865bd14',
               nombre: 'Disneytown y World of Disney',
               local: '迪士尼小镇',
               opcional: true,
@@ -991,6 +1087,7 @@ export const itinerario: Itinerario = {
               notas: 'Fuera del parque, de camino al metro: comer sale más barato y está la enorme World of Disney Store, abierta después del cierre.',
             },
             {
+              id: '360db418e7ac295f',
               nombre: 'Wishing Star Park',
               local: '星愿公园',
               opcional: true,
@@ -1008,11 +1105,13 @@ export const itinerario: Itinerario = {
         },
         {
           ...HOTEL,
+          id: 'a4be1793f5086cd2',
           hora: '22:50',
           llegada: { modo: 'metro', detalle: 'Metro (línea 11 y transbordo) o taxi/DiDi', min: 70 },
           notas: 'Después de Disney, cerca del hotel quedan pocas cosas abiertas: lo de abajo es lo que se ha podido confirmar.',
           subparadas: [
             {
+              id: 'ba5e739c1f820d64',
               nombre: 'Paseo por el río y el puente Baihe',
               local: '苏州河百合桥',
               opcional: true,
@@ -1021,6 +1120,7 @@ export const itinerario: Itinerario = {
               notas: 'A dos minutos: el puente peatonal nuevo y el paseo del río. A esa hora ya sin las luces decorativas (se apagan a las 21:30): paseo tranquilo más que foto.',
             },
             {
+              id: '61fc08a9d4237be5',
               nombre: 'Lawson',
               local: '罗森便利店',
               opcional: true,
@@ -1029,6 +1129,7 @@ export const itinerario: Itinerario = {
               notas: 'Junto al hotel: agua, cerveza, fruta y oden (关东煮) caliente. Horario sin confirmar; hay un FamilyMart (全家) a 160 m.',
             },
             {
+              id: 'e83b65d217ca0f49',
               nombre: 'McDonald’s 24 h (Changshou Road)',
               local: '麦当劳（长寿路店）',
               opcional: true,
@@ -1051,6 +1152,7 @@ export const itinerario: Itinerario = {
         'Fuera del plan: Niushoushan, Mausoleo Ming Xiaoling, Palacio Presidencial y los demás museos.',
       paradas: [
         {
+          id: 'f379b024eac5168d',
           hora: '10:45',
           fin: '11:10',
           nombre: 'Estación de Shanghái',
@@ -1066,6 +1168,7 @@ export const itinerario: Itinerario = {
           ],
         },
         {
+          id: 'b102e9c64a8d753f',
           hora: '12:50',
           nombre: 'Estación de Nankín',
           local: '南京站',
@@ -1074,6 +1177,7 @@ export const itinerario: Itinerario = {
           llegada: { modo: 'tren', detalle: 'Tren G/D (horario pendiente de reserva)', min: 100 },
         },
         {
+          id: '509cf2e3bd847a16',
           hora: '13:15',
           fin: '13:50',
           nombre: 'Comida junto a Jiming Temple',
@@ -1088,6 +1192,7 @@ export const itinerario: Itinerario = {
           gastos: [{ concepto: 'comida', min: 20, max: 50 }],
         },
         {
+          id: '8fa17c35de2064b9',
           hora: '14:00',
           fin: '16:30',
           nombre: 'Museo Paleontológico de Nankín',
@@ -1105,6 +1210,7 @@ export const itinerario: Itinerario = {
           enlaces: [enlace('Guía oficial del museo', 'https://www.nmp.ac.cn/bwggk/cgzn/')],
         },
         {
+          id: '246cb0f8a91d7e53',
           hora: '16:40',
           fin: '17:10',
           nombre: 'Paseo junto a Jiming Temple',
@@ -1118,6 +1224,7 @@ export const itinerario: Itinerario = {
           gastos: [{ concepto: 'entrada (aprox., sin confirmar)', min: 10 }],
         },
         {
+          id: 'ca85e71b0639df24',
           hora: '17:35',
           fin: '18:00',
           nombre: 'Estación de Nankín',
@@ -1129,6 +1236,7 @@ export const itinerario: Itinerario = {
           gastos: [{ concepto: 'tren de vuelta, 2.ª clase', min: 110, max: 160 }],
         },
         {
+          id: '7d30ba49c2e8651f',
           hora: '19:40',
           nombre: 'Estación de Shanghái',
           local: '上海站',
@@ -1138,6 +1246,7 @@ export const itinerario: Itinerario = {
         },
         {
           ...HOTEL,
+          id: 'ed261f7c904ab835',
           hora: '20:00',
           llegada: { modo: 'a_pie', min: 10 },
           notas: 'Cena sencilla cerca del hotel.',
@@ -1154,6 +1263,7 @@ export const itinerario: Itinerario = {
         'Con el museo, los cafés pasan a la tarde y Lujiazui se ve ya de noche.',
       paradas: [
         {
+          id: '9b4ec6a1073f825d',
           hora: '11:45',
           fin: '14:00',
           nombre: 'Museo de Historia Natural de Shanghái',
@@ -1174,6 +1284,7 @@ export const itinerario: Itinerario = {
           ],
         },
         {
+          id: '35c09ed7ab681f42',
           hora: '14:20',
           fin: '15:20',
           nombre: 'Comida en el n.º 98 de Wukang Road',
@@ -1187,10 +1298,12 @@ export const itinerario: Itinerario = {
             'Dos restaurantes en el mismo número. Posición en el mapa aproximada.',
           subparadas: [
             {
+              id: '1d794a6fe5b032c8',
               nombre: 'SOMETHING Dining & Bar',
               notas: '2.ª planta. Brunch y cocina occidental de 10:00 a 22:00: a esta hora, lo seguro.',
             },
             {
+              id: 'a02cf835b1697de4',
               nombre: 'Dongxin Jiujia',
               opcional: true,
               notas: 'Cocina shanghainesa. Sin confirmar si sirve después de las 14:00.',
@@ -1203,6 +1316,7 @@ export const itinerario: Itinerario = {
           ],
         },
         {
+          id: 'e71a4390fc2d68b5',
           hora: '15:25',
           fin: '15:50',
           nombre: 'Wukang Road y Wukang Mansion',
@@ -1214,6 +1328,7 @@ export const itinerario: Itinerario = {
           notas: 'Paseo y compras relajadas por Wukang Road y Anfu Road: boutiques y diseño local, sin obligación de comprar.',
         },
         {
+          id: '4f62bc9a807e1d35',
           hora: '16:05',
           fin: '16:50',
           nombre: '13DEMARZO Café',
@@ -1233,6 +1348,7 @@ export const itinerario: Itinerario = {
           ],
         },
         {
+          id: 'bc893e71d4a6205f',
           hora: '17:05',
           fin: '17:35',
           nombre: 'CUBIC3: -86°C Dirty',
@@ -1248,6 +1364,7 @@ export const itinerario: Itinerario = {
           enlaces: [enlace('CUBIC3 en Amap', 'https://www.amap.com/place/B0LUF51YXH')],
         },
         {
+          id: '0a6f24c9e85371db',
           hora: '17:35',
           fin: '18:00',
           nombre: 'Hinichijou (Bear Paw Café)',
@@ -1261,6 +1378,7 @@ export const itinerario: Itinerario = {
           enlaces: [enlace('Hinichijou', 'https://english.shanghai.gov.cn/en-Cafes/20240823/f098caef928a48a495162811624512a4.html')],
         },
         {
+          id: 'd3178fa26b94ce05',
           hora: '18:40',
           fin: '19:20',
           nombre: 'Lujiazui de noche',
@@ -1271,6 +1389,7 @@ export const itinerario: Itinerario = {
           notas: 'Pasarela circular entre los rascacielos, ya iluminados.',
         },
         {
+          id: '683dc450ef9a172b',
           hora: '19:25',
           fin: '21:00',
           nombre: 'Torre Perla Oriental',
@@ -1287,6 +1406,7 @@ export const itinerario: Itinerario = {
         },
         {
           ...HOTEL,
+          id: 'af5e8219c03b6d47',
           hora: '21:40',
           llegada: { modo: 'metro', detalle: 'Línea 2 y transbordo, o taxi', min: 35 },
           notas: 'Ordenar compras y pesar la maleta.',
@@ -1301,12 +1421,14 @@ export const itinerario: Itinerario = {
       paradas: [
         {
           ...HOTEL,
+          id: '20c7deab53916f84',
           hora: '07:15',
           fin: '07:50',
           notas: 'Check-out.',
         },
         {
           ...PVG,
+          id: 'f41b9308a7ce265d',
           hora: '09:05',
           fin: '12:40',
           llegada: { modo: 'taxi', detalle: 'Taxi o DiDi (según tráfico)', min: 75 },
@@ -1354,12 +1476,12 @@ export const itinerario: Itinerario = {
     },
   ],
   pendientes: [
-    'Museo de Historia Natural (domingo 25): reservar la entrada (no venden en taquilla).',
-    'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.',
-    'Tren y museo: comprobar 12306, elegir estaciones y horarios reales y hacer la reserva nominal del museo.',
-    'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.',
-    'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.',
-    'Domingo noche: decidir cena giratoria en la Perla o solo vistas; reservar solo tras ver el precio final.',
-    'Jueves noche: mirar la programación y la entrada de Hush/INS para el 22.',
+    { id: 'c849d1a6f7302be5', texto: 'Museo de Historia Natural (domingo 25): reservar la entrada (no venden en taquilla).' },
+    { id: '38f76ad0e1bc5492', texto: 'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.' },
+    { id: 'd57b9016ce42a83f', texto: 'Tren y museo: comprobar 12306, elegir estaciones y horarios reales y hacer la reserva nominal del museo.' },
+    { id: '71ea52c093b6fd84', texto: 'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.' },
+    { id: 'b1f8074a6d3c92e5', texto: 'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.' },
+    { id: '095cbe73a24f681d', texto: 'Domingo noche: decidir cena giratoria en la Perla o solo vistas; reservar solo tras ver el precio final.' },
+    { id: 'ef64a20d831c7b95', texto: 'Jueves noche: mirar la programación y la entrada de Hush/INS para el 22.' },
   ],
 };

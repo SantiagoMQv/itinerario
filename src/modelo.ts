@@ -1,6 +1,6 @@
 import { type Arco, type LngLat, crearArco, distanciaKm } from './geo';
 import { aMinutos } from './formato';
-import type { Dia, Itinerario, Parada, Seccion, Subparada, Transporte } from './tipos';
+import type { Dia, Itinerario, Parada, Pendiente, Seccion, Subparada, Transporte } from './tipos';
 
 export interface ParadaC {
   /** Índice global en todo el viaje. */
@@ -77,6 +77,9 @@ export interface Modelo {
   yuanesPorEuro?: number;
   ejemplo: boolean;
   secciones: Seccion[];
+  /** Pendientes con identidad persistente, en el orden de los datos. */
+  listaPendientes: Pendiente[];
+  /** Proyección de textos compatible con la interfaz y las casillas existentes. */
   pendientes: string[];
   dias: DiaC[];
   paradas: ParadaC[];
@@ -234,7 +237,8 @@ export function construirModelo(it: Itinerario): Modelo {
     yuanesPorEuro: it.yuanesPorEuro,
     ejemplo: !!it.ejemplo,
     secciones: it.secciones ?? [],
-    pendientes: it.pendientes ?? [],
+    listaPendientes: it.pendientes ?? [],
+    pendientes: (it.pendientes ?? []).map((p) => p.texto),
     dias,
     paradas,
     tramos,
