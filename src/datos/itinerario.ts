@@ -641,13 +641,14 @@ export const itinerario: Itinerario = {
           llegada: { modo: 'a_pie' },
           direccionLocal: '淮海中路523号',
           notas:
-            'Centro comercial pequeño para gente joven: streetwear y marcas chinas jóvenes, tiendas temporales que cambian cada pocas semanas y exposiciones. No es lujo ni artesanía. Precio medio-alto, como una tienda de diseño en España.\n' +
+            'Centro comercial pequeño para gente joven: streetwear y marcas chinas jóvenes, tiendas temporales que cambian cada pocas semanas y exposiciones. No es lujo ni artesanía.\n' +
+            'Caro para China, pero normal o algo más barato que en Europa: no es de chollos. Lo que más compensa son las marcas chinas que fuera solo se venden por internet, como Pane. Las camisetas de ROARINGWILD, unos 120–350 ¥ (15–43 €).\n' +
             'En la 4.ª planta, la tienda de estilo de vida TX(Here) y, hasta el 1 de noviembre, la exposición «T BABY». Tiendas de 10:00 a 22:00.',
           subparadas: [
             {
               id: 'eb6438fa172dc905',
               nombre: 'Pane',
-              notas: 'Zapatillas de una marca de Shanghái, en la planta baja. En la práctica, 700–900 ¥ el par (precio oficial, 1.000–1.400 ¥). Tiene cola y se agotan tallas: mejor al principio.',
+              notas: 'Zapatillas de piel y ante de una marca de Shanghái, en la planta baja: 700–1.000 ¥ (85–122 €); fuera de China pasan de 160 €. Tiene cola y se agotan tallas: mejor al principio.',
             },
             {
               id: 'c3dc4601dba20b7c',
@@ -1555,6 +1556,18 @@ export const itinerario: Itinerario = {
         'Desayuno incluido del 22 al 26, de 07:00 a 10:00: preguntar si lo dan para llevar, sin contar con ello.',
       ],
       enlaces: [enlace('Ficha del hotel', 'https://sg.trip.com/hotels/jing-an-district-hotel-detail-2895314/aqua-suhe-no-1-hotel-shanghai-jingan/')],
+    },
+    {
+      titulo: 'Pagar y compras',
+      puntos: [
+        'Alipay y WeChat Pay con tarjeta extranjera: sin comisión hasta 200 ¥; por encima, un 3 % sobre el total. Para compras grandes, mejor pagar con la tarjeta (Visa o Mastercard) en el datáfono de la tienda, si la aceptan.',
+        'Devolución de impuestos para turistas: comprando 200 ¥ o más en una misma tienda y el mismo día, con el pasaporte, en las tiendas adheridas (preguntar antes de pagar). Se recupera más o menos un 9 % (un 11 % menos la comisión).',
+        'Las tiendas con el cartel «即买即退» lo devuelven en el momento, dejando la tarjeta preautorizada. Al salir, el lunes 26 en Pudong, enseñar las compras y los papeles en la aduana antes de facturar.',
+      ],
+      enlaces: [
+        enlace('Devolución de impuestos (Shanghái)', 'https://english.shanghai.gov.cn/en-InFocus/20250429/19697c0873294f9fbc9e8e6a158e5bbc.html'),
+        enlace('Comisión de Alipay y WeChat con tarjeta extranjera', 'https://help.mp.net/en/articles/15048347-wechat-pay-alipay-international-card-fees-3-on-transactions-over-200'),
+      ],
     },
     {
       titulo: 'Fuera del plan por ahora',
