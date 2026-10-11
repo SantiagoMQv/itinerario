@@ -18,6 +18,7 @@ Web para móvil que sirve para revisar el itinerario de un viaje a Shanghái (co
 - **Todo el viaje:** la pestaña «Todo» enseña todos los días a la vez, cada uno de un color, con la lista de pendientes («3 de 7») y la fecha del plan que lleva tu móvil. Antes del viaje la app se abre aquí, con «Antes de salir»: lo pendiente por comprobar y el botón para guardar los mapas.
 - **Sin conexión:** el botón «Mapas» guarda la app y los mapas de todas las zonas del viaje (unos 30 MB). Si te quedas sin internet, una píldora lo avisa junto a «Hotel»; al tocarla te dice qué sigue funcionando.
 - **Claro o noche:** sin tocar nada, sigue al móvil (si se pone oscuro al anochecer, la app también). El botón «Noche» / «Claro» lo fija a mano y se recuerda.
+- **Entrada del piloto compartido (preparada, sin publicar):** `servidor/entrada.ts` genera la página «/entrar»: «Contraseña del viaje», «Nombre de este móvil» (opcional) y «Entrar», que pide la sesión a `POST /api/sesion` y, si se confirma, abre «/». Cada móvil entra por separado y guarda solo un identificador propio (`identificador-dispositivo`, que no da acceso); la contraseña no se guarda. Aún no hay Worker ni despliegue que la sirva y las marcas no se sincronizan: la web publicada en GitHub Pages sigue igual que antes.
 
 ## Cambiar el itinerario
 
