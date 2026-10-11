@@ -19,7 +19,8 @@ const SUB_MAX_KM = 2;
 const HORA = /^([01]\d|2[0-9]):[0-5]\d$/;
 const HAN = /\p{Script=Han}/u;
 
-// Capturadas antes de añadir identidades: protegen las marcas guardadas en los móviles.
+// Claves «fecha|hora|nombre» del plan: las marcas antiguas de los móviles se recuperan con ellas. Si un
+// cambio del itinerario las toca, actualizar la lista a propósito (antes del viaje no hay marcas que perder).
 const CLAVES_HEREDADAS = [
   '2026-10-21|07:00|Aeropuerto de Pudong (PVG), T1',
   '2026-10-21|10:00|Hotel Aqua Suhe NO.1',
@@ -31,14 +32,14 @@ const CLAVES_HEREDADAS = [
   '2026-10-21|20:25|Noria Sky Ring',
   '2026-10-21|21:00|Cena en Top Banana Market',
   '2026-10-21|22:05|Hotel Aqua Suhe NO.1',
-  '2026-10-22|10:30|Middle Huaihai Road: TX Huaihai',
-  '2026-10-22|13:00|Lanxin (Lyceum Restaurant)',
-  '2026-10-22|14:10|Más tiendas por Huaihai',
-  '2026-10-22|15:30|Hotel Aqua Suhe NO.1',
-  '2026-10-22|16:45|Yuyuan y Shanghai Old Street',
-  '2026-10-22|18:30|Xiaolongbao en Nanxiang',
-  '2026-10-22|20:00|The Bund',
-  '2026-10-22|22:00|Hotel Aqua Suhe NO.1',
+  '2026-10-22|11:10|Parque Fuxing',
+  '2026-10-22|11:50|Middle Huaihai Road: TX Huaihai',
+  '2026-10-22|12:55|Lanxin (Lyceum Restaurant)',
+  '2026-10-22|13:55|Compras por Huaihai y parque Xiangyang',
+  '2026-10-22|15:20|Jardín Yuyuan',
+  '2026-10-22|16:35|Bazar de Yuyuan y Old Street',
+  '2026-10-22|19:45|Cena: pato pekinés en Quanjude',
+  '2026-10-22|21:30|Hotel Aqua Suhe NO.1',
   '2026-10-23|09:45|Shanghai Disneyland',
   '2026-10-23|22:50|Hotel Aqua Suhe NO.1',
   '2026-10-24|10:45|Estación de Shanghái',
@@ -72,22 +73,23 @@ const TEXTOS_HEREDADOS = [
   'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.',
   'Domingo noche: decidir cena giratoria en la Perla o solo vistas; reservar solo tras ver el precio final.',
   'Sábado noche: mirar la programación y la entrada de Hush/INS para el 24.',
+  'Jueves 22: reservar mesa en Quanjude para las 19:45 (021-6418 1577, o que llame el hotel).',
 ];
 
 describe('identidades persistentes', () => {
-  test('las 134 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
+  test('las 141 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
     const subs = paradas.flatMap(({ p }) => p.subparadas ?? []);
     const pendientes = itinerario.pendientes ?? [];
     expect(paradas).toHaveLength(42);
-    expect(subs).toHaveLength(84);
-    expect(pendientes).toHaveLength(7);
+    expect(subs).toHaveLength(90);
+    expect(pendientes).toHaveLength(8);
     const ids = [itinerario.id, ...paradas.map(({ p }) => p.id), ...subs.map((s) => s.id), ...pendientes.map((p) => p.id)];
     for (const id of ids) expect(id).toMatch(/^[a-f0-9]{16}$/);
-    expect(new Set(ids).size).toBe(134);
+    expect(new Set(ids).size).toBe(141);
     // Cada identidad está escrita en los datos, no calculada a partir del contenido ni del orden.
     const fuente = readFileSync(new URL('../src/datos/itinerario.ts', import.meta.url), 'utf8');
     const literales = [...fuente.matchAll(/\bid: '([a-f0-9]{16})'/g)].map((m) => m[1]);
-    expect(literales).toHaveLength(134);
+    expect(literales).toHaveLength(141);
     expect(literales.sort()).toEqual([...ids].sort());
     expectTypeOf<Pick<Itinerario, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
     expectTypeOf<Pick<Parada, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
@@ -139,7 +141,7 @@ describe('identidades persistentes', () => {
     expect(conSubs.subs.some((s) => original.subs.find((o) => o.s.id === s.s.id)!.i !== s.i)).toBe(true);
     for (const t of cambiado.tramos) expect(t.id).toBe(t.hasta.id);
     expect(cambiado.listaPendientes.map((p) => p.id)).toEqual(modelo.listaPendientes.map((p) => p.id).reverse());
-    expect(cambiado.pendientes).toEqual(Array(7).fill('Otro texto'));
+    expect(cambiado.pendientes).toEqual(Array(8).fill('Otro texto'));
   });
 
   test('conserva exactamente las claves y los textos heredados en su orden original', () => {
