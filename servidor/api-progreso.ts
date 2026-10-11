@@ -1,6 +1,7 @@
 import type { Itinerario } from '../src/tipos';
 import { aplicarOperacion, type Operacion } from '../src/progreso';
 import { campos, iguales } from '../src/progreso-validacion';
+import { serializarProgreso } from '../src/progreso-json';
 import {
   capturarOperacionProgreso, capturarInstantaneaProgreso, capturarAcusePersistido,
   capturarRechazoPersistido, type AcusePersistido, type RechazoPersistido,
@@ -62,6 +63,13 @@ function etag(viajeId: string, revision: number): string {
 async function puerto<T>(ejecutar: () => Promise<T>): Promise<T> {
   try { return await ejecutar(); } catch { throw new Error(ERROR_SISTEMA); }
 }
+// Solo DTO capturado de dominio: el helper HTTP genérico sigue fuera de esta frontera.
+function respuestaProgreso(datos: unknown, estado = 200): Response {
+  return new Response(serializarProgreso(datos), { status: estado, headers: {
+    'Cache-Control': 'private, no-store', 'Vary': 'Cookie',
+    'Content-Type': 'application/json; charset=utf-8', 'X-Content-Type-Options': 'nosniff',
+  } });
+}
 const sinSesion = () => {
   const respuesta = respuestaJson({ error: 'Se necesita una sesión vigente.' }, 401);
   respuesta.headers.set('Set-Cookie', borrarCookieSesion());
@@ -108,7 +116,7 @@ export function crearControladorProgreso(configuracion: ConfiguracionProgreso): 
           const instantanea = capturarInstantaneaProgreso(plan, resultado.instantanea);
           if (!instantanea) throw new Error(ERROR_SISTEMA);
           const etiqueta = etag(plan.id, instantanea.revisionServidor);
-          const respuesta = respuestaJson(instantanea);
+          const respuesta = respuestaProgreso(instantanea);
           respuesta.headers.set('ETag', etiqueta);
           return solicitud.headers.get('If-None-Match') === etiqueta
             ? new Response(null, { status: 304, headers: respuesta.headers }) : respuesta;
@@ -127,12 +135,12 @@ export function crearControladorProgreso(configuracion: ConfiguracionProgreso): 
           const acuse = capturarAcusePersistido(plan, resultado.acuse);
           if (!acuse || acuse.operacionId !== original.id
             || aplicarOperacion(plan, acuse.instantanea.estado, original).tipo !== 'duplicada') throw new Error(ERROR_SISTEMA);
-          return respuestaJson(acuse);
+          return respuestaProgreso(acuse);
         }
         if (sobre(resultado, ['tipo', 'rechazo']) && resultado.tipo === 'rechazada') {
           const rechazo = capturarRechazoPersistido(plan, resultado.rechazo);
           if (!rechazo || !iguales(rechazo.operacionOriginal, original)) throw new Error(ERROR_SISTEMA);
-          return respuestaJson(rechazo, 409);
+          return respuestaProgreso(rechazo, 409);
         }
         throw new Error(ERROR_SISTEMA);
       } catch (error) {

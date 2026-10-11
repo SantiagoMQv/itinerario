@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 import { crearControladorProgreso } from '../../servidor/api-progreso';
 import { FalloHttp } from '../../servidor/http';
+import { serializarProgreso } from '../../src/progreso-json';
+import { agregarIntencion, iniciarCola, marcarEnviada, recibirAcuse, recibirRechazo,
+  capturarAcusePersistido, capturarInstantaneaProgreso, capturarRechazoPersistido } from '../../src/progreso-cola';
 import { aplicarOperacion, crearProgreso, type Operacion } from '../../src/progreso';
 import type { InstantaneaProgreso } from '../../src/progreso-validacion';
 import type { Itinerario } from '../../src/tipos';
@@ -60,6 +63,66 @@ function oculta<T>(valor: T): T {
 const conGetter = () => Object.defineProperty({}, 'tipo', { get() { throw new Error('No ejecutar getter'); } });
 
 describe('API HTTP pura de progreso', () => {
+  const solicitudExacta = (op: Operacion) => new Request(origen + '/api/progreso', { method: 'POST',
+    headers: { Origin: origen, 'Content-Type': 'application/json' }, body: serializarProgreso(op) });
+  it('GET y acuse histórico conservan hora -0, recibo real, replay y 304 privado', async () => {
+    const p = preparar(); const op = operacion({ horaReal: -0, revision: -0 });
+    const acuse = positiva(op);
+    p.repositorio.procesar.mockImplementation(async (_huella, _viaje, recibido) => {
+      expect(recibido.tipo).toBe('parada');
+      if (recibido.tipo === 'parada') {
+        expect(Object.is(recibido.revision, -0)).toBe(true);
+        expect(Object.is(recibido.horaReal, -0)).toBe(true);
+      }
+      return { tipo: 'confirmada', acuse };
+    });
+    const iniciada = iniciarCola(plan, vacia());
+    const agregada = agregarIntencion(plan, iniciada.cola, op);
+    const enviada = marcarEnviada(plan, agregada.cola, op.id);
+    for (let i = 0; i < 2; i++) {
+      const respuesta = await p.atender(solicitudExacta(op)); await segura(respuesta, 200);
+      const datos = capturarAcusePersistido(plan, await respuesta.json());
+      expect(datos).not.toBeNull();
+      expect(Object.is(datos!.instantanea.estado.paradas.a.horaReal, -0)).toBe(true);
+      const cambio = datos!.instantanea.estado.operaciones.op.cambios!.registros[0];
+      expect(cambio.tipo).toBe('parada');
+      if (cambio.tipo === 'parada') expect(Object.is(cambio.despues.horaReal, -0)).toBe(true);
+      expect(recibirAcuse(plan, enviada.cola, datos).tipo).toBe('confirmada');
+    }
+    p.repositorio.leer.mockResolvedValue({ tipo: 'instantanea', instantanea: acuse.instantanea });
+    const lectura = await p.atender(solicitud()); await segura(lectura, 200);
+    const instantanea = capturarInstantaneaProgreso(plan, await lectura.json());
+    expect(instantanea).not.toBeNull();
+    expect(Object.is(instantanea!.estado.paradas.a.horaReal, -0)).toBe(true);
+    const condicional = await p.atender(solicitud('GET', undefined, { 'If-None-Match': lectura.headers.get('ETag')! }));
+    await segura(condicional, 304); expect(await condicional.text()).toBe('');
+    expect(p.repositorio.leer).toHaveBeenCalledTimes(2);
+  });
+  it('rechazo histórico -0 llega como prueba exacta al cliente puro sin rebobinar ni reemplazar', async () => {
+    const p = preparar(); const op = operacion({ horaReal: -0, revision: -0 });
+    const historica = positiva(operacion({ id: 'anterior', horaReal: -0 })).instantanea;
+    const rechazo = { ...negativa(), operacionOriginal: op, instantanea: historica };
+    p.repositorio.procesar.mockResolvedValue(oculta({ tipo: 'rechazada', rechazo }));
+    const iniciada = iniciarCola(plan, vacia());
+    const agregada = agregarIntencion(plan, iniciada.cola, op);
+    const enviada = marcarEnviada(plan, agregada.cola, op.id);
+    for (let i = 0; i < 2; i++) {
+      // Literal explícito: ni el helper legado de pruebas ni JSON.stringify pueden borrar el signo.
+      const req = new Request(origen + '/api/progreso', { method: 'POST', headers: { Origin: origen,
+        'Content-Type': 'application/json' }, body: '{"id":"op","dispositivoId":"antiguo","tipo":"parada","paradaId":"a","marca":"hecha","revision":-0,"horaReal":-0}' });
+      const respuesta = await p.atender(req); await segura(respuesta, 409);
+      const datos = capturarRechazoPersistido(plan, await respuesta.json());
+      expect(datos).not.toBeNull();
+      expect(datos!.operacionOriginal.tipo).toBe('parada');
+      if (datos!.operacionOriginal.tipo === 'parada') {
+        expect(Object.is(datos!.operacionOriginal.horaReal, -0)).toBe(true);
+        expect(Object.is(datos!.operacionOriginal.revision, -0)).toBe(true);
+      }
+      expect(Object.is(datos!.instantanea.estado.paradas.a.horaReal, -0)).toBe(true);
+      expect(recibirRechazo(plan, enviada.cola, datos).tipo).toBe('rechazada');
+    }
+    expect(p.repositorio.leer).not.toHaveBeenCalled();
+  });
   it('GET entrega DTO directo y ETag fuerte solo tras consultar autoridad actual', async () => {
     const p = preparar();
     const primera = await p.atender(solicitud());
