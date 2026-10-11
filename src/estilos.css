@@ -1791,6 +1791,43 @@ body.vista-todo .lista {
   color: var(--tinta-suave);
   text-decoration: line-through;
 }
+/* Mientras se guarda o si lo marcado no se pudo abrir: se ve apagado, pero sigue enfocable y explica por qué. */
+.pendientes input[aria-disabled='true'],
+.pendientes input[aria-busy='true'],
+.mini[aria-disabled='true'],
+.boton[aria-disabled='true'] {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* «Compartido», en «Todo»: el estado en una frase, sus acciones y los cambios que esperan revisión. */
+.compartido .estado-compartido {
+  margin: 0 0 10px;
+  font-size: 15px;
+  line-height: 1.45;
+}
+.compartido .cifras {
+  margin-top: 12px;
+}
+.cambios-compartidos {
+  margin: 12px 0 0 !important;
+  padding-left: 0 !important;
+  list-style: none;
+}
+.cambios-compartidos li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--borde);
+}
+.cambios-compartidos li + li {
+  margin-top: 0;
+}
+.cambios-compartidos span {
+  flex: 1 1 14em;
+}
 
 /* ---------- Marcadores del mapa ---------- */
 

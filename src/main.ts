@@ -18,6 +18,9 @@ import {
   trayectosApretados,
 } from './modelo';
 import { descargaAnterior, descargarMapas, registrarServiceWorker } from './offline';
+import type { Operacion } from './progreso';
+import { capturarLegado, crearProgresoInterfaz, identidadDispositivo, resumenCompartido, uuidAleatorio } from './progreso-interfaz';
+import type { ResultadoAccion, ResultadoDeshacer, ResumenCompartido } from './progreso-interfaz';
 import type { Enlace, Gasto, Transporte } from './tipos';
 
 const modelo = construirModelo(itinerario);
@@ -138,95 +141,98 @@ let hoyIdx = hoy().idx;
  * he llegado antes o sigo después de la hora).
  */
 type Marca = 'hecha' | 'saltada' | 'aqui';
-// Las marcas se guardan por fecha, hora y nombre: siguen valiendo aunque se añadan paradas al plan
-// y, si ese día no hay otra parada con el mismo nombre, aunque se cambie su hora.
-const CLAVE_MARCAS = 'marcas';
-const marcas = leer<Record<string, Marca>>(CLAVE_MARCAS, {});
-// Cuándo se marcó en la calle (minutos, hora de China): «Hecha» o «Ya salí» dicen cuándo se salió.
-const CLAVE_HORAS = 'marcas-hora';
-const horasMarca = leer<Record<string, number>>(CLAVE_HORAS, {});
-// Un móvil que nunca ha marcado es el de quien solo mira: sigue el plan sin preguntar.
+// Un móvil que nunca ha marcado es el de quien solo mira: sigue el plan sin preguntar. Es una
+// preferencia de ESTE móvil: lo que llega del otro móvil o de la versión anterior no la activa.
 const CLAVE_MARCADOR = 'marcador';
-let marcador = leer<boolean>(CLAVE_MARCADOR, false) || Object.keys(marcas).length > 0;
+let marcador = leer<boolean>(CLAVE_MARCADOR, false);
+/** Cambia cuando cambian las marcas de la raíz durable: repinta «ahora», la lista y el mapa. */
 let versionMarcas = 0;
-const claveParada = (p: ParadaC) => `${modelo.dias[p.dia].d.fecha}|${p.p.hora}|${p.p.nombre}`;
-const clavesPlan = new Set(modelo.paradas.map(claveParada));
 
-const cacheClaves = new Map<number, string | undefined>();
-let versionCache = -1;
-/** Clave con la que está guardada la marca de `p` (la suya, o la de antes de cambiarle la hora). */
-function claveGuardada(p: ParadaC): string | undefined {
-  if (versionCache !== versionMarcas) {
-    cacheClaves.clear();
-    versionCache = versionMarcas;
+// ---------- Progreso compartido: IndexedDB en el móvil y /api/progreso ----------
+
+// Las marcas y las casillas viven en una raíz de IndexedDB por viaje (src/progreso-local.ts), con
+// las paradas y casillas por su ID persistente. Las claves anteriores de localStorage («marcas»,
+// «marcas-hora», «pendientes-hechos») se leen tal cual una vez para importarlas y nunca se tocan.
+const almacenLocal = (): Storage | null => {
+  try {
+    return localStorage;
+  } catch {
+    return null;
   }
-  if (cacheClaves.has(p.id)) return cacheClaves.get(p.id);
-  const exacta = claveParada(p);
-  let clave: string | undefined = exacta in marcas ? exacta : undefined;
-  if (!clave && modelo.paradas.filter((q) => q.dia === p.dia && q.p.nombre === p.p.nombre).length === 1) {
-    const fecha = modelo.dias[p.dia].d.fecha;
-    clave = Object.keys(marcas).find((k) => k.startsWith(`${fecha}|`) && k.endsWith(`|${p.p.nombre}`) && !clavesPlan.has(k));
-  }
-  cacheClaves.set(p.id, clave);
-  return clave;
-}
-const marcaDe = (p: ParadaC): Marca | undefined => {
-  const k = claveGuardada(p);
-  return k ? marcas[k] : undefined;
 };
-const horaMarcaDe = (p: ParadaC): number | undefined => {
-  const k = claveGuardada(p);
-  return k ? horasMarca[k] : undefined;
+const dispositivo = identidadDispositivo(almacenLocal(), uuidAleatorio);
+const progreso = crearProgresoInterfaz({
+  plan: itinerario,
+  dispositivoId: dispositivo.id,
+  entradasLegadas: capturarLegado(almacenLocal()),
+  uuid: uuidAleatorio,
+  http: (url, opciones) => fetch(url, opciones),
+  alCambiar: () => alCambiarProgreso(),
+});
+const paradaPorId = new Map(modelo.paradas.map((p) => [p.p.id, p]));
+const registroDe = (p: ParadaC) => {
+  const paradas = progreso.vista.raiz?.estado.paradas;
+  return paradas && Object.hasOwn(paradas, p.p.id) ? paradas[p.p.id] : undefined;
+};
+const marcaDe = (p: ParadaC): Marca | undefined => registroDe(p)?.marca ?? undefined;
+/** Hora a la que se marcó en la calle (minutos de China): un dato de la marca, nunca un orden. */
+const horaMarcaDe = (p: ParadaC): number | undefined => registroDe(p)?.horaReal;
+const pendienteHecho = (id: string) => {
+  const pendientes = progreso.vista.raiz?.estado.pendientes;
+  return !!pendientes && Object.hasOwn(pendientes, id) && pendientes[id].hecho;
 };
 const cerrada = (p: ParadaC) => marcaDe(p) === 'hecha' || marcaDe(p) === 'saltada';
 const NOMBRE_MARCA: Record<Marca, string> = { hecha: 'hecha', saltada: 'saltada', aqui: 'aquí' };
+/** Se puede marcar: lo guardado en el móvil está abierto y no hay otra acción en curso. */
+const accionesListas = () => progreso.vista.fase === 'lista' && !progreso.vista.ocupado;
 
-function guardarMarcas() {
-  guardar(CLAVE_MARCAS, marcas);
-  guardar(CLAVE_HORAS, horasMarca);
-  versionMarcas++;
+/** Si todavía no se puede marcar lo dice (calla si solo hay otra acción en curso) y devuelve false. */
+function puedeActuar(): boolean {
+  const v = progreso.vista;
+  if (v.fase === 'lista') return !v.ocupado;
+  if (v.fase === 'abriendo') aviso('Aún se está abriendo lo marcado en este móvil. Prueba en un momento.');
+  else aviso('No se puede marcar: no se pudo abrir lo marcado en este móvil.', 9000, { texto: 'Reintentar', hacer: () => void progreso.abrir() });
+  return false;
+}
+
+function avisarFallo(r: ResultadoAccion | ResultadoDeshacer) {
+  if (r.tipo === 'ocupada') return;
+  if (r.tipo === 'no-lista') return void puedeActuar();
+  if (r.tipo === 'fallo-local') {
+    return aviso('No se pudo guardar en este móvil.', 9000, { texto: 'Reintentar', hacer: () => void progreso.abrir() });
+  }
+  aviso('No se guardó: cambió mientras tanto. Vuelve a intentarlo.', 6000);
 }
 
 /**
  * `enLaCalle`: marcada desde «ahora» (se guarda la hora, que dice cuándo se salió). Desde la ficha es
- * una corrección y no cuenta como salida.
+ * una corrección y no cuenta como salida. Solo se dice «Guardado» cuando IndexedDB lo confirma.
  */
-function marcar(p: ParadaC, marca: Marca | null, enLaCalle = false) {
-  const antes = { ...marcas };
-  const horasAntes = { ...horasMarca };
+async function marcar(p: ParadaC, marca: Marca | null, enLaCalle = false) {
   const marcadorAntes = marcador;
-  // Solo se puede «estar» en un sitio: la que estuviera en «aquí» pasa a hecha.
-  if (marca === 'aqui') for (const [k, v] of Object.entries(marcas)) if (v === 'aqui') marcas[k] = 'hecha';
-  const vieja = claveGuardada(p);
-  if (vieja) {
-    delete marcas[vieja];
-    delete horasMarca[vieja];
-  }
-  if (marca) {
-    marcas[claveParada(p)] = marca;
-    if (enLaCalle) horasMarca[claveParada(p)] = hoy().min;
-  }
-  guardarMarcas();
+  const enAhora = el.ahora.contains(document.activeElement);
+  const r = await progreso.marcarParada(p.p.id, marca, enLaCalle && marca !== null ? hoy().min : undefined);
+  if (r.tipo !== 'guardada') return avisarFallo(r);
   if (!marcador) guardar(CLAVE_MARCADOR, (marcador = true));
   // Tras repintar, el foco no se pierde: vuelve al primer botón de «Ahora».
-  const enAhora = el.ahora.contains(document.activeElement);
+  estado.claveMomento = '';
   pintar(true);
-  if (estado.vista === 'todo') pintarResumen();
   if (enAhora) el.ahora.querySelector<HTMLElement>('.mini, .abrir')?.focus();
   const texto = marca === 'aqui' ? `Estás en «${p.p.nombre}»` : `«${p.p.nombre}»: ${marca ? NOMBRE_MARCA[marca] : 'según el plan'}`;
-  aviso(texto, 8000, {
-    texto: 'Deshacer',
-    hacer: () => {
-      for (const k of Object.keys(marcas)) delete marcas[k];
-      for (const k of Object.keys(horasMarca)) delete horasMarca[k];
-      Object.assign(marcas, antes);
-      Object.assign(horasMarca, horasAntes);
-      guardarMarcas();
-      if (marcador !== marcadorAntes) guardar(CLAVE_MARCADOR, (marcador = marcadorAntes));
-      pintar(true);
-      if (estado.vista === 'todo') pintarResumen();
-    },
-  });
+  aviso(`${texto}. Guardado en este móvil.`, 8000, { texto: 'Deshacer', hacer: () => void deshacer(r.operacionId, p, marcadorAntes) });
+}
+
+/** Deshace solo esa operación: sin enviar se cancela; ya enviada, se compensa si nada cambió después. */
+async function deshacer(operacionId: string, p: ParadaC, marcadorAntes: boolean) {
+  const r = await progreso.deshacer(operacionId);
+  if (r.tipo === 'cancelada' || r.tipo === 'compensada' || r.tipo === 'sin-efecto') {
+    if (marcador !== marcadorAntes) guardar(CLAVE_MARCADOR, (marcador = marcadorAntes));
+    estado.claveMomento = '';
+    pintar(true);
+    aviso(r.tipo === 'compensada' ? 'Deshecho. Guardado en este móvil.' : 'Deshecho.');
+  } else if (r.tipo === 'conflicto') aviso(`No se puede deshacer: «${p.p.nombre}» cambió después.`, 6000);
+  else if (r.tipo === 'no-aplicada') aviso('No se puede deshacer: ese cambio no llegó a aplicarse.', 6000);
+  else avisarFallo(r);
 }
 
 /**
@@ -237,7 +243,7 @@ async function puedeMarcar(): Promise<boolean> {
   if (marcador) return true;
   return preguntar(
     '¿Llevar el viaje en este móvil?',
-    'Hasta ahora este móvil sigue el plan en silencio. Si marcas aquí, pasará a llevar el viaje: contará lo que marques y preguntará «¿Sigues en…?» cuando se acabe la hora de un sitio. En el móvil de quien solo mira, mejor no marcar.',
+    'Hasta ahora este móvil sigue el plan en silencio. Si marcas aquí, pasará a llevar el viaje: guardará lo que marques, lo compartirá con el otro móvil al sincronizar y preguntará «¿Sigues en…?» cuando se acabe la hora de un sitio. Para solo mirar, mejor no marcar.',
     'Sí, marcar aquí',
     'Cancelar',
   );
@@ -995,7 +1001,7 @@ function botonMarca(p: ParadaC, marca: Marca): string {
   const t = { hecha: 'Hecha', saltada: 'Saltar', aqui: 'Llegué' }[marca];
   const principal = marca !== 'saltada';
   const clase = principal ? (marcador ? 'tinta' : '') : 'suave';
-  return `<button type="button" class="mini ${clase}" data-marcar="${marca}" data-id="${p.id}"
+  return `<button type="button" class="mini ${clase}" data-marcar="${marca}" data-id="${p.id}"${accionesListas() ? '' : ' aria-disabled="true"'}
     aria-label="${esc(`${t}: ${p.p.nombre}`)}">${principal ? ICONO_HECHO : ''}${esc(t)}</button>`;
 }
 
@@ -1008,11 +1014,14 @@ el.ahora.addEventListener('click', (e) => {
   if (performance.now() < enfriarHasta) return;
   const marca = objetivo.closest<HTMLElement>('[data-marcar]');
   if (marca) {
+    if (!puedeActuar()) return;
     enfriarHasta = performance.now() + 700;
     el.ahora.classList.add('enfriando');
     setTimeout(() => el.ahora.classList.remove('enfriando'), 700);
     const p = modelo.paradas[Number(marca.dataset.id)];
-    return void puedeMarcar().then((si) => si && marcar(p, marca.dataset.marcar as Marca, true));
+    return void puedeMarcar().then((si) => {
+      if (si) return marcar(p, marca.dataset.marcar as Marca, true);
+    });
   }
   const b = objetivo.closest<HTMLElement>('[data-abrir]');
   if (b) abrirFicha(modelo.paradas[Number(b.dataset.abrir)]);
@@ -1277,7 +1286,12 @@ function marcarLista(m: Momento, desplazar: 'si' | 'no' | 'si-se-veia' = 'si') {
     li.classList.toggle('hecha', e === 'hecha' && id !== actual);
     li.classList.toggle('saltada', e === 'saltada');
     const marca = marcaDe(p) ?? 'pendiente';
-    for (const b of li.querySelectorAll<HTMLElement>('[data-fijar]')) b.setAttribute('aria-pressed', String(b.dataset.fijar === marca));
+    for (const b of li.querySelectorAll<HTMLElement>('[data-fijar]')) {
+      b.setAttribute('aria-pressed', String(b.dataset.fijar === marca));
+      // Valor explícito: "true" mientras no se puede marcar; sin el atributo cuando sí (nunca vacío).
+      if (accionesListas()) b.removeAttribute('aria-disabled');
+      else b.setAttribute('aria-disabled', 'true');
+    }
   }
   for (const li of el.contenido.querySelectorAll<HTMLLIElement>('li.tramo')) {
     li.classList.toggle('actual', m.tramo?.id === Number(li.dataset.tramo));
@@ -1372,11 +1386,16 @@ el.contenido.addEventListener('click', (e) => {
     mas.hidden = true;
     return otros[0]?.focus();
   }
+  const compartido = objetivo.closest<HTMLElement>('[data-sincronizar], [data-reabrir], [data-conservar], [data-descartar]');
+  if (compartido) return void accionEnCompartido(compartido);
   const fijar = objetivo.closest<HTMLElement>('[data-fijar]');
   if (fijar) {
+    if (!puedeActuar()) return;
     const v = fijar.dataset.fijar;
     const p = modelo.paradas[Number(fijar.dataset.id)];
-    return void puedeMarcar().then((si) => si && marcar(p, v === 'pendiente' ? null : (v as Marca)));
+    return void puedeMarcar().then((si) => {
+      if (si) return marcar(p, v === 'pendiente' ? null : (v as Marca));
+    });
   }
   const dia = objetivo.closest<HTMLElement>('[data-ir-dia]');
   if (dia) {
@@ -1582,7 +1601,7 @@ const faltanDias = () => Math.round((aMinutos(modelo.dias[0].d.fecha, '00:00') -
 function bloqueAntes(): string {
   const faltan = faltanDias();
   if (faltan <= 0) return '';
-  const hechos = modelo.pendientes.filter((t) => pendientesHechos().has(t)).length;
+  const hechos = modelo.listaPendientes.filter((t) => pendienteHecho(t.id)).length;
   const mapas = descargaAnterior();
   return `<section class="seccion antes">
     <h3>Antes de salir <small>· falta${faltan === 1 ? '' : 'n'} ${faltan} día${faltan === 1 ? '' : 's'}</small></h3>
@@ -1603,8 +1622,8 @@ function bloqueAntes(): string {
 const COMO_FUNCIONA = `
   <section class="seccion como">
     <h3>Cómo funciona</h3>
-    <p>Durante el viaje la app sigue el horario del plan con la hora real. Si no coincide con lo que haces, díselo: «Hecha» al terminar antes, «Saltar», «Llegué» o «Sigo aquí». Las marcas y las casillas se guardan solo en este móvil.</p>
-    <p>Si en un móvil no se marca nada, sigue el plan en silencio y no pregunta: es lo cómodo para quien solo mira.</p>
+    <p>Durante el viaje la app sigue el horario del plan con la hora real. Si no coincide con lo que haces, díselo: «Hecha» al terminar antes, «Saltar», «Llegué» o «Sigo aquí». Las marcas y las casillas se guardan en este móvil y se comparten con el otro al sincronizar, si hay sesión.</p>
+    <p>Si en un móvil no se marca nada, sigue el plan en silencio y no pregunta: es lo cómodo para quien solo mira. Lo que marca el otro móvil no cambia eso.</p>
     <p>Arrastrar la línea de tiempo o mirar otro día es un repaso del plan (la hora sale en contorno); «Volver a ahora» te devuelve.</p>
     ${LEYENDA}
   </section>`;
@@ -1621,6 +1640,7 @@ function pintarResumen() {
       <p class="cifras">${modelo.dias.length} días · ${paradas(visitas)}${saltadas ? ` · ${saltadas} saltada${saltadas === 1 ? '' : 's'}` : ''} · ${esc(textoPlan)}</p>
     </div>`;
   rollo().scrollTop = 0;
+  ultimoCompartido = '';
   const antes = faltanDias() > 0;
   el.contenido.innerHTML = `
     ${bloqueAntes()}
@@ -1644,16 +1664,19 @@ function pintarResumen() {
       modelo.pendientes.length
         ? `<section class="seccion" id="pendientes">
             <h3>Pendiente de comprobar <small id="cuenta-pendientes"></small></h3>
-            <ul class="pendientes">${modelo.pendientes
+            <ul class="pendientes">${modelo.listaPendientes
               .map(
-                (t) => `<li><label><input type="checkbox" data-pendiente="${esc(t)}"${pendientesHechos().has(t) ? ' checked' : ''}>
-                  <span>${esc(t)}</span></label></li>`,
+                (t) => `<li><label><input type="checkbox" data-pendiente-id="${esc(t.id)}"${pendienteHecho(t.id) ? ' checked' : ''}${
+                  accionesListas() ? '' : ' aria-disabled="true"'
+                }>
+                  <span>${esc(t.texto)}</span></label></li>`,
               )
               .join('')}</ul>
-            <p class="cifras">Las casillas y las paradas marcadas se guardan solo en este móvil.</p>
+            <p class="cifras">Las casillas y las paradas marcadas se guardan en este móvil y se comparten con el otro al sincronizar.</p>
           </section>`
         : ''
     }
+    <section class="seccion compartido" id="compartido">${htmlCompartido()}</section>
     ${modelo.secciones
       .map(
         (sec) => `<section class="seccion">
@@ -1667,25 +1690,27 @@ function pintarResumen() {
   contarPendientes();
 }
 
-// Las casillas de pendientes se recuerdan en este móvil (no se comparten con otros).
-const CLAVE_PENDIENTES = 'pendientes-hechos';
-const pendientesHechos = () => new Set(leer<string[]>(CLAVE_PENDIENTES, []));
-
 function contarPendientes() {
-  const n = modelo.pendientes.filter((t) => pendientesHechos().has(t)).length;
+  const n = modelo.listaPendientes.filter((t) => pendienteHecho(t.id)).length;
   const c = document.getElementById('cuenta-pendientes');
-  if (c) c.textContent = `· ${n} de ${modelo.pendientes.length}`;
+  if (c) c.textContent = `· ${n} de ${modelo.listaPendientes.length}`;
 }
 
+// La casilla muestra la intención mientras se guarda; si no se guarda, vuelve a lo guardado.
 el.contenido.addEventListener('change', (e) => {
   const casilla = e.target as HTMLInputElement;
-  const texto = casilla.dataset.pendiente;
-  if (texto === undefined) return;
-  const hechos = pendientesHechos();
-  if (casilla.checked) hechos.add(texto);
-  else hechos.delete(texto);
-  guardar(CLAVE_PENDIENTES, [...hechos]);
-  contarPendientes();
+  const id = casilla.dataset.pendienteId;
+  if (id === undefined) return;
+  if (!puedeActuar()) {
+    casilla.checked = pendienteHecho(id);
+    return;
+  }
+  casilla.setAttribute('aria-busy', 'true');
+  void progreso.marcarPendiente(id, casilla.checked).then((r) => {
+    casilla.removeAttribute('aria-busy');
+    if (r.tipo !== 'guardada') avisarFallo(r);
+    pintarPendientes();
+  });
 });
 
 // ---------- Hoja deslizable ----------
@@ -2109,20 +2134,197 @@ function textoSinRed(): string {
     : 'Sin conexión. La lista, las fichas y la tarjeta del taxista funcionan; el mapa solo enseña las zonas que ya has visto. Guarda los mapas cuando vuelvas a tener wifi.';
 }
 
+const ICONO_SINCRONIZAR =
+  '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M19.5 10.5A7.5 7.5 0 0 0 6.2 6.3L4.5 8M4.5 3.5V8H9M4.5 13.5a7.5 7.5 0 0 0 13.3 4.2l1.7-1.7M19.5 20.5V16H15" /></svg>';
+let ultimoAvisoRed = '';
+
+/**
+ * La píldora de papel dice, en una línea, lo que hace falta saber: sin conexión y lo que queda
+ * guardado aquí, sin enviar o sin confirmar, sin sesión, un cambio que no se aplicó o que lo
+ * guardado no se pudo abrir. Nada que pedir, con conexión: no aparece.
+ */
 function pintarRed() {
-  const sinRed = !navigator.onLine;
-  const antes = !el.red.hidden;
-  el.red.hidden = !sinRed;
-  if (!sinRed) return;
+  const enLinea = navigator.onLine !== false;
+  const resumen = resumenCompartido(progreso.vista, enLinea);
   const previa = descargaAnterior();
-  el.red.innerHTML = `${ICONO_SIN_RED}Sin conexión · ${previa ? 'mapas guardados' : 'sin mapas guardados'}`;
-  el.red.setAttribute('aria-label', `Sin conexión · ${previa ? 'mapas guardados' : 'sin mapas guardados'}: qué sigue funcionando`);
-  if (!antes) el.anuncio.textContent = 'Sin conexión';
+  const texto = resumen.pildora ?? (enLinea ? null : `Sin conexión · ${previa ? 'mapas guardados' : 'sin mapas guardados'}`);
+  const antes = !el.red.hidden;
+  el.red.hidden = texto === null;
+  if (texto === null) return void (ultimoAvisoRed = '');
+  el.red.classList.toggle('ocupado', resumen.ocupado);
+  el.red.innerHTML = `${enLinea ? ICONO_SINCRONIZAR : ICONO_SIN_RED}${esc(texto)}`;
+  el.red.setAttribute('aria-label', `${texto}: ${resumen.pildora ? 'qué significa' : 'qué sigue funcionando'}`);
+  // Se anuncia al aparecer o al cambiar de tipo, no cada vez que cambia una cifra.
+  const tipo = texto.replace(/\d+/g, '#');
+  if (!antes || tipo !== ultimoAvisoRed) el.anuncio.textContent = texto;
+  ultimoAvisoRed = tipo;
 }
-addEventListener('online', pintarRed);
+addEventListener('online', () => {
+  pintarRed();
+  void progreso.sincronizar();
+});
 addEventListener('offline', pintarRed);
-el.red.addEventListener('click', () => aviso(textoSinRed(), 9000));
+el.red.addEventListener('click', () => {
+  const resumen = resumenCompartido(progreso.vista, navigator.onLine !== false);
+  if (resumen.pildora === null) return aviso(textoSinRed(), 9000);
+  aviso(resumen.detalle, 9000, accionCompartida(resumen.accion));
+});
 pintarRed();
+
+/** La acción que propone la píldora. «Entrar» va a la entrada de este mismo sitio, sin redirigir sola. */
+function accionCompartida(accion: ResumenCompartido['accion']): { texto: string; hacer: () => void } | undefined {
+  if (accion === 'sincronizar') return { texto: 'Sincronizar', hacer: () => void progreso.sincronizar() };
+  if (accion === 'entrar') return { texto: 'Entrar', hacer: () => location.assign('/entrar') };
+  if (accion === 'reintentar') return { texto: 'Reintentar', hacer: () => void progreso.abrir() };
+  if (accion === 'revisar') return { texto: 'Revisar', hacer: irACompartido };
+  return undefined;
+}
+
+// ---------- Progreso compartido en pantalla ----------
+
+let firmaMarcas = '';
+let listoAntes = false;
+let ultimoCompartido = '';
+
+/** Cada cambio de la raíz durable o del transporte: repinta solo lo que depende de él. */
+function alCambiarProgreso() {
+  const raiz = progreso.vista.raiz;
+  const firma = raiz ? JSON.stringify(Object.entries(raiz.estado.paradas).map(([id, r]) => [id, r.marca, r.horaReal ?? null])) : '';
+  const listo = accionesListas();
+  if (firma !== firmaMarcas || listo !== listoAntes) {
+    if (firma !== firmaMarcas) versionMarcas++;
+    firmaMarcas = firma;
+    listoAntes = listo;
+    if (estado.vista === 'dia') {
+      // Lo que llega del otro móvil no mueve la cámara: solo se repinta.
+      estado.claveMomento = '';
+      pintar(false);
+    }
+  }
+  pintarPendientes();
+  pintarCompartido();
+  pintarRed();
+}
+
+/**
+ * Casillas como los botones de marca: apagadas pero enfocables mientras no se puede marcar
+ * (aria-disabled="true", nunca disabled nativo); al tocarlas, el manejador dice por qué y no cambian.
+ */
+function pintarPendientes() {
+  const listas = accionesListas();
+  for (const c of el.contenido.querySelectorAll<HTMLInputElement>('input[data-pendiente-id]')) {
+    // La que se está guardando conserva la intención hasta que termina.
+    if (c.getAttribute('aria-busy') !== 'true') c.checked = pendienteHecho(c.dataset.pendienteId!);
+    if (listas) c.removeAttribute('aria-disabled');
+    else c.setAttribute('aria-disabled', 'true');
+  }
+  contarPendientes();
+}
+
+/** Qué cambio es, en palabras del cuaderno. */
+function describirOperacion(op: Operacion): string {
+  if (op.tipo === 'parada') {
+    const nombre = paradaPorId.get(op.paradaId)?.p.nombre ?? 'Una parada';
+    return `«${nombre}» ${op.marca ? `como ${NOMBRE_MARCA[op.marca]}` : 'según el plan'}`;
+  }
+  if (op.tipo === 'pendiente') {
+    const texto = modelo.listaPendientes.find((t) => t.id === op.pendienteId)?.texto ?? 'Una casilla';
+    const corto = texto.length > 48 ? `${texto.slice(0, 47)}…` : texto;
+    return `La casilla «${corto}» como ${op.hecho ? 'hecha' : 'sin hacer'}`;
+  }
+  return 'Deshacer un cambio';
+}
+
+function htmlCompartido(): string {
+  const v = progreso.vista;
+  const resumen = resumenCompartido(v, navigator.onLine !== false);
+  const rechazadas = v.raiz?.cola.filter((e) => e.rechazo && !e.resolucion) ?? [];
+  const atascadas = v.atascadas.flatMap((a) => {
+    const entrada = v.raiz?.cola.find((e) => e.operacion.id === a.operacionId);
+    return entrada ? [entrada] : [];
+  });
+  const legado = v.raiz?.legado;
+  const sinPasar = legado?.recuperacion.length ?? 0;
+  const fallida = Array.isArray(legado?.originales['lectura-fallida']);
+  const cambio = (op: Operacion, texto: string, boton: string) =>
+    `<li><span>${esc(describirOperacion(op))}: ${texto}</span>${boton}</li>`;
+  return `
+    <h3 tabindex="-1">Compartido</h3>
+    <p class="estado-compartido">${esc(resumen.detalle)}</p>
+    <div class="acciones-bloque">
+      ${
+        v.fase === 'lista'
+          ? `<button type="button" class="boton" data-sincronizar${resumen.ocupado ? ' aria-disabled="true"' : ''}>${
+              resumen.ocupado ? 'Sincronizando…' : 'Sincronizar ahora'
+            }</button>`
+          : ''
+      }
+      ${resumen.accion === 'entrar' ? '<a class="boton" href="/entrar">Entrar</a>' : ''}
+      ${resumen.accion === 'reintentar' ? '<button type="button" class="boton tinta" data-reabrir>Reintentar</button>' : ''}
+    </div>
+    ${
+      rechazadas.length || atascadas.length
+        ? `<ul class="cambios-compartidos">${[
+            ...rechazadas.map((e) =>
+              cambio(e.operacion, 'no se aplicó.',
+                `<button type="button" class="boton" data-conservar="${esc(e.operacion.id)}">Conservar lo del servidor</button>`),
+            ),
+            ...atascadas.map((e) =>
+              cambio(e.operacion, 'choca con lo del servidor y no se envía.',
+                `<button type="button" class="boton" data-descartar="${esc(e.operacion.id)}">Descartar mi cambio</button>`),
+            ),
+          ].join('')}</ul>`
+        : ''
+    }
+    ${
+      sinPasar || fallida
+        ? `<p class="cifras">${fallida ? 'No se pudo leer todo lo marcado antes en este móvil. ' : ''}${
+            sinPasar ? `${sinPasar === 1 ? 'Una cosa marcada' : `${sinPasar} cosas marcadas`} antes en este móvil no se pudieron pasar (rotas, repetidas o de paradas que ya no están). ` : ''
+          }Siguen guardadas tal cual en este móvil.</p>`
+        : ''
+    }
+    ${dispositivo.duradera ? '' : '<p class="cifras">Este navegador no deja guardar el identificador de este móvil: vale solo para esta visita.</p>'}`;
+}
+
+/** Repinta «Compartido» en su sitio, sin mover la lista y devolviendo el foco a su botón. */
+function pintarCompartido() {
+  const seccion = document.getElementById('compartido');
+  if (!seccion) return;
+  const html = htmlCompartido();
+  if (html === ultimoCompartido) return;
+  ultimoCompartido = html;
+  const foco = document.activeElement instanceof HTMLElement && seccion.contains(document.activeElement) ? document.activeElement : null;
+  const huella = (b: Element) => ['data-sincronizar', 'data-reabrir', 'data-conservar', 'data-descartar'].map((a) => `${a}=${b.getAttribute(a)}`).join('|');
+  const buscada = foco ? huella(foco) : '';
+  seccion.innerHTML = html;
+  if (foco) ([...seccion.querySelectorAll<HTMLElement>('button, a')].find((b) => huella(b) === buscada) ?? seccion.querySelector<HTMLElement>('h3'))?.focus();
+}
+
+async function accionEnCompartido(b: HTMLElement) {
+  if (b.getAttribute('aria-disabled') === 'true') return;
+  if ('sincronizar' in b.dataset) return void progreso.sincronizar();
+  if ('reabrir' in b.dataset) return void progreso.abrir();
+  const conservar = 'conservar' in b.dataset;
+  const id = (conservar ? b.dataset.conservar : b.dataset.descartar)!;
+  const r = conservar ? await progreso.conservarConfirmado(id) : await progreso.descartar(id);
+  if (r.tipo === 'guardada') aviso(conservar ? 'Se conserva lo del servidor. Guardado en este móvil.' : 'Descartado. Guardado en este móvil.');
+  else avisarFallo(r);
+}
+
+/** Lleva a «Compartido», en «Todo», con la hoja arriba en el móvil. */
+function irACompartido() {
+  if (estado.vista !== 'todo') verTodo();
+  const mostrar = () => requestAnimationFrame(() => {
+    const s = document.getElementById('compartido');
+    if (!s) return;
+    rollo().scrollTo({ top: alturaEnRollo(s) - 8, behavior: reducirMovimiento.matches ? 'auto' : 'smooth' });
+    s.querySelector<HTMLElement>('h3')?.focus({ preventScroll: true });
+  });
+  if (esMovil() && hoja.destino !== 'alta') {
+    expandir(true);
+    alLlegarArriba(mostrar);
+  } else mostrar();
+}
 
 // ---------- Día / noche ----------
 
@@ -2300,3 +2502,9 @@ vista.listo.then(() => {
   else seleccionarDia(estado.dia, estado.t);
 });
 registrarServiceWorker();
+// Lo marcado se abre en segundo plano: el itinerario, el mapa y el taxi funcionan mientras tanto.
+// Disparadores acotados (sin sondeo): abrir, cada acción guardada, volver a la app, «online» y el botón.
+void progreso.abrir().then(() => progreso.sincronizar());
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') void progreso.refrescar().then(() => progreso.sincronizar());
+});
