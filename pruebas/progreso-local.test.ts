@@ -95,15 +95,331 @@ async function sembrarV1(ctx: ReturnType<typeof contexto>, ops: Operacion[] = []
   return { db, raiz };
 }
 
-describe('cola durable v2', () => {
-  it('crea v2 sobre IDB v1 y migra originales v1 refinando solo dependencias', async () => {
+const rechazo = (op = marca(), revisionServidor = 1) => ({ viajeId: plan.id, protocolo: 1 as const,
+  operacionId: op.id, operacionOriginal: op, decisionPersistida: true as const, motivo: 'conflicto' as const,
+  instantanea: instantanea(revisionServidor, { ...marca('remota'), marca: 'saltada' as const }) });
+
+/** Siembra el formato anterior sin pasar por la fábrica del driver. */
+async function sembrarV2(ctx: ReturnType<typeof contexto>) {
+  const db = await new Promise<IDBDatabase>((resolve, reject) => {
+    const solicitud = ctx.fabrica.open(ctx.nombre, 1);
+    solicitud.onupgradeneeded = () => solicitud.result.createObjectStore('viajes');
+    solicitud.onsuccess = () => { cierres.push(() => solicitud.result.close()); resolve(solicitud.result); };
+    solicitud.onerror = () => reject(solicitud.error);
+  });
+  const base = instantanea(7, marca('base', 'p2'));
+  const ops = [marca(), { ...marca('hija'), marca: null, revision: 1 }];
+  const raiz = { formato: 2, revisionServidor: base.revisionServidor, confirmado: base.estado,
+    estado: estadoCon(marca('base', 'p2'), ...ops),
+    cola: ops.map((operacion, i) => ({ operacion, dependeDe: i ? ['op1'] : [], enviada: true })),
+    legado: { originales: { extra: new Map([['dato', { numero: Infinity, nan: NaN, ausente: undefined }]]) },
+      recuperacion: [{ campo: 'marcas', motivo: 'malformada', valor: new Map([['nan', NaN]]) }] } };
+  await guardarCrudo(db, raiz);
+  return { db, raiz };
+}
+
+describe('rechazos durables y migración v3', () => {
+  it('no guarda un nuevo negativo que contradice un recibo de un testigo histórico retenido', async () => {
+    const almacen = await contexto().abrir();
+    const segunda = marca('segunda', 'p2');
+    await almacen.registrar(marca());
+    await almacen.registrar(segunda);
+    await almacen.marcarEnviada('op1');
+    await almacen.marcarEnviada('segunda');
+    const primera = { ...rechazo(), instantanea: instantanea(1,
+      { ...marca('remota'), marca: 'saltada' }, segunda) };
+    await almacen.recibirRechazo(primera);
+    await almacen.recibirInstantanea(instantanea(3, { ...marca('remota'), marca: 'saltada' }));
+    const antes = await almacen.leer();
+    const espia = vi.spyOn(IDBObjectStore.prototype, 'put');
+    expect((await almacen.recibirRechazo(rechazo(segunda, 4))).tipo).toBe('conflicto');
+    expect(espia).not.toHaveBeenCalled();
+    espia.mockRestore();
+    expect(await almacen.leer()).toEqual(antes);
+  });
+
+  it('crea raíz 3 vacía y conserva respaldo rico tras negativo y revisión', async () => {
+    const ctx = contexto();
+    const entradas = { marcas: '{}', extra: new Map([['original', { nan: NaN, infinito: Infinity, ausente: undefined }]]) };
+    const almacen = await abrirProgresoLocal(plan, { ...ctx.opciones, entradasLegadas: entradas });
+    cierres.push(() => almacen.cerrar());
+    expect((await almacen.leer()).formato).toBe(3);
+    await almacen.registrar(marca());
+    await almacen.marcarEnviada('op1');
+    await almacen.recibirRechazo(rechazo());
+    await almacen.resolverRechazo('op1');
+    almacen.cerrar();
+    expect((await (await ctx.abrir(legado)).leer()).legado?.originales).toEqual(entradas);
+  });
+
+  it('retiene testigo tardío sin rebobinar y captura campos opcionales ocultos antes del callback', async () => {
+    const ctx = contexto();
+    const almacen = await ctx.abrir();
+    const op = { ...marca(), horaReal: 555 };
+    Object.defineProperty(op, 'horaReal', { value: 555, enumerable: false });
+    await almacen.registrar(op);
+    await almacen.marcarEnviada('op1');
+    const prueba = rechazo(op);
+    Object.defineProperty(prueba.operacionOriginal, 'horaReal', { value: 555, enumerable: false });
+    const registro = prueba.instantanea.estado.paradas.p1;
+    Object.defineProperty(registro, 'horaReal', { value: 600, enumerable: false });
+    await almacen.recibirInstantanea(instantanea(4, { ...marca('posterior'), marca: 'saltada' }));
+    const recibido = almacen.recibirRechazo(prueba);
+    Object.assign(prueba, { motivo: 'invalida' });
+    Object.assign(prueba.instantanea, { revisionServidor: 99 });
+    expect((await recibido).tipo).toBe('rechazada');
+    const raiz = await almacen.leer();
+    expect(raiz.revisionServidor).toBe(4);
+    expect(raiz.confirmado).toEqual(instantanea(4, { ...marca('posterior'), marca: 'saltada' }).estado);
+    expect(raiz.cola[0].operacion).toEqual({ ...marca(), horaReal: 555 });
+    expect(raiz.cola[0].rechazo?.motivo).toBe('conflicto');
+    expect(raiz.cola[0].rechazo?.instantanea.revisionServidor).toBe(1);
+    expect(raiz.cola[0].rechazo?.instantanea.estado.paradas.p1.horaReal).toBe(600);
+    almacen.cerrar();
+    expect(await (await ctx.abrir()).leer()).toEqual(raiz);
+  });
+
+  it.each(['aborto', 'cuota', 'request', 'copia'])('revierte raíz completa en %s tras negativo y revisión', async (fallo) => {
+    const ctx = contexto();
+    const almacen = await ctx.abrir();
+    await almacen.registrar(marca());
+    await almacen.marcarEnviada('op1');
+    const db = await conexion(ctx.fabrica, ctx.nombre);
+    for (const etapa of ['negativo', 'revision']) {
+      const antes = await almacen.leer();
+      const originalClone = globalThis.structuredClone;
+      const espia = fallo === 'aborto' ? abortarDespuesDePut()
+        : fallo === 'cuota' ? vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(() => {
+          throw new DOMException('Sin espacio', 'QuotaExceededError');
+        }) : fallo === 'request' ? vi.spyOn(IDBObjectStore.prototype, 'put').mockImplementation(function (this: IDBObjectStore, valor, clave) {
+          return this.add(valor, clave);
+        }) : vi.spyOn(globalThis, 'structuredClone').mockImplementation((valor) => {
+          if (valor && typeof valor === 'object' && 'tipo' in valor && 'proyeccion' in valor) {
+            throw new DOMException('No se pudo copiar resultado', 'DataCloneError');
+          }
+          return originalClone(valor);
+        });
+      const nombre = { aborto: 'AbortError', cuota: 'QuotaExceededError', request: 'ConstraintError', copia: 'DataCloneError' }[fallo];
+      await expect(etapa === 'negativo' ? almacen.recibirRechazo(rechazo()) : almacen.resolverRechazo('op1'))
+        .rejects.toMatchObject({ name: nombre });
+      espia.mockRestore();
+      expect(await leerCrudo(db)).toEqual(antes);
+      expect(await almacen.leer()).toEqual(antes);
+      if (etapa === 'negativo') expect((await almacen.recibirRechazo(rechazo())).tipo).toBe('rechazada');
+    }
+    expect((await almacen.resolverRechazo('op1')).tipo).toBe('resuelta');
+  });
+
+  it.each([false, true])('dos handles serializan intención/negativo y revisión/snapshot, orden inverso %s', async (inverso) => {
+    const ctx = contexto();
+    const uno = await ctx.abrir();
+    const dos = await ctx.abrir();
+    await uno.registrar(marca());
+    await uno.marcarEnviada('op1');
+    const trabajos = [() => uno.recibirRechazo(rechazo()), () => dos.registrar(marca('independiente', 'p2'))];
+    await Promise.all((inverso ? trabajos.reverse() : trabajos).map((f) => f()));
+    const siguientes = [() => uno.resolverRechazo('op1'),
+      () => dos.recibirInstantanea(instantanea(3, { ...marca('posterior'), marca: 'saltada' }))];
+    await Promise.all((inverso ? siguientes.reverse() : siguientes).map((f) => f()));
+    const raiz = await uno.leer();
+    expect(await dos.leer()).toEqual(raiz);
+    expect(raiz.revisionServidor).toBe(3);
+    expect(raiz.cola.map((e) => e.operacion.id)).toEqual(['op1', 'independiente']);
+    expect(raiz.cola[0].resolucion).toBe('conservar-confirmado');
+    expect(raiz.cola[0].rechazo).toEqual(rechazo());
+    expect(raiz.estado.paradas.p2.marca).toBe('hecha');
+  });
+
+  it('no admite positivos incompatibles ni pruebas nuevas de distinto cuerpo tras rechazo', async () => {
+    const almacen = await contexto().abrir();
+    await almacen.registrar(marca());
+    await almacen.marcarEnviada('op1');
+    await almacen.recibirRechazo(rechazo());
+    const antes = await almacen.leer();
+    const espia = vi.spyOn(IDBObjectStore.prototype, 'put');
+    expect((await almacen.recibirAcuse(acuse(marca(), 0))).tipo).toBe('conflicto');
+    expect((await almacen.recibirInstantanea(instantanea(8, marca()))).tipo).toBe('conflicto');
+    expect((await almacen.recibirRechazo({ ...rechazo(), motivo: 'invalida' })).tipo).toBe('conflicto');
+    expect((await almacen.recibirRechazo(rechazo(marca(), 9))).tipo).toBe('conflicto');
+    expect(espia).not.toHaveBeenCalled();
+    espia.mockRestore();
+    expect(await almacen.leer()).toEqual(antes);
+  });
+
+  it.each(['null', 'viaje', 'protocolo', 'boxed', 'symbol', 'accessor', 'undefined', 'original', 'id', 'persistida', 'positivo', 'contador'])('rechaza prueba inválida %s sin coerción ni mutación', async (campo) => {
+    const almacen = await contexto().abrir();
+    await almacen.registrar(marca());
+    await almacen.marcarEnviada('op1');
+    const antes = await almacen.leer();
+    const prueba = rechazo();
+    const getter = vi.fn(() => 1);
+    if (campo === 'viaje') Object.assign(prueba, { viajeId: 'otro' });
+    if (campo === 'protocolo') Object.assign(prueba, { protocolo: 2 });
+    if (campo === 'boxed') Object.assign(prueba, { decisionPersistida: new Boolean(true) });
+    if (campo === 'symbol') Object.assign(prueba, { [Symbol('extra')]: 1 });
+    if (campo === 'accessor') Object.defineProperty(prueba.instantanea, 'revisionServidor', { get: getter });
+    if (campo === 'undefined') Object.assign(prueba.operacionOriginal, { horaReal: undefined });
+    if (campo === 'original') Object.assign(prueba.operacionOriginal, { marca: 'saltada' });
+    if (campo === 'id') Object.assign(prueba, { operacionId: 'otro' });
+    if (campo === 'persistida') Object.assign(prueba, { decisionPersistida: false });
+    if (campo === 'positivo') Object.assign(prueba, { instantanea: instantanea(1, marca()) });
+    if (campo === 'contador') Object.assign(prueba.instantanea, { revisionServidor: NaN });
+    const espia = vi.spyOn(IDBObjectStore.prototype, 'put');
+    expect(['invalida', 'conflicto']).toContain((await almacen.recibirRechazo(campo === 'null' ? null : prueba)).tipo);
+    expect(getter).not.toHaveBeenCalled();
+    expect(espia).not.toHaveBeenCalled();
+    espia.mockRestore();
+    expect(await almacen.leer()).toEqual(antes);
+  });
+
+  it('no acepta ID desconocido, original no enviado ni testigo de contador igual contradictorio', async () => {
+    const almacen = await contexto().abrir();
+    await almacen.registrar(marca());
+    const antes = await almacen.leer();
+    expect((await almacen.recibirRechazo(rechazo())).tipo).toBe('conflicto');
+    expect((await almacen.recibirRechazo(rechazo(marca('ajena')))).tipo).toBe('ignorada');
+    expect(await almacen.leer()).toEqual(antes);
+    await almacen.marcarEnviada('op1');
+    await almacen.recibirInstantanea(instantanea(1));
+    const enviada = await almacen.leer();
+    expect((await almacen.recibirRechazo(rechazo())).tipo).toBe('conflicto');
+    expect(await almacen.leer()).toEqual(enviada);
+    expect((await almacen.resolverRechazo('op1')).tipo).toBe('conflicto');
+    expect((await almacen.resolverRechazo('ausente')).tipo).toBe('ausente');
+    almacen.cerrar();
+    await expect(almacen.recibirRechazo(rechazo())).rejects.toThrow('cerrad');
+    await expect(almacen.resolverRechazo('op1')).rejects.toThrow('cerrad');
+  });
+
+  it.each(['futuro', 'igual-contradictorio', 'original', 'enviada', 'sin-rechazo', 'resolucion', 'undefined', 'viaje', 'protocolo', 'positivo', 'recuperacion'])('rehúsa raíz 3 corrupta %s sin sobrescribir', async (campo) => {
+    const ctx = contexto();
+    const almacen = await ctx.abrir(legado);
+    await almacen.registrar(marca('negativa', 'p2'));
+    await almacen.marcarEnviada('negativa');
+    await almacen.recibirRechazo(rechazo(marca('negativa', 'p2')));
+    const raiz = await almacen.leer();
+    const entrada = raiz.cola.find((e) => e.operacion.id === 'negativa')!;
+    const prueba = entrada.rechazo!;
+    if (campo === 'futuro') Object.assign(prueba.instantanea, { revisionServidor: 2 });
+    if (campo === 'igual-contradictorio') Object.assign(prueba.instantanea, { estado: crearProgreso(plan) });
+    if (campo === 'original') Object.assign(prueba.operacionOriginal, { marca: 'saltada' });
+    if (campo === 'enviada') Object.assign(entrada, { enviada: false });
+    if (campo === 'sin-rechazo') Object.assign(entrada, { rechazo: undefined, resolucion: 'conservar-confirmado' });
+    if (campo === 'resolucion') Object.assign(entrada, { resolucion: 'aceptar' });
+    if (campo === 'undefined') Object.assign(entrada, { resolucion: undefined });
+    if (campo === 'viaje') Object.assign(prueba, { viajeId: 'otro' });
+    if (campo === 'protocolo') Object.assign(prueba, { protocolo: 2 });
+    if (campo === 'positivo') Object.assign(raiz, { confirmado: estadoCon(marca('negativa', 'p2')) });
+    if (campo === 'recuperacion') Object.assign(raiz.legado!.recuperacion[0], { clave: undefined });
+    const db = await conexion(ctx.fabrica, ctx.nombre);
+    await guardarCrudo(db, raiz);
+    const espia = vi.spyOn(IDBObjectStore.prototype, 'put');
+    await expect(almacen.leer()).rejects.toThrow('corrupt');
+    await expect(almacen.resolverRechazo('negativa')).rejects.toThrow('corrupt');
+    await expect(ctx.abrir()).rejects.toThrow('corrupt');
+    expect(espia).not.toHaveBeenCalled();
+    espia.mockRestore();
+    expect(await leerCrudo(db)).toEqual(raiz);
+  });
+
+  it('migra v2 sin refinar, descartar ni resetear base, contador, enviados o respaldo', async () => {
+    const ctx = contexto();
+    const { db, raiz } = await sembrarV2(ctx);
+    const almacen = await ctx.abrir(legado);
+    const esperada = { ...raiz, formato: 3 };
+    expect(await almacen.leer()).toEqual(esperada);
+    expect(await leerCrudo(db)).toEqual(esperada);
+    expect(db.version).toBe(1);
+    almacen.cerrar();
+    expect(await (await ctx.abrir()).leer()).toEqual(esperada);
+  });
+
+  it.each(['rechazo', 'resolucion'])('valida esquema original v1 antes de migrar y no admite %s', async (campo) => {
+    const ctx = contexto();
+    const { db, raiz } = await sembrarV1(ctx, [marca()]);
+    Object.assign(raiz.cola[0], { [campo]: campo === 'rechazo' ? rechazo() : 'conservar-confirmado' });
+    await guardarCrudo(db, raiz);
+    const espia = vi.spyOn(IDBObjectStore.prototype, 'put');
+    await expect(ctx.abrir()).rejects.toThrow('corrupt');
+    expect(espia).not.toHaveBeenCalled();
+    espia.mockRestore();
+    expect(await leerCrudo(db)).toEqual(raiz);
+  });
+
+  it('revierte migración v2 tras éxito del put y permite reintentar', async () => {
+    const ctx = contexto();
+    const { db, raiz } = await sembrarV2(ctx);
+    const espia = abortarDespuesDePut();
+    await expect(ctx.abrir()).rejects.toMatchObject({ name: 'AbortError' });
+    espia.mockRestore();
+    expect(await leerCrudo(db)).toEqual(raiz);
+    expect(await (await ctx.abrir()).leer()).toEqual({ ...raiz, formato: 3 });
+  });
+
+  it.each(['rechazo', 'resolucion', 'cache', 'dependencia', 'revision', 'recuperacion'])('rechaza v2 corrupta %s antes de escribir', async (campo) => {
+    const ctx = contexto();
+    const { db, raiz } = await sembrarV2(ctx);
+    if (campo === 'rechazo') Object.assign(raiz.cola[0], { rechazo: rechazo() });
+    if (campo === 'resolucion') Object.assign(raiz.cola[0], { resolucion: 'conservar-confirmado' });
+    if (campo === 'cache') Object.assign(raiz.estado.paradas.p1, { revision: 55 });
+    if (campo === 'dependencia') Object.assign(raiz.cola[1], { dependeDe: ['ausente'] });
+    if (campo === 'revision') Object.assign(raiz, { revisionServidor: Infinity });
+    if (campo === 'recuperacion') Object.assign(raiz.legado.recuperacion[0], { campo: new String('marcas') });
+    await guardarCrudo(db, raiz);
+    const espia = vi.spyOn(IDBObjectStore.prototype, 'put');
+    await expect(ctx.abrir()).rejects.toThrow('corrupt');
+    expect(espia).not.toHaveBeenCalled();
+    espia.mockRestore();
+    expect(await leerCrudo(db)).toEqual(raiz);
+  });
+
+  it('persiste negativo sin resolver automáticamente, retiene hijos y requiere revisión manual tras reabrir', async () => {
+    const ctx = contexto();
+    let almacen = await ctx.abrir();
+    await almacen.registrar(marca());
+    await almacen.registrar({ ...marca('hija'), marca: null, revision: 1 });
+    await almacen.marcarEnviada('op1');
+    expect((await almacen.marcarEnviada('op1')).tipo).toBe('enviada');
+    const prueba = rechazo();
+    const recibido = await almacen.recibirRechazo(prueba);
+    expect(recibido.tipo).toBe('rechazada');
+    expect(recibido.proyeccion?.entradas.map((e) => e.tipo)).toEqual(['rechazada', 'bloqueada']);
+    const negativa = await almacen.leer();
+    expect(negativa.cola[0]).toEqual({ operacion: marca(), dependeDe: [], enviada: true, rechazo: prueba });
+    expect(negativa.estado).toEqual(prueba.instantanea.estado);
+    almacen.cerrar();
+    almacen = await ctx.abrir();
+    expect(await almacen.leer()).toEqual(negativa);
+    expect((await almacen.marcarEnviada('op1')).tipo).toBe('conflicto');
+    expect((await almacen.cancelarIntencion('op1')).tipo).toBe('conflicto');
+    expect((await almacen.registrar(marca())).tipo).toBe('duplicada');
+    expect((await almacen.registrar({ ...marca(), marca: 'saltada' })).tipo).toBe('invalida');
+    expect((await almacen.resolverRechazo('op1')).proyeccion?.entradas.map((e) => e.tipo)).toEqual(['resuelta', 'bloqueada']);
+    const resuelta = await almacen.leer();
+    expect(resuelta.cola[0]).toEqual({ ...negativa.cola[0], resolucion: 'conservar-confirmado' });
+    expect(resuelta.estado).toEqual(negativa.estado);
+    almacen.cerrar();
+    almacen = await ctx.abrir();
+    expect(await almacen.leer()).toEqual(resuelta);
+    expect((await almacen.recibirRechazo(prueba)).tipo).toBe('ignorada');
+    expect((await almacen.resolverRechazo('op1')).tipo).toBe('resuelta');
+    expect(await almacen.leer()).toEqual(resuelta);
+    expect((await almacen.marcarEnviada('hija')).tipo).toBe('conflicto');
+    expect((await almacen.cancelarIntencion('hija')).tipo).toBe('cancelada');
+    expect((await almacen.registrar({ ...marca('nueva'), marca: 'hecha', revision: 1 })).tipo).toBe('aplicada');
+    expect((await almacen.leer()).cola.map((e) => e.operacion.id)).toEqual(['op1', 'nueva']);
+  });
+});
+
+describe('cola durable v3', () => {
+  it('crea v3 sobre IDB v1 y migra originales v1 refinando solo dependencias', async () => {
     const ctx = contexto();
     const ops = [marca(), marca('op2', 'p2'), { ...marca('reset'), marca: null, revision: 1 }];
     const { db, raiz } = await sembrarV1(ctx, ops);
     const almacen = await ctx.abrir(legado);
     const nueva = await almacen.leer();
     expect(db.version).toBe(1);
-    expect(nueva.formato).toBe(2);
+    expect(nueva.formato).toBe(3);
     expect(nueva.revisionServidor).toBe(0);
     expect(nueva.confirmado).toEqual(raiz.confirmado);
     expect(nueva.estado).toEqual(raiz.estado);
@@ -124,13 +440,13 @@ describe('cola durable v2', () => {
       espia.mockRestore();
       expect(await leerCrudo(db)).toEqual(raiz);
       const nueva = await (await ctx.abrir()).leer();
-      expect(nueva.formato).toBe(2);
+      expect(nueva.formato).toBe(3);
       expect(nueva.legado).toEqual(raiz.legado);
     }
   });
 
   it('valida v1 antes de migrar y rechaza versiones desconocidas sin put', async () => {
-    for (const formato of [1, 3]) {
+    for (const formato of [1, 4]) {
       const ctx = contexto();
       const { db, raiz } = await sembrarV1(ctx, [marca(), marca('op2', 'p2')]);
       const corrupta = { ...raiz, formato, cola: raiz.cola.map((e) => ({ ...e, dependeDe: [] })) };
@@ -280,7 +596,7 @@ describe('cola durable v2', () => {
     expect((await dos.marcarEnviada('otra')).tipo).toBe('ausente');
   });
 
-  it.each(['cache', 'enviada', 'dependencia', 'recibo', 'revision', 'operacion', 'id-repetido', 'sin-marcador', 'fuente-recibo'])('rechaza v2 corrupto %s sin sobrescribir', async (campo) => {
+  it.each(['cache', 'enviada', 'dependencia', 'recibo', 'revision', 'operacion', 'id-repetido', 'sin-marcador', 'fuente-recibo'])('rechaza raíz corrupta %s sin sobrescribir', async (campo) => {
     const ctx = contexto();
     const almacen = await ctx.abrir();
     await almacen.registrar(marca());

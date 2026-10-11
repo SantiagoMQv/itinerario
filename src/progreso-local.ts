@@ -1,7 +1,7 @@
 import { aplicarOperacion, crearProgreso, importarLegado } from './progreso';
 import { campos, densa, esOperacion, esEstadoProgreso, iguales } from './progreso-validacion';
-import { iniciarCola, agregarIntencion, proyectarCola, recibirInstantanea, marcarEnviada, cancelarIntencion, recibirAcuse } from './progreso-cola';
-import type { Cola, EntradaCola, ResultadoCola, AcusePersistido } from './progreso-cola';
+import { iniciarCola, agregarIntencion, proyectarCola, recibirInstantanea, marcarEnviada, cancelarIntencion, recibirAcuse, recibirRechazo, resolverRechazo } from './progreso-cola';
+import type { Cola, EntradaCola, ResultadoCola, AcusePersistido, RechazoPersistido } from './progreso-cola';
 import type { InstantaneaProgreso } from './progreso-validacion';
 import type { EntradasLegadas, EstadoProgreso, Operacion, OperacionPendiente, RecuperacionLegada, ResultadoOperacion } from './progreso';
 import type { Itinerario } from './tipos';
@@ -18,7 +18,7 @@ interface RegistroV1 {
  * revisionServidor ordena snapshots; no es una revisión de entidad ni prueba de autenticidad.
  */
 export interface RegistroLocal {
-  readonly formato: 2;
+  readonly formato: 3;
   readonly revisionServidor: number;
   readonly confirmado: EstadoProgreso;
   readonly estado: EstadoProgreso;
@@ -42,6 +42,9 @@ export interface ProgresoLocal {
   marcarEnviada(operacionId: string): Promise<ResultadoCola>;
   cancelarIntencion(operacionId: string): Promise<ResultadoCola>;
   recibirAcuse(acuse: AcusePersistido): Promise<ResultadoCola>;
+  /** Decisión durable separada de la revisión manual; nunca implica progreso aplicado. */
+  recibirRechazo(rechazo: unknown): Promise<ResultadoCola>;
+  resolverRechazo(operacionId: string): Promise<ResultadoCola>;
   /** No cancela transacciones ya iniciadas. Volver a abrir requiere abrirProgresoLocal. */
   cerrar(): void;
 }
@@ -93,17 +96,30 @@ function comoCola(raiz: RegistroLocal): Cola {
 }
 function desdeResultado(raiz: Pick<RegistroLocal, 'legado'>, resultado: ResultadoCola): RegistroLocal {
   if (!resultado.cola || !resultado.proyeccion) throw new Error('No se pudo reconstruir la cola');
-  return { formato: 2, revisionServidor: resultado.cola.confirmado.revisionServidor,
+  return { formato: 3, revisionServidor: resultado.cola.confirmado.revisionServidor,
     confirmado: resultado.cola.confirmado.estado, estado: resultado.proyeccion.estado,
     cola: resultado.cola.entradas, ...(raiz.legado === undefined ? {} : { legado: raiz.legado }) };
 }
-function validar(plan: Itinerario, valor: unknown): RegistroLocal {
+/** Invariante adicional de almacenamiento: el guard puro valida cada prueba y propietario,
+ * pero la raíz conserva todos los testigos históricos, incluso después de lecturas nuevas. */
+function historiaCoherente(cola: Cola): boolean {
+  const pruebas = cola.entradas.flatMap((e) => e.rechazo ? [e.rechazo] : []);
+  const testigos = [cola.confirmado, ...pruebas.map((r) => r.instantanea)];
+  return testigos.every((s) => s.revisionServidor <= cola.confirmado.revisionServidor
+    && pruebas.every((r) => !Object.hasOwn(s.estado.operaciones, r.operacionId))
+    && testigos.every((otro) => otro.revisionServidor !== s.revisionServidor || iguales(otro.estado, s.estado)));
+}
+function validar(plan: Itinerario, valor: unknown, formato: 2 | 3 = 3): RegistroLocal {
   try {
     if (!campos(valor, ['formato', 'revisionServidor', 'confirmado', 'estado', 'cola'], ['legado'])
-      || valor.formato !== 2 || !esEstadoProgreso(plan, valor.estado)) throw new Error();
+      || valor.formato !== formato || !esEstadoProgreso(plan, valor.estado)) throw new Error();
+    // V2 tiene su esquema original: jamás admite metadatos incorporados en V3.
+    if (formato === 2 && (!densa(valor.cola)
+      || !valor.cola.every((e) => campos(e, ['operacion', 'dependeDe', 'enviada'])))) throw new Error();
     const raiz = valor as unknown as RegistroLocal;
     const resultado = proyectarCola(plan, comoCola(raiz));
-    if (!resultado.proyeccion || !iguales(valor.estado, resultado.proyeccion.estado)) throw new Error();
+    if (!resultado.cola || !resultado.proyeccion || !iguales(valor.estado, resultado.proyeccion.estado)) throw new Error();
+    if (!historiaCoherente(resultado.cola)) throw new Error();
     validarLegado(valor);
     // El helper materializa el dominio; el legado conserva su clon estructurado, no se normaliza.
     return desdeResultado(raiz, resultado);
@@ -233,6 +249,9 @@ export async function abrirProgresoLocal(plan: Itinerario, opciones: OpcionesPro
       if (campos(valor, ['formato', 'confirmado', 'estado', 'cola'], ['legado']) && valor.formato === 1) {
         return { valor: undefined, guardar: migrar(copiaPlan, valor) };
       }
+      if (campos(valor, ['formato', 'revisionServidor', 'confirmado', 'estado', 'cola'], ['legado']) && valor.formato === 2) {
+        return { valor: undefined, guardar: validar(copiaPlan, valor, 2) };
+      }
       validar(copiaPlan, valor);
       return { valor: undefined };
     });
@@ -248,6 +267,10 @@ export async function abrirProgresoLocal(plan: Itinerario, opciones: OpcionesPro
     return transaccion('readwrite', (valor) => {
       const raiz = raizExistente(valor);
       const resultado = trabajo(comoCola(raiz));
+      if (resultado.cola && !historiaCoherente(resultado.cola)) {
+        return { valor: { ...proyectarCola(copiaPlan, comoCola(raiz)), tipo: 'conflicto' as const,
+          motivo: 'Decisión incompatible con los testigos históricos almacenados' } };
+      }
       const guardar = resultado.cola && resultado.proyeccion && !iguales(resultado.cola, comoCola(raiz));
       return { valor: resultado, ...(guardar ? { guardar: desdeResultado(raiz, resultado) } : {}) };
     });
@@ -290,6 +313,22 @@ export async function abrirProgresoLocal(plan: Itinerario, opciones: OpcionesPro
       return marcarEnviada(copiaPlan, cola, id);
     }),
     cancelarIntencion: (id) => modificar((cola) => cancelarIntencion(copiaPlan, cola, id)),
+    recibirRechazo: async (rechazo) => {
+      // Validar ANTES de leer/capturar campos: el guard puro rechaza accessors sin ejecutarlos.
+      const vacia = iniciarCola(copiaPlan, { revisionServidor: 0, estado: crearProgreso(copiaPlan) }).cola!;
+      const validacion = recibirRechazo(copiaPlan, vacia, rechazo);
+      let copia: RechazoPersistido | null = null;
+      if (validacion.tipo !== 'invalida') {
+        const decision = rechazo as RechazoPersistido;
+        // Hidratar con el testigo propio permite la materialización canónica del helper,
+        // incluso para una prueba histórica que difiere de nuestra base actual.
+        const capturada = proyectarCola(copiaPlan, { confirmado: decision.instantanea,
+          entradas: [{ operacion: decision.operacionOriginal, dependeDe: [], enviada: true, rechazo: decision }] });
+        copia = capturada.cola!.entradas[0].rechazo!;
+      }
+      return modificar((cola) => recibirRechazo(copiaPlan, cola, copia));
+    },
+    resolverRechazo: (id) => modificar((cola) => resolverRechazo(copiaPlan, cola, id)),
     recibirAcuse: async (acuse) => {
       // El reconciliador valida el acuse, incluso sin entrada: no duplicamos su esquema.
       const vacia = iniciarCola(copiaPlan, { revisionServidor: 0, estado: crearProgreso(copiaPlan) }).cola!;
