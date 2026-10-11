@@ -3,41 +3,53 @@ import { type Caja, ampliarCaja, cajaDe, teselasDeCaja } from './geo';
 import { ESTILO } from './mapa';
 import type { Modelo } from './modelo';
 
-// Deben coincidir con public/sw.js.
-const CACHE_APP = 'app-v1';
-const CACHE_MAPA = 'mapa-v1';
-const CLAVE_DESCARGA = 'mapas-descargados';
-
-/** Clave de caché de una tesela sin la versión del mapa. Igual que en public/sw.js. */
-const claveTesela = (url: string) => url.replace(/\/planet\/[^/]+\/(\d+\/\d+\/\d+\.pbf)$/, '/planet/$1');
+import { nombresCache, tipoNucleo, respuestaNucleo, referenciasNucleo, esMapa, respuestaMapa, claveTesela } from './politica-offline';
+// El aviso antiguo no acredita que exista un núcleo v2 preparado. No se borra su clave.
+const CLAVE_DESCARGA = 'mapas-descargados-v2:';
+const claveDescarga = (ambito = new URL('./', location.href).href) => CLAVE_DESCARGA + ambito;
 
 export async function registrarServiceWorker() {
   if (import.meta.env.DEV || !('serviceWorker' in navigator)) return;
   try {
     await navigator.serviceWorker.register('./sw.js');
-    await guardarApp();
   } catch (e) {
     console.warn('No se pudo registrar el service worker', e);
   }
 }
 
-/** Guarda en caché lo que ya se ha cargado de la app (en la primera visita el service worker aún no lo ve). */
-async function guardarApp() {
-  const cache = await caches.open(CACHE_APP);
-  const urls = new Set([new URL('./', location.href).href]);
-  for (const r of performance.getEntriesByType('resource')) {
-    if (r.name.startsWith(location.origin)) urls.add(r.name.split('#')[0]);
+/** Preparación manual: valida todo antes de publicar la lista que permite lecturas offline. */
+export async function guardarApp(ambito?: string): Promise<void> {
+  const registro = await navigator.serviceWorker.getRegistration();
+  const base = ambito ?? registro?.scope;
+  if (!base || new URL(base).origin !== location.origin) throw new Error('Sin ámbito offline propio');
+  const nombres = nombresCache(base);
+  const pendientes = new Set([base, ...['manifest.webmanifest', 'icono.svg', 'icono-180.png', 'icono-192.png', 'icono-512.png'].map((ruta) => new URL(ruta, base).href)]);
+  const preparadas = new Map<string, { peticion: Request; resp: Response }>();
+  for (const url of pendientes) {
+    // Bypass del caché HTTP y de cualquier copia offline: la preparación necesita red real.
+    const peticion = new Request(url, { method: 'GET', credentials: 'same-origin', cache: 'no-store' });
+    const resp = await fetch(peticion);
+    if (!(await respuestaNucleo(resp, url, base))) throw new Error('No se pudo preparar el núcleo offline');
+    preparadas.set(url, { peticion, resp });
+    const tipo = tipoNucleo(url, base)!;
+    if (['html', 'css', 'js'].includes(tipo)) {
+      for (const dependencia of referenciasNucleo(await resp.clone().text(), url, base, tipo)) pendientes.add(dependencia);
+    }
   }
-  await Promise.all(
-    [...urls].map(async (u) => {
-      if (!(await cache.match(u))) await cache.add(u).catch(() => {});
-    }),
-  );
+  // Cada operación posee sus bytes: nunca sobrescribe una generación publicada.
+  const generacion = nombres.app + ':' + crypto.randomUUID();
+  const cache = await caches.open(generacion);
+  for (const { peticion, resp } of preparadas.values()) await cache.put(peticion, resp.clone());
+  const lista = await caches.open(nombres.lista);
+  await lista.put(base, new Response(JSON.stringify({ version: 2, ambito: base, generacion, urls: [...preparadas.keys()] }), { headers: { 'Content-Type': 'application/json' } }));
+  // Una sola escritura publica puntero y URLs juntos. No se limpia ni ante rechazo:
+  // podría haberse publicado antes de perder el acuse; conservar huérfanos es seguro.
+  // app-v1 queda aislada: nunca se lee ni se borra, porque puede contener otro montaje.
 }
 
 export function descargaAnterior(): string | null {
   try {
-    return localStorage.getItem(CLAVE_DESCARGA);
+    return localStorage.getItem(claveDescarga());
   } catch {
     return null;
   }
@@ -89,19 +101,26 @@ export async function descargarMapas(
   progreso: (hechas: number, total: number) => void,
 ): Promise<{ fallos: number; total: number }> {
   await navigator.storage?.persist?.().catch(() => false);
-  await guardarApp().catch(() => {});
+  // No anunciar una descarga completa si el núcleo quedó sin preparar.
+  let falloApp = 0;
+  try { await guardarApp(); } catch { falloApp = 1; }
   const urls = urlsNecesarias(mapa, modelo);
-  const cache = await caches.open(CACHE_MAPA);
+  const registro = await navigator.serviceWorker.getRegistration();
+  if (!registro) throw new Error('Sin ámbito offline propio');
+  const cache = await caches.open(nombresCache(registro.scope).mapa);
+  const heredada = await caches.open('mapa-v1');
   let hechas = 0;
-  let fallos = 0;
+  let fallos = falloApp;
   const cola = [...urls];
   const trabajador = async () => {
     for (let url = cola.shift(); url; url = cola.shift()) {
       try {
+        if (!esMapa(url)) throw new Error('Recurso de mapa no permitido');
         const clave = claveTesela(url);
-        if (!(await cache.match(clave, { ignoreVary: true }))) {
-          const resp = await fetch(url, { mode: 'cors' });
-          if (resp.ok) await cache.put(clave, resp);
+        const previa = await cache.match(clave) ?? await heredada.match(clave);
+        if (!previa || !respuestaMapa(previa, url)) {
+          const resp = await fetch(url, { mode: 'cors', credentials: 'omit', cache: 'no-store' });
+          if (respuestaMapa(resp, url)) await cache.put(clave, resp);
           else if (resp.status !== 204 && resp.status !== 404) fallos++;
         }
       } catch {
@@ -113,7 +132,7 @@ export async function descargarMapas(
   await Promise.all(Array.from({ length: 6 }, trabajador));
   if (fallos === 0) {
     try {
-      localStorage.setItem(CLAVE_DESCARGA, new Date().toISOString());
+      localStorage.setItem(claveDescarga(registro.scope), new Date().toISOString());
     } catch {
       // Sin almacenamiento local: solo se pierde el aviso de "ya descargado".
     }
