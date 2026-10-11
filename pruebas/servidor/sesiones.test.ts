@@ -34,6 +34,8 @@ async function preparar(reloj = () => ahora) {
       if (registro?.viajeId === viaje) registros.set(huella, { ...registro, revocada: true });
     }),
     admitirIntento: vi.fn(async (_huella: string, _ahora: number): Promise<boolean> => true),
+    listar: vi.fn(async (): Promise<unknown> => ({ tipo: 'lista', sesiones: [] })),
+    revocarOtra: vi.fn(async (): Promise<'ausente'> => 'ausente'),
   } satisfies RepositorioSesiones;
   const credenciales = await crearCredenciales({ viajeId, claveCompartida: clave });
   const controlador = crearControladorSesiones({ viajeId, credenciales, repositorio: repo, reloj });

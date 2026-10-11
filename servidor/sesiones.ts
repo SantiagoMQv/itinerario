@@ -30,6 +30,11 @@ export interface SesionPublica {
   readonly nombreDispositivo?: string;
 }
 export interface RespuestaSesion { readonly sesion: SesionPublica | null }
+export interface SesionDispositivo extends SesionPublica { readonly actual: boolean }
+export interface RespuestaDispositivos { readonly sesiones: readonly SesionDispositivo[] }
+export type ResultadoListado = { readonly tipo: 'lista'; readonly sesiones: readonly unknown[] }
+  | { readonly tipo: 'sin-sesion' };
+export type ResultadoRevocacion = 'revocada' | 'ausente' | 'sin-sesion';
 export interface EntradaSesion {
   readonly clave: unknown;
   readonly dispositivoId: string;
@@ -49,6 +54,17 @@ export interface RepositorioSesiones {
   // Dentro de la ventana cuenta éxitos y claves erróneas; denegados no incrementan.
   // Reloj regresivo no reinicia la ventana. No almacenar/loguear identidad de red cruda.
   admitirIntento(huellaOrigen: string, ahora: number): Promise<boolean>;
+  // El futuro SQL debe revalidar actor vivo, viaje y caducidad DENTRO de cada operación
+  // atómica; la lectura previa del controlador no basta. listar devuelve ResultadoListado,
+  // pero la frontera recibe unknown y valida todas las filas antes de filtrar/publicar.
+  // Sin límite arbitrario que oculte sesiones: presupuestar bytes/paginación en SQL futuro.
+  listar(huellaActor: string, viajeId: string): Promise<unknown>;
+  // Confirmar commit antes de resolver. Objetivo ajeno al viaje = ausente; objetivo ya
+  // revocado del mismo viaje = revocada mientras el actor siga válido. Permite autorrevocar.
+  // SQL futuro: bloquear AMBAS filas en orden determinista ANTES de validar/escribir;
+  // ShareLock del actor seguido de Update del otro puede causar deadlock al cruzar A/B.
+  // Callbacks de prueba solo prueban este contrato, no locks ni aislamiento PostgreSQL.
+  revocarOtra(huellaActor: string, viajeId: string, objetivoId: string): Promise<ResultadoRevocacion>;
 }
 export interface ConfiguracionSesiones {
   readonly viajeId: string;
@@ -117,6 +133,31 @@ function registroValidado(valor: unknown, huella: string): RegistroSesion {
     ...(Object.hasOwn(valor, 'nombreDispositivo') ? { nombreDispositivo: valor.nombreDispositivo as string } : {}),
   });
 }
+function listadoValidado(valor: unknown, actor: RegistroSesion): readonly RegistroSesion[] | null {
+  if (camposExactos(valor, ['tipo'], []) && valor.tipo === 'sin-sesion') return null;
+  if (!camposExactos(valor, ['tipo', 'sesiones'], []) || valor.tipo !== 'lista' ||
+    !Array.isArray(valor.sesiones) || Object.getPrototypeOf(valor.sesiones) !== Array.prototype) throw new FalloSesion();
+  const filas = valor.sesiones;
+  // Densa, sin propiedades extra/símbolos ni accesores. No ejecutar getters del adaptador.
+  if (Reflect.ownKeys(filas).length !== filas.length + 1) throw new FalloSesion();
+  const ids = new Set<string>();
+  const huellas = new Set<string>();
+  const registros: RegistroSesion[] = [];
+  for (let i = 0; i < filas.length; i++) {
+    const descriptor = Object.getOwnPropertyDescriptor(filas, String(i));
+    if (!descriptor || !Object.hasOwn(descriptor, 'value')) throw new FalloSesion();
+    const fila: unknown = descriptor.value;
+    const huella = fila !== null && typeof fila === 'object'
+      ? Object.getOwnPropertyDescriptor(fila, 'huella')?.value : undefined;
+    const registro = registroValidado(fila, huella);
+    if (registro.viajeId !== actor.viajeId || ids.has(registro.id) || huellas.has(registro.huella) ||
+      (registro.id === actor.id) !== (registro.huella === actor.huella)) throw new FalloSesion();
+    ids.add(registro.id);
+    huellas.add(registro.huella);
+    registros.push(registro);
+  }
+  return registros;
+}
 function publica(registro: RegistroSesion): SesionPublica {
   return {
     id: registro.id, viajeId: registro.viajeId, dispositivoId: registro.dispositivoId, venceEn: registro.venceEn,
@@ -133,7 +174,7 @@ export function crearControladorSesiones(configuracion: ConfiguracionSesiones): 
   const { viajeId, credenciales, repositorio, reloj = Date.now } = configuracion;
   if (!identificador(viajeId) || typeof reloj !== 'function' ||
     !credenciales || !['verificarClave', 'emitirSesion', 'leerCookie'].every((campo) => typeof Reflect.get(credenciales, campo) === 'function') ||
-    !repositorio || !['crear', 'leer', 'revocar', 'admitirIntento'].every((campo) => typeof Reflect.get(repositorio, campo) === 'function')) {
+    !repositorio || !['crear', 'leer', 'revocar', 'admitirIntento', 'listar', 'revocarOtra'].every((campo) => typeof Reflect.get(repositorio, campo) === 'function')) {
     throw new Error(ERROR_CONFIGURACION);
   }
   const leerReloj = () => {
@@ -185,12 +226,51 @@ export function crearControladorSesiones(configuracion: ConfiguracionSesiones): 
     await repositorio.crear(registro);
     return responder(publica(registro), 201, cookie);
   };
+  const dispositivos = async (solicitud: Request, ruta: string): Promise<Response> => {
+    const esListado = ruta === '/api/sesiones';
+    const metodo = esListado ? 'GET' : 'DELETE';
+    if (solicitud.method !== metodo) {
+      const respuesta = respuestaJson({ error: 'Método no permitido.' }, 405);
+      respuesta.headers.set('Allow', metodo);
+      return respuesta;
+    }
+    let objetivoId = '';
+    if (!esListado) {
+      comprobarOrigen(solicitud); // Antes de autenticar o consultar cualquier puerto.
+      try { objetivoId = decodeURIComponent(ruta.slice('/api/sesiones/'.length)).toLowerCase(); }
+      catch { throw new FalloHttp(400); }
+      if (!uuid.test(objetivoId)) throw new FalloHttp(400);
+    }
+    const sinSesion = () => responder(null, 401, borrarCookieSesion());
+    const actor = await autenticar(solicitud);
+    if (!actor) return sinSesion();
+    if (esListado) {
+      const registros = listadoValidado(await repositorio.listar(actor.huella, viajeId), actor);
+      if (registros === null) return sinSesion();
+      const ahora = leerReloj(); // Siempre DESPUÉS de esperar y validar el listado.
+      const sesiones = registros.filter((r) => !r.revocada && r.venceEn > ahora)
+        .sort((a, b) => Number(b.id === actor.id) - Number(a.id === actor.id) ||
+          b.creadaEn - a.creadaEn || a.id.localeCompare(b.id))
+        .map((r) => ({ ...publica(r), actual: r.id === actor.id && r.huella === actor.huella }));
+      return respuestaJson({ sesiones } satisfies RespuestaDispositivos);
+    }
+    // La autoridad final está en esta operación atómica, no en el ID público ni el cuerpo.
+    const resultado = await repositorio.revocarOtra(actor.huella, viajeId, objetivoId);
+    if (resultado === 'sin-sesion') return sinSesion();
+    if (resultado === 'ausente') return respuestaJson({ error: 'Sesión no encontrada.' }, 404);
+    if (resultado !== 'revocada') throw new FalloSesion();
+    const respuesta = respuestaJson({ revocada: objetivoId });
+    if (objetivoId === actor.id) respuesta.headers.set('Set-Cookie', borrarCookieSesion());
+    return respuesta;
+  };
   return Object.freeze({
     autenticar,
     async atender(solicitud: Request, contexto?: ContextoSolicitudSesion): Promise<Response> {
       // Producción requiere HTTPS: el futuro Worker T3F fuerza TLS, sin CORS permisivo.
       try {
-        if (new URL(solicitud.url).pathname !== '/api/sesion') return respuestaJson({ error: 'Ruta no encontrada.' }, 404);
+        const ruta = new URL(solicitud.url).pathname;
+        if (ruta === '/api/sesiones' || /^\/api\/sesiones\/[^/]+$/.test(ruta)) return await dispositivos(solicitud, ruta);
+        if (ruta !== '/api/sesion') return respuestaJson({ error: 'Ruta no encontrada.' }, 404);
         if (!['POST', 'GET', 'DELETE'].includes(solicitud.method)) {
           const respuesta = respuestaJson({ error: 'Método no permitido.' }, 405);
           respuesta.headers.set('Allow', 'POST, GET, DELETE');
