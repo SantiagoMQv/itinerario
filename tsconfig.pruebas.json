@@ -1,5 +1,6 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": { "types": ["vite/client", "node"] },
-  "include": ["pruebas", "playwright.config.ts"]
+  "include": ["pruebas", "playwright.config.ts"],
+  "exclude": ["pruebas/servidor"]
 }

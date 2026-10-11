@@ -1,0 +1,4 @@
+{
+  "extends": "./tsconfig.servidor.json",
+  "include": ["servidor/**/*.ts", "pruebas/servidor/**/*.test.ts"]
+}
