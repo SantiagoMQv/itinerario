@@ -59,6 +59,10 @@ const C = {
   huabao: [31.2274647, 121.4874582],
   cathay: [31.2200737, 121.4568575],
   aldi: [31.250737, 121.4411723],
+  // Mercado de pequeños artículos de Fuyou Road: 福佑门商厦, aproximado (esquina con Henan South Road);
+  // 福佑商厦, vía 389702034.
+  fuyoumen: [31.23008, 121.48365],
+  fuyou: [31.2302868, 121.4872436],
   // Paseo del Bund junto a la plaza de Chen Yi (antes había una coordenada desplazada, en el río).
   bund: [31.24103, 121.4866],
   speakLow: [31.2170628, 121.4605836],
@@ -801,7 +805,7 @@ export const itinerario: Itinerario = {
         {
           id: '452ea1cf8d93706b',
           hora: '13:55',
-          fin: '15:00',
+          fin: '14:40',
           nombre: 'Compras por Huaihai y parque Xiangyang',
           corto: 'Huaihai',
           local: '淮海中路',
@@ -856,15 +860,41 @@ export const itinerario: Itinerario = {
           ],
         },
         {
+          id: 'f2a06844df75254f',
+          hora: '15:00',
+          fin: '15:40',
+          nombre: 'Disfraces en el mercado de Fuyou Road',
+          corto: 'los disfraces',
+          local: '福佑门商厦',
+          categoria: 'compras',
+          ...en(C.fuyoumen),
+          llegada: { modo: 'metro', detalle: 'Línea 10 de South Shaanxi Road a Yuyuan Garden, salida 1 (a 80 m)', min: 20 },
+          direccionLocal: '黄浦区福佑路427号（河南南路口）',
+          notas:
+            'Mercado mayorista de pequeños artículos (plantas 1 a 3) junto al bazar de Yuyuan: los puestos cambian de género con la temporada y en octubre venden cosas de Halloween (que lo hagan en 2026, sin confirmar). Precios de mayorista multiplicados por 2 o 3: regatear. Se cierra pronto (hacia las 17:00–18:00, sin confirmar): por eso va antes del jardín.\n' +
+            'Ideas que cumplen las normas de Disneyland: villanos (ropa negra propia, capa por encima del tobillo y cuernos blandos o sombrero de bruja, sin tridente ni escoba); Mickey y Minnie de Halloween (negro, rojo y orejas); vampiros (capa corta, colmillos y antifaz que deje ver los ojos); piratas (pañuelo y camiseta de rayas, sin espada); Zootopia (orejas de zorro o de conejo y camisa, sin insignias de policía).\n' +
+            'Plan B: accesorios en Miniso Land (Nanjing Road, día 1) y orejas de Mickey dentro del parque nada más entrar (100–159 ¥).',
+          subparadas: [
+            {
+              id: '5c191f93c9ee2d55',
+              nombre: 'Fuyou Shangsha, otro edificio del mercado',
+              local: '福佑商厦',
+              opcional: true,
+              ...en(C.fuyou),
+              notas: 'Otro edificio de pequeños artículos, junto a la puerta norte del jardín, por si falta algo. Horario sin confirmar.',
+            },
+          ],
+        },
+        {
           id: '0512e12375921a0f',
-          hora: '15:20',
+          hora: '15:45',
           fin: '16:30',
           nombre: 'Jardín Yuyuan',
           corto: 'el jardín',
           local: '豫园',
           categoria: 'cultura',
           ...en(C.jardinYuyuan),
-          llegada: { modo: 'metro', detalle: 'Línea 10 de South Shaanxi Road a Yuyuan Garden, o taxi', min: 20 },
+          llegada: { modo: 'a_pie', detalle: 'Unos 7 min por Fuyou Road hasta la puerta norte' },
           direccionLocal: '黄浦区福佑路168号（豫园北门）',
           notas:
             'Jardín clásico chino de la dinastía Ming (siglo XVI): rocallas, estanques, pabellones y galerías.\n' +
@@ -1045,7 +1075,7 @@ export const itinerario: Itinerario = {
           llegada: { modo: 'metro', detalle: 'Metro hasta Disney Resort (línea 11) o taxi/DiDi', min: 60 },
           notas:
             'Viernes 23: día especial de Halloween («Spook-tacular Day»), todo incluido en la entrada. Parque de 8:30 a 22:00 (calendario oficial). Desfile de Mickey a las 12:15 y 15:45; desfile de Halloween a las 14:15 y 18:15, seguido de la celebración de villanos en el castillo; zonas de fiesta de 18:00 a 22:00; espectáculo nocturno a las 21:15. Confirmarlo en la app la víspera.\n' +
-            'Disfraces: se puede ir disfrazado, también los adultos. Nada que llegue por debajo del tobillo, sin máscara ni maquillaje que tape toda la cara, nada puntiagudo ni que parezca un arma y accesorios de 50 cm como máximo; no se puede cambiar en los aseos.\n' +
+            'Disfraces (normas de 2026, del 4 de octubre al 1 de noviembre): se puede ir disfrazado, también los adultos. Nada que llegue por debajo del tobillo, sin máscara ni maquillaje que tape toda la cara, nada puntiagudo ni que parezca un arma, accesorios de 50 cm como máximo, sin trajes de protección, batas de hospital ni uniformes oficiales, y sin eslóganes, logotipos ni retratos; mejor nada voluminoso ni hinchable. En algunas atracciones hay que quitarse sombreros, capas y alas. Si se va de personaje Disney, ponen una pegatina y no se puede posar en fotos con otros visitantes. No se puede cambiar ni maquillar en los aseos ni en las taquillas: salir del hotel ya disfrazados.\n' +
             'Entrada del 23: 629 ¥ por adulto (Early Bird, 579 ¥, comprándola antes del 13 de octubre, sin reembolso ni cambios; la normal se reembolsa gratis hasta el 16). Paquete de Halloween, 1.288 ¥: entrada, Premier Access de Piratas, sitio reservado para el desfile de las 18:15 y para el espectáculo nocturno, y bebida con corona. En la web o la app oficial, o en Trip.com (socio oficial), con los datos del pasaporte: se entra pasándolo por el torno.\n' +
             'Premier Access (saltarse la cola): 180 ¥ por atracción grande y 140 ¥ las pequeñas, solo el mismo día, en la app y ya dentro del parque; Zootopia y TRON se agotan pronto. Early Park Entry (1 h antes): 199 ¥ en viernes. No hay fila virtual gratis.\n' +
             'Si se puede, entrar a la apertura: Zootopia, Seven Dwarfs y Peter Pan a primera hora; fila single rider en TRON, Seven Dwarfs y Roaring Rapids. Explorer Canoes, cerrada por reforma. Por la tarde, Halloween: desfile de las 18:15, villanos en el castillo y zonas de fiesta hasta el espectáculo de las 21:15.\n' +
