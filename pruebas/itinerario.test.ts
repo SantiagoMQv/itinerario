@@ -32,15 +32,14 @@ const CLAVES_HEREDADAS = [
   '2026-10-21|20:25|Noria Sky Ring',
   '2026-10-21|21:00|Cena en Top Banana Market',
   '2026-10-21|22:05|Hotel Aqua Suhe NO.1',
-  '2026-10-22|11:10|Parque Fuxing',
-  '2026-10-22|11:50|Middle Huaihai Road: TX Huaihai',
-  '2026-10-22|12:55|Lanxin (Lyceum Restaurant)',
-  '2026-10-22|13:55|Compras por Huaihai y parque Xiangyang',
+  '2026-10-22|09:40|Zhujiajiao: jardín Kezhi, barca y puente Fangsheng',
+  '2026-10-22|12:15|Comida en Caoxi Renjia',
+  '2026-10-22|13:05|Templo del Dios de la Ciudad y correos Qing',
   '2026-10-22|15:00|Disfraces en el mercado de Fuyou Road',
   '2026-10-22|15:45|Jardín Yuyuan',
   '2026-10-22|16:35|Bazar de Yuyuan y Old Street',
   '2026-10-22|19:45|Cena: pato pekinés en Quanjude',
-  '2026-10-22|21:30|Hotel Aqua Suhe NO.1',
+  '2026-10-22|22:00|Hotel Aqua Suhe NO.1',
   '2026-10-23|09:45|Shanghai Disneyland',
   '2026-10-23|22:50|Hotel Aqua Suhe NO.1',
   '2026-10-24|10:45|Estación de Shanghái',
@@ -78,19 +77,19 @@ const TEXTOS_HEREDADOS = [
 ];
 
 describe('identidades persistentes', () => {
-  test('las 164 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
+  test('las 159 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
     const subs = paradas.flatMap(({ p }) => p.subparadas ?? []);
     const pendientes = itinerario.pendientes ?? [];
-    expect(paradas).toHaveLength(43);
-    expect(subs).toHaveLength(112);
+    expect(paradas).toHaveLength(42);
+    expect(subs).toHaveLength(108);
     expect(pendientes).toHaveLength(8);
     const ids = [itinerario.id, ...paradas.map(({ p }) => p.id), ...subs.map((s) => s.id), ...pendientes.map((p) => p.id)];
     for (const id of ids) expect(id).toMatch(/^[a-f0-9]{16}$/);
-    expect(new Set(ids).size).toBe(164);
+    expect(new Set(ids).size).toBe(159);
     // Cada identidad está escrita en los datos, no calculada a partir del contenido ni del orden.
     const fuente = readFileSync(new URL('../src/datos/itinerario.ts', import.meta.url), 'utf8');
     const literales = [...fuente.matchAll(/\bid: '([a-f0-9]{16})'/g)].map((m) => m[1]);
-    expect(literales).toHaveLength(164);
+    expect(literales).toHaveLength(159);
     expect(literales.sort()).toEqual([...ids].sort());
     expectTypeOf<Pick<Itinerario, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
     expectTypeOf<Pick<Parada, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
@@ -135,7 +134,7 @@ describe('identidades persistentes', () => {
     }
     expect(cambiado.paradas[0].id).toBe(0);
     expect(cambiado.paradas[0].p.id).toBe(modelo.paradas.at(-1)!.p.id);
-    expect(modelo.paradas.at(-1)!.id).toBe(42);
+    expect(modelo.paradas.at(-1)!.id).toBe(41);
     // Con tres sitios hay al menos dos del mismo grupo (seguros u opcionales): invertirlos cambia su índice.
     const conSubs = cambiado.paradas.find((p) => p.subs.length > 2)!;
     const original = modelo.paradas.find((p) => p.p.id === conSubs.p.id)!;
