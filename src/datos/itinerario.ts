@@ -1433,7 +1433,7 @@ export const itinerario: Itinerario = {
           direccionLocal: '北京东路39号',
           notas:
             'Gratis. De miércoles a domingo, de 09:00 a 17:00 (última entrada a las 16:00). Reabrió en abril de 2026 tras una reforma.\n' +
-            'Reserva nominal obligatoria en el WeChat «南京古生物博物馆» (参观服务 → 门票预约), con un código por persona, en la franja de 09:00 a 12:00. Se abre unos 3 días de apertura antes (para el sábado, hacia el miércoles 21): reservar en cuanto se abra, que los sábados se llena. Si no deja con pasaporte, llamar al 025-8328 2255.\n' +
+            'Reserva nominal obligatoria en el WeChat «南京古生物博物馆» (参观服务 → 门票预约), con un código por persona. Las franjas (de 09:00 a 12:00 y de 12:00 a 16:00) son horas para ENTRAR, no de visita: llegando a las 11:10, la de 09:00 a 12:00; una vez dentro, lo habitual es poder quedarse hasta el cierre (confirmarlo en la página de la reserva). Se abre unos 3 días de apertura antes (para el sábado, hacia el miércoles 21): reservar en cuanto se abra, que los sábados se llena. Si no deja con pasaporte, llamar al 025-8328 2255.\n' +
             'Lo imprescindible: la sala de fósiles de nivel mundial, con la biota de Chengjiang (Cámbrico) y la de Jehol, con Sinosauropteryx, el primer dinosaurio con plumas; los dinosaurios, el origen de las aves y las grandes extinciones; y la exposición nueva (desde el 29 de septiembre) del bosque pérmico de Wuhai sepultado por ceniza volcánica, la «Pompeya de las plantas».\n' +
             'Hay poco inglés en las salas: llevar un traductor con cámara. Para comer, la cafetería del museo; salir hacia las 14:00 para el tren.',
           gastos: [{ concepto: 'entrada', min: 0 }],
@@ -1880,7 +1880,7 @@ export const itinerario: Itinerario = {
   pendientes: [
     { id: 'c849d1a6f7302be5', texto: 'Museo de Historia Natural (domingo 25): reservar la entrada (no venden en taquilla).' },
     { id: '38f76ad0e1bc5492', texto: 'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.' },
-    { id: 'd57b9016ce42a83f', texto: 'Sábado 24: comprar ya los trenes G7006 (上海站 09:00) y G7017 (南京站 14:57), y reservar el museo (franja de 09:00 a 12:00) en cuanto se abra, hacia el miércoles 21.' },
+    { id: 'd57b9016ce42a83f', texto: 'Sábado 24: comprar ya los trenes G7006 (上海站 09:00) y G7017 (南京站 14:57), y reservar el museo en cuanto se abra, hacia el miércoles 21: franja de entrada de 09:00 a 12:00 (se entra a las 11:10). Comprobar al reservar que se puede seguir dentro después de las 12:00; si no, llamar al 025-8328 2255.' },
     { id: '71ea52c093b6fd84', texto: 'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.' },
     { id: 'b1f8074a6d3c92e5', texto: 'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.' },
     { id: '095cbe73a24f681d', texto: 'Domingo noche: decidir cena giratoria en la Perla o solo vistas; reservar solo tras ver el precio final.' },
