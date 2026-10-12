@@ -5,6 +5,7 @@ import type { Cola, EntradaCola, ResultadoCola, AcusePersistido, RechazoPersisti
 import type { InstantaneaProgreso } from './progreso-validacion';
 import type { EntradasLegadas, EstadoProgreso, Operacion, OperacionPendiente, RecuperacionLegada, ResultadoOperacion } from './progreso';
 import type { Itinerario } from './tipos';
+import { capturarBasePortable, copiarLimitesPortables, copiarPlanPortable, copiarValoresProgresoPortable, validarBasePortable, type BasePortable, type LimitesPortables, type PuertoAperturaPortable } from './portabilidad';
 
 /** Formato anterior, solo para validar antes de migrar; IDB mantiene su versión 1. */
 interface RegistroV1 {
@@ -171,6 +172,43 @@ function inicializar(plan: Itinerario, opciones: OpcionesProgresoLocal): Registr
   return raiz;
 }
 
+function comprobarEsquemaProgreso(db: IDBDatabase, tx?: IDBTransaction): void {
+  if (db.objectStoreNames.length !== 1 || !db.objectStoreNames.contains(almacen)) {
+    throw new Error('El esquema IndexedDB no está soportado');
+  }
+  const tabla = (tx ?? db.transaction(almacen)).objectStore(almacen);
+  if (tabla.keyPath !== null || tabla.autoIncrement || tabla.indexNames.length) {
+    throw new Error('El esquema IndexedDB no está soportado');
+  }
+}
+/** Viaje único, raíz v3 entera. No migra v1/v2 ni materializa desdeResultado como salida. */
+export function validarProgresoPortable(plan: Itinerario, base: BasePortable): void {
+  validarBasePortable(base, [almacen]);
+  if (!base.presente) return;
+  for (const r of base.tablas[almacen]) {
+    try {
+      if (r.clave !== plan.id) throw new Error('Otro viaje o clave desconocida fuera del alcance');
+      validar(plan, r.valor);
+    } catch (e) { throw new Error(`ProgressDB/${almacen}/${r.clave}: ${e instanceof Error ? e.message : 'inválido'}`); }
+  }
+}
+/** Base ausente y registro ausente son distintos; cursor incluye undefined almacenado. */
+export async function capturarProgresoLocal(planEntrada: Itinerario, limites: LimitesPortables,
+  opciones: { readonly fabrica?: PuertoAperturaPortable | null; readonly nombre?: string } = {}): Promise<BasePortable> {
+  const plan = copiarPlanPortable(planEntrada);
+  const fabrica = opciones.fabrica === undefined ? globalThis.indexedDB : opciones.fabrica;
+  const nombre = opciones.nombre ?? 'itinerario-progreso';
+  const limitesFijos = copiarLimitesPortables(limites);
+  return capturarBasePortable(fabrica, nombre, [almacen], limitesFijos, (db, tx) => {
+    if (db.version !== 1) throw new Error('ProgressDB: versión no soportada');
+    comprobarEsquemaProgreso(db, tx);
+  }, (base) => validarProgresoPortable(plan, base), (raw, clave) => {
+    if (clave !== plan.id) throw new Error('Otro viaje o clave desconocida fuera del alcance');
+    const copia = copiarValoresProgresoPortable(raw, limitesFijos);
+    validar(plan, copia); // Guard propio, sin usar su materialización como salida RAW.
+    return copia;
+  });
+}
 function abrirBase(fabrica: IDBFactory, nombre: string): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const solicitud = fabrica.open(nombre, 1);
@@ -186,13 +224,7 @@ function abrirBase(fabrica: IDBFactory, nombre: string): Promise<IDBDatabase> {
       if (terminada) { db.close(); return; }
       terminada = true;
       try {
-        if (db.objectStoreNames.length !== 1 || !db.objectStoreNames.contains(almacen)) {
-          throw new Error('El esquema IndexedDB no está soportado');
-        }
-        const tabla = db.transaction(almacen).objectStore(almacen);
-        if (tabla.keyPath !== null || tabla.autoIncrement || tabla.indexNames.length) {
-          throw new Error('El esquema IndexedDB no está soportado');
-        }
+        comprobarEsquemaProgreso(db);
         resolve(db);
       } catch (error) {
         db.close(); reject(error);

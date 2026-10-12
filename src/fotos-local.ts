@@ -2,6 +2,8 @@ import type { Itinerario } from './tipos';
 import { camposFoto, copiarMetadatos, esFotoBorrada, esIdFoto, esEstadoMiniatura, tamanoBlob, tipoBlob,
   type CapturaFoto, type EstadoMiniatura, type FotoBorrada, type MetadatosFoto, type ResultadoFoto } from './fotos';
 
+import { capturarBasePortable, copiarPlanPortable, validarBasePortable, type BasePortable, type LimitesPortables, type PuertoAperturaPortable } from './portabilidad';
+
 export interface OpcionesFotosLocal { readonly fabrica?: IDBFactory | null; readonly nombre?: string }
 export interface FotosLocal {
   /** Cursor exclusivo de metadata; excluye tombstones y falla visiblemente ante desconocidos. */
@@ -22,6 +24,60 @@ export interface FotosLocal {
   cerrar(): void;
 }
 const tablas = ['metadatos', 'originales', 'miniaturas'];
+function comprobarEsquemaFotos(db: IDBDatabase, tx?: IDBTransaction): void {
+  if (db.version !== 1 || db.objectStoreNames.length !== tablas.length
+    || tablas.some((t) => !db.objectStoreNames.contains(t))) throw new Error('Esquema de fotos no soportado');
+  const transaccion = tx ?? db.transaction(tablas);
+  for (const nombre of tablas) {
+    const t = transaccion.objectStore(nombre);
+    if (t.keyPath !== null || t.autoIncrement || t.indexNames.length) throw new Error('Esquema de fotos no soportado');
+  }
+}
+function validarRelacionFoto(m: MetadatosFoto | FotoBorrada | null, original: unknown, miniatura: unknown): void {
+  const viva = m && !esFotoBorrada(m) ? m : null;
+  if (!viva) {
+    if (original !== undefined || miniatura !== undefined) throw new Error('Blobs huérfanos o registro corrupto');
+    return;
+  }
+  if (original === undefined || tamanoBlob(original) !== viva.bytesOriginal
+    || tipoBlob(original as Blob) !== viva.mimeDeclarado) throw new Error('Original ausente o corrupto');
+  if (viva.miniatura.tipo === 'lista') {
+    if (miniatura === undefined || tamanoBlob(miniatura) !== viva.miniatura.bytes
+      || tipoBlob(miniatura as Blob) !== 'image/png') throw new Error('Miniatura ausente o corrupta');
+  } else if (miniatura !== undefined) throw new Error('Miniatura huérfana o registro corrupto');
+}
+/** Guard de historia RAW: materialización únicamente para validar, nunca como salida. */
+export function validarFotosPortables(plan: Itinerario, base: BasePortable): void {
+  validarBasePortable(base, tablas);
+  if (!base.presente) return;
+  const originales = new Map(base.tablas.originales.map((r) => [r.clave, r.valor]));
+  const miniaturas = new Map(base.tablas.miniaturas.map((r) => [r.clave, r.valor]));
+  const ids = new Set<string>();
+  for (const r of base.tablas.metadatos) {
+    try {
+      if (!esIdFoto(r.clave)) throw new Error('ID inválido');
+      const m = esFotoBorrada(r.valor) ? r.valor : copiarMetadatos(plan, r.valor);
+      if (m.fotoId !== r.clave) throw new Error('Clave incompatible');
+      validarRelacionFoto(m, originales.get(r.clave), miniaturas.get(r.clave));
+      ids.add(r.clave);
+    } catch (e) { throw new Error(`PhotoDB/metadatos/${r.clave}: ${e instanceof Error ? e.message : 'inválido'}`); }
+  }
+  for (const tabla of ['originales', 'miniaturas']) {
+    for (const r of base.tablas[tabla]) {
+      if (!ids.has(r.clave) || !esIdFoto(r.clave)) throw new Error(`PhotoDB/${tabla}/${r.clave}: Blob huérfano`);
+      try { tamanoBlob(r.valor); } catch { throw new Error(`PhotoDB/${tabla}/${r.clave}: Blob no nativo`); }
+    }
+  }
+}
+/** Snapshot completo, tombstones incluidos; no usa listar ni abrirFotosLocal. */
+export async function capturarFotosLocal(planEntrada: Itinerario, limites: LimitesPortables,
+  opciones: { readonly fabrica?: PuertoAperturaPortable | null; readonly nombre?: string } = {}): Promise<BasePortable> {
+  const plan = copiarPlanPortable(planEntrada);
+  const fabrica = opciones.fabrica === undefined ? globalThis.indexedDB : opciones.fabrica;
+  const nombre = opciones.nombre ?? `itinerario-fotos:${encodeURIComponent(plan.id)}`;
+  return capturarBasePortable(fabrica, nombre, tablas, limites, comprobarEsquemaFotos,
+    (base) => validarFotosPortables(plan, base));
+}
 function abrirBase(fabrica: IDBFactory, nombre: string): Promise<IDBDatabase> {
   return new Promise((ok, no) => {
     let terminada = false;
@@ -36,13 +92,7 @@ function abrirBase(fabrica: IDBFactory, nombre: string): Promise<IDBDatabase> {
       if (terminada) { db.close(); return; }
       terminada = true;
       try {
-        if (db.version !== 1 || db.objectStoreNames.length !== tablas.length
-          || tablas.some((t) => !db.objectStoreNames.contains(t))) throw new Error('Esquema de fotos no soportado');
-        const tx = db.transaction(tablas);
-        for (const nombreTabla of tablas) {
-          const t = tx.objectStore(nombreTabla);
-          if (t.keyPath !== null || t.autoIncrement || t.indexNames.length) throw new Error('Esquema de fotos no soportado');
-        }
+        comprobarEsquemaFotos(db);
         ok(db);
       } catch (e) { db.close(); no(e); }
     };
@@ -115,19 +165,7 @@ export async function abrirFotosLocal(plan: Itinerario, opciones: OpcionesFotosL
     });
   }
   /** Evita confirmar o borrar sobre relaciones corruptas; nunca repara ni elimina huérfanos. */
-  function relacion(m: MetadatosFoto | FotoBorrada | null, original: unknown, miniatura: unknown): void {
-    const viva = m && !esFotoBorrada(m) ? m : null;
-    if (!viva) {
-      if (original !== undefined || miniatura !== undefined) throw new Error('Blobs huérfanos o registro corrupto');
-      return;
-    }
-    if (original === undefined || tamanoBlob(original) !== viva.bytesOriginal
-      || tipoBlob(original as Blob) !== viva.mimeDeclarado) throw new Error('Original ausente o corrupto');
-    if (viva.miniatura.tipo === 'lista') {
-      if (miniatura === undefined || tamanoBlob(miniatura) !== viva.miniatura.bytes
-        || tipoBlob(miniatura as Blob) !== 'image/png') throw new Error('Miniatura ausente o corrupta');
-    } else if (miniatura !== undefined) throw new Error('Miniatura huérfana o registro corrupto');
-  }
+  const relacion = validarRelacionFoto;
   function conBlobs(tx: IDBTransaction, id: string, m: MetadatosFoto | FotoBorrada | null,
     trabajo: () => void, fallar: (e: unknown) => void): void {
     const original = tx.objectStore('originales').get(id);

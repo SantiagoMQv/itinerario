@@ -4,6 +4,8 @@ import { comprobarIdentidadFoto, type LecturasIdentidadFoto } from './fotos-iden
 import { copiarEntradaRespaldo, copiarOriginalRespaldo, copiarReciboRespaldo, copiarReferenciaRespaldo,
   mismosOriginalesRespaldo, type EntradaRespaldo, type ReferenciaRespaldo } from './fotos-respaldo';
 
+import { capturarBasePortable, copiarLimitesPortables, copiarPlanPortable, copiarValoresRespaldoPortable, validarBasePortable, type BasePortable, type LimitesPortables, type PuertoAperturaPortable } from './portabilidad';
+
 export interface OpcionesRespaldoFotosLocal {
   /** Fábrica de IndexedDB propia del contexto; null expresa indisponibilidad sin fallback. */
   readonly fabrica?: IDBFactory | null;
@@ -36,6 +38,40 @@ export interface RespaldoFotosLocal {
   cerrar(): void;
 }
 const almacen = 'respaldos';
+function comprobarEsquemaRespaldo(db: IDBDatabase, tx?: IDBTransaction): void {
+  if (db.version !== 1 || db.objectStoreNames.length !== 1 || !db.objectStoreNames.contains(almacen)) {
+    throw new Error('Esquema de respaldo no soportado');
+  }
+  const t = (tx ?? db.transaction(almacen)).objectStore(almacen);
+  if (t.keyPath !== null || t.autoIncrement || t.indexNames.length) throw new Error('Esquema de respaldo no soportado');
+}
+/** Validación de forma no autentica JSON ni convierte recibo histórico en ACK fresco. */
+export function validarRespaldosPortables(plan: Itinerario, base: BasePortable): void {
+  validarBasePortable(base, [almacen]);
+  if (!base.presente) return;
+  for (const r of base.tablas[almacen]) {
+    try {
+      if (!esIdFoto(r.clave)) throw new Error('ID inválido');
+      const validada = copiarEntradaRespaldo(plan, r.valor);
+      if (validada.fotoId !== r.clave) throw new Error('Clave incompatible');
+    } catch (e) { throw new Error(`LedgerDB/${almacen}/${r.clave}: ${e instanceof Error ? e.message : 'inválido'}`); }
+  }
+}
+/** Captura independiente de PhotoDB: ledger puede sobrevivir a su original borrado. */
+export async function capturarRespaldoFotosLocal(planEntrada: Itinerario, limites: LimitesPortables,
+  opciones: { readonly fabrica?: PuertoAperturaPortable | null } = {}): Promise<BasePortable> {
+  const plan = copiarPlanPortable(planEntrada);
+  const fabrica = opciones.fabrica === undefined ? globalThis.indexedDB : opciones.fabrica;
+  const nombre = `itinerario-respaldo-fotos:${encodeURIComponent(plan.id)}`;
+  const limitesFijos = copiarLimitesPortables(limites);
+  return capturarBasePortable(fabrica, nombre, [almacen], limitesFijos, comprobarEsquemaRespaldo,
+    (base) => validarRespaldosPortables(plan, base), (raw, clave) => {
+      const copia = copiarValoresRespaldoPortable(raw, limitesFijos);
+      const entrada = copiarEntradaRespaldo(plan, copia);
+      if (entrada.fotoId !== clave) throw new Error('Clave de respaldo corrupta');
+      return copia;
+    });
+}
 function abrirBase(fabrica: IDBFactory, nombre: string): Promise<IDBDatabase> {
   return new Promise((ok, no) => {
     let terminada = false;
@@ -51,11 +87,7 @@ function abrirBase(fabrica: IDBFactory, nombre: string): Promise<IDBDatabase> {
       if (terminada) { db.close(); return; }
       terminada = true;
       try {
-        if (db.version !== 1 || db.objectStoreNames.length !== 1 || !db.objectStoreNames.contains(almacen)) {
-          throw new Error('Esquema de respaldo no soportado');
-        }
-        const t = db.transaction(almacen).objectStore(almacen);
-        if (t.keyPath !== null || t.autoIncrement || t.indexNames.length) throw new Error('Esquema de respaldo no soportado');
+        comprobarEsquemaRespaldo(db);
         ok(db);
       } catch (e) { db.close(); no(e); }
     };
