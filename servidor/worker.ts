@@ -6,7 +6,10 @@ import { crearControladorSesiones } from './sesiones';
 import { crearPasarelaSql } from './pasarela-sql';
 import { crearAlmacenProgreso } from './almacen-progreso';
 import { crearControladorProgreso } from './api-progreso';
-import { crearRouterViaje } from './router';
+import { crearRouterViaje, esRutaFotos } from './router';
+import { crearComposicionFotos, type AtencionFotosWorker } from './composicion-fotos';
+import type { PresupuestoFotos } from './multipart-fotos';
+import type { VinculoR2Fotos } from './objetos-r2';
 import { proveerRespuestaEntrada } from './entrada';
 import { FalloHttp, respuestaJson } from './http';
 
@@ -15,6 +18,20 @@ export interface EntornoWorker {
   CLAVE_COMPARTIDA: string;
   URL_BASE_DATOS: string;
   ASSETS: { fetch(solicitud: Request): Promise<Response> };
+  FOTOS_ORIGEN?: string;
+  FOTOS_PRESUPUESTO?: PresupuestoFotos;
+  FOTOS_BUCKET?: VinculoR2Fotos;
+}
+/** Datos propios de configuración confiable, no getters ni JSON de entrada cliente. */
+function prepararFotos(entorno: EntornoWorker, ejecutor: Parameters<typeof crearComposicionFotos>[0]['ejecutor']) {
+  const campos = ['FOTOS_ORIGEN', 'FOTOS_PRESUPUESTO', 'FOTOS_BUCKET'] as const;
+  const valores = campos.map((nombre) => {
+    const descriptor = Object.getOwnPropertyDescriptor(entorno, nombre);
+    if (!descriptor || !Object.hasOwn(descriptor, 'value')) throw new Error('Fotos no disponibles.');
+    return descriptor.value;
+  });
+  return crearComposicionFotos({ plan: itinerario, ejecutor,
+    origen: valores[0], presupuesto: valores[1], bucket: valores[2] });
 }
 function ipv4(valor: string): boolean {
   const partes = valor.split('.');
@@ -59,16 +76,27 @@ export default {
       const binding = entorno.ASSETS;
       if (!binding || typeof binding.fetch !== 'function') throw new Error('Binding no válido.');
       const ejecutor = crearEjecutorNeon({ urlBaseDatos: entorno.URL_BASE_DATOS });
+      // Sólo rutas reconocidas inspeccionan fotos. Un fallo de esta configuración
+      // no deshabilita sesiones, progreso, entrada ni assets; no lee cuerpo ni hace IO.
+      let preparacion: ReturnType<typeof crearComposicionFotos> | undefined;
+      let fotos: AtencionFotosWorker | undefined;
+      if (esRutaFotos(new URL(solicitud.url).pathname)) {
+        try { preparacion = prepararFotos(entorno, ejecutor); } catch {
+          fotos = { atender: async (original) => errorPrivado(original, 503, 'No se puede atender la solicitud ahora.') };
+        }
+      }
       const viajeId = itinerario.id;
       const repositorio = crearRepositorioSesionesSql({ ejecutor, viajeId });
       const credenciales = await crearCredenciales({ viajeId, claveCompartida: entorno.CLAVE_COMPARTIDA });
       const sesiones = crearControladorSesiones({ viajeId, credenciales, repositorio });
+      if (preparacion) fotos = preparacion.conAutenticacion(sesiones.autenticar.bind(sesiones));
       const pasarela = crearPasarelaSql({ ejecutor });
       const almacen = crearAlmacenProgreso({ plan: itinerario, pasarela });
       const progreso = crearControladorProgreso({ plan: itinerario, autenticar: sesiones.autenticar, repositorio: almacen });
       // El binding nativo puede tener fetch en el prototipo y requerir su receiver.
       const assets = { fetch: (original: Request) => binding.fetch(original) };
-      const router = crearRouterViaje({ sesiones, progreso, assets, proveerRespuestaEntrada });
+      const router = crearRouterViaje({ sesiones, progreso, assets, proveerRespuestaEntrada,
+        ...(fotos ? { fotos } : {}) });
       // Solo login necesita identidad de red; no inferirla de otros campos del cliente.
       let contexto;
       if (solicitud.method === 'POST' && new URL(solicitud.url).pathname === '/api/sesion') {

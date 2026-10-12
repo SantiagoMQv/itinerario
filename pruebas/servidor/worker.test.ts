@@ -81,6 +81,26 @@ async function privada(respuesta: Response, estado: number) {
 afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 
 describe('Worker local: composición real y configuración privada', () => {
+  it('HTTP precede también a descriptores y métodos de fotos', async () => {
+    const f = preparar(); const getter = vi.fn(() => { throw new Error('No inspeccionar fotos'); });
+    for (const c of ['FOTOS_ORIGEN', 'FOTOS_PRESUPUESTO', 'FOTOS_BUCKET']) Object.defineProperty(f.entorno, c, { get: getter });
+    await privada(await worker.fetch(new Request('http://piloto.example/api/fotos/respaldo', { method: 'POST', body: 'intacto' }), f.entorno), 400);
+    expect(getter).not.toHaveBeenCalled(); expect(f.transporte).not.toHaveBeenCalled();
+    expect(f.assets.fetch).not.toHaveBeenCalled();
+  });
+
+  it('otras rutas no inspeccionan configuración ni métodos bucket', async () => {
+    const f = preparar(); const getter = vi.fn(() => { throw new Error('No inspeccionar bucket'); });
+    Object.defineProperty(f.entorno, 'FOTOS_BUCKET', { value: Object.defineProperty({}, 'get', { get: getter }) });
+    Object.defineProperty(f.entorno, 'FOTOS_ORIGEN', { get: getter });
+    Object.defineProperty(f.entorno, 'FOTOS_PRESUPUESTO', { get: getter });
+    expect((await worker.fetch(solicitud('/entrar'), f.entorno)).status).toBe(200);
+    const cookie = await iniciar(f.entorno);
+    expect((await worker.fetch(solicitud('/', { headers: { Cookie: cookie } }), f.entorno)).status).toBe(200);
+    await privada(await worker.fetch(solicitud('/api/fotos/listado'), f.entorno), 404);
+    expect(getter).not.toHaveBeenCalled();
+  });
+
   it('importa sin inicializar credenciales, generar aleatoriedad ni consultar SQL', async () => {
     const { transporte } = preparar();
     const azar = vi.spyOn(crypto, 'getRandomValues');

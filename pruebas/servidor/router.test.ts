@@ -30,6 +30,40 @@ function privada(respuesta: Response) {
 }
 
 describe('router puro del viaje', () => {
+  it.each(['/api/fotos/respaldo', '/api/fotos/ABC%2FDEF/original'])('delega fotos %s sin filtrar método, consumir ni envolver', async (ruta) => {
+    const p = preparar(); const solicitud = solicitar(ruta, { method: 'POST', body: 'cuerpo intacto',
+      headers: { Origin: 'https://ajeno.test', Cookie: 'cookie-original' } });
+    const respuesta = new Response('bytes exactos\0', { status: 405, headers: { Allow: 'GET',
+      'Cache-Control': 'private, no-store', Vary: 'Cookie', 'X-Content-Type-Options': 'nosniff', 'X-Puerto': 'sin cambios' } });
+    const fotos = { atender: vi.fn(async (original: Request) => {
+      expect(original).toBe(solicitud); expect(original.bodyUsed).toBe(false); return respuesta;
+    }) };
+    const router = crearRouterViaje({ ...p.configuracion, fotos });
+    fotos.atender = vi.fn(async () => { throw new Error('Método posterior no capturado'); });
+    expect(await router.atender(solicitud)).toBe(respuesta);
+    expect(await respuesta.text()).toBe('bytes exactos\0');
+    expect(respuesta.headers.get('X-Puerto')).toBe('sin cambios');
+    expect(solicitud.bodyUsed).toBe(false); expect(fotos.atender).not.toHaveBeenCalled();
+    expect(p.sesiones.autenticar).not.toHaveBeenCalled(); expect(p.assets.fetch).not.toHaveBeenCalled();
+    expect(p.progreso.atender).not.toHaveBeenCalled(); expect(p.proveerRespuestaEntrada).not.toHaveBeenCalled();
+  });
+
+  it.each(['/api/fotos', '/api/fotos/listado', '/api/fotos/respaldo/', '/api/fotos/a/b/original'])('foto no reconocida %s no cae en puerto/assets', async (ruta) => {
+    const p = preparar(); const fotos = { atender: vi.fn(async () => new Response('no usar')) };
+    const r = await crearRouterViaje({ ...p.configuracion, fotos }).atender(solicitar(ruta));
+    expect(r.status).toBe(404); privada(r); expect(fotos.atender).not.toHaveBeenCalled();
+    expect(p.assets.fetch).not.toHaveBeenCalled(); expect(p.sesiones.autenticar).not.toHaveBeenCalled();
+  });
+
+  it.each(['ausente', 'lanza'])('puerto foto %s falla privado sin fallback', async (modo) => {
+    const p = preparar(); const fotos = { atender: vi.fn(async () => { throw new Error('detalle privado'); }) };
+    const router = crearRouterViaje({ ...p.configuracion, ...(modo === 'lanza' ? { fotos } : {}) });
+    const r = await router.atender(solicitar('/api/fotos/respaldo', { method: 'POST', body: 'sin leer' }));
+    expect(r.status).toBe(503); privada(r); expect(await r.text()).not.toContain('detalle privado');
+    expect(p.assets.fetch).not.toHaveBeenCalled(); expect(p.sesiones.autenticar).not.toHaveBeenCalled();
+    expect((await router.atender(solicitar('/entrar'))).status).toBe(200);
+  });
+
   it('espera autoridad de sesión antes de servir ASSETS', async () => {
     const p = preparar();
     let resolver!: (valor: RegistroSesion | null) => void;

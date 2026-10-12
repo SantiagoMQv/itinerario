@@ -2,11 +2,13 @@ import type { VinculoAssets } from './contratos';
 import type { ControladorProgreso } from './api-progreso';
 import type { ControladorSesiones, ContextoSolicitudSesion } from './sesiones';
 import { FalloHttp, respuestaJson } from './http';
+import type { AtencionFotosWorker } from './composicion-fotos';
 
 export interface ConfiguracionRouterViaje {
   readonly sesiones: ControladorSesiones;
   readonly progreso: ControladorProgreso;
   readonly assets: VinculoAssets;
+  readonly fotos?: AtencionFotosWorker;
   // Puerto obligatorio de la UI real; sin página ficticia ni fallback a ASSETS.
   readonly proveerRespuestaEntrada: (solicitud: Request) => Promise<Response>;
 }
@@ -72,6 +74,10 @@ function errorPrivado(solicitud: Request, estado: number, mensaje: string, permi
   if (permitir) respuesta.headers.set('Allow', permitir);
   return privada(respuesta, solicitud);
 }
+/** Sólo las dos formas existentes; método e identidad pertenecen al controlador A. */
+export function esRutaFotos(ruta: string): boolean {
+  return ruta === '/api/fotos/respaldo' || /^\/api\/fotos\/([^/]+)\/original$/.test(ruta);
+}
 function navegacion(solicitud: Request): boolean {
   if (solicitud.mode === 'navigate' || solicitud.destination === 'document') return true;
   return (solicitud.headers.get('Accept') ?? '').split(',').some((rango) => {
@@ -91,8 +97,12 @@ function navegacion(solicitud: Request): boolean {
 export function crearRouterViaje(configuracion: ConfiguracionRouterViaje): RouterViaje {
   let sesiones: ControladorSesiones, progreso: ControladorProgreso, assets: VinculoAssets;
   let proveerRespuestaEntrada: ConfiguracionRouterViaje['proveerRespuestaEntrada'];
+  let fotos: AtencionFotosWorker | undefined;
   try {
-    const c = capturar(configuracion, ['sesiones', 'progreso', 'assets', 'proveerRespuestaEntrada']);
+    const nombres = ['sesiones', 'progreso', 'assets', 'proveerRespuestaEntrada'];
+    if (Object.hasOwn(configuracion, 'fotos')) nombres.push('fotos');
+    const c = capturar(configuracion, nombres);
+    if (c.fotos !== undefined) fotos = metodos(c.fotos, ['atender']) as unknown as AtencionFotosWorker;
     sesiones = metodos(c.sesiones, ['atender', 'autenticar']) as unknown as ControladorSesiones;
     progreso = metodos(c.progreso, ['atender']) as unknown as ControladorProgreso;
     assets = metodos(c.assets, ['fetch']) as unknown as VinculoAssets;
@@ -110,6 +120,9 @@ export function crearRouterViaje(configuracion: ConfiguracionRouterViaje): Route
           return await sesiones.atender(solicitud, contextoSeguro(contexto));
         }
         if (ruta === '/api/progreso') return await progreso.atender(solicitud);
+        if (esRutaFotos(ruta)) {
+          return fotos ? await fotos.atender(solicitud) : errorPrivado(solicitud, 503, ERROR_SISTEMA);
+        }
         if (ruta === '/api' || ruta.startsWith('/api/')) return errorPrivado(solicitud, 404, 'Ruta no encontrada.');
         if (solicitud.method !== 'GET' && solicitud.method !== 'HEAD') {
           return errorPrivado(solicitud, 405, 'Método no permitido.', 'GET, HEAD');
