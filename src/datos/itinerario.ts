@@ -639,7 +639,7 @@ export const itinerario: Itinerario = {
       ciudad: 'Shanghái',
       notas:
         'Levantarnos a las 7:30 y desayunar en el hotel (de 07:00 a 10:00) para salir hacia las 8:30: el pueblo de agua, mejor temprano.\n' +
-        'Mañana en Zhujiajiao, a una hora en taxi; desde las 15:45, el jardín Yuyuan, el bazar y la cena de pato.\n',
+        'Mañana en Zhujiajiao, a una hora en taxi; por la tarde, el jardín Yuyuan (última entrada a las 16:00), el bazar al anochecer y la cena de pato.\n',
       paradas: [
         {
           id: '9cbf85d64f0cbd8d',
@@ -783,42 +783,15 @@ export const itinerario: Itinerario = {
           ],
         },
         {
-          id: 'f2a06844df75254f',
-          hora: '15:00',
-          fin: '15:40',
-          nombre: 'Disfraces en el mercado de Fuyou Road',
-          corto: 'los disfraces',
-          local: '福佑门商厦',
-          categoria: 'compras',
-          ...en(C.fuyoumen),
-          opcional: true,
-          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi desde Zhujiajiao (~49 km, 170–200 ¥); en metro, líneas 17 y 10, casi 2 h', min: 75 },
-          direccionLocal: '黄浦区福佑路427号（河南南路口）',
-          notas:
-            'Solo si aún no tenéis disfraz. Mercado mayorista de pequeños artículos (plantas 1 a 3) junto al bazar de Yuyuan: los puestos cambian de género con la temporada y en octubre venden cosas de Halloween (que lo hagan en 2026, sin confirmar). Precios de mayorista multiplicados por 2 o 3: regatear. Se cierra pronto (hacia las 17:00–18:00, sin confirmar): por eso va antes del jardín.\n' +
-            'Ideas que cumplen las normas de Disneyland: villanos (ropa negra propia, capa por encima del tobillo y cuernos blandos o sombrero de bruja, sin tridente ni escoba); Mickey y Minnie de Halloween (negro, rojo y orejas); vampiros (capa corta, colmillos y antifaz que deje ver los ojos); piratas (pañuelo y camiseta de rayas, sin espada); Zootopia (orejas de zorro o de conejo y camisa, sin insignias de policía).\n' +
-            'Plan B: accesorios en Miniso Land (Nanjing Road, día 1) y orejas de Mickey dentro del parque nada más entrar (100–159 ¥).',
-          subparadas: [
-            {
-              id: '5c191f93c9ee2d55',
-              nombre: 'Fuyou Shangsha, otro edificio del mercado',
-              local: '福佑商厦',
-              opcional: true,
-              ...en(C.fuyou),
-              notas: 'Otro edificio de pequeños artículos, junto a la puerta norte del jardín, por si falta algo. Horario sin confirmar.',
-            },
-          ],
-        },
-        {
           id: '0512e12375921a0f',
-          hora: '15:45',
-          fin: '16:30',
+          hora: '14:50',
+          fin: '16:15',
           nombre: 'Jardín Yuyuan',
           corto: 'el jardín',
           local: '豫园',
           categoria: 'cultura',
           ...en(C.jardinYuyuan),
-          llegada: { modo: 'a_pie', detalle: 'Unos 7 min por Fuyou Road hasta la puerta norte' },
+          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi desde Zhujiajiao hasta la puerta norte del jardín (~49 km, 170–200 ¥); en metro, líneas 17 y 10, casi 2 h', min: 75 },
           direccionLocal: '黄浦区福佑路168号（豫园北门）',
           notas:
             'Jardín clásico chino de la dinastía Ming (siglo XVI): rocallas, estanques, pabellones y galerías.\n' +
@@ -862,8 +835,35 @@ export const itinerario: Itinerario = {
           enlaces: [enlace('Jardín Yuyuan (web oficial)', 'https://www.yugarden.com.cn/page/articleview/message.html')],
         },
         {
+          id: 'f2a06844df75254f',
+          hora: '16:20',
+          fin: '17:00',
+          nombre: 'Disfraces en el mercado de Fuyou Road',
+          corto: 'los disfraces',
+          local: '福佑门商厦',
+          categoria: 'compras',
+          ...en(C.fuyoumen),
+          opcional: true,
+          llegada: { modo: 'a_pie', detalle: 'Unos 7 min por Fuyou Road desde la puerta norte del jardín' },
+          direccionLocal: '黄浦区福佑路427号（河南南路口）',
+          notas:
+            'Solo si aún no tenéis disfraz. Mercado mayorista de pequeños artículos (plantas 1 a 3) junto al bazar de Yuyuan: los puestos cambian de género con la temporada y en octubre venden cosas de Halloween (que lo hagan en 2026, sin confirmar). Precios de mayorista multiplicados por 2 o 3: regatear. Se cierra pronto (hacia las 17:00–18:00, sin confirmar): ir nada más salir del jardín.\n' +
+            'Ideas que cumplen las normas de Disneyland: villanos (ropa negra propia, capa por encima del tobillo y cuernos blandos o sombrero de bruja, sin tridente ni escoba); Mickey y Minnie de Halloween (negro, rojo y orejas); vampiros (capa corta, colmillos y antifaz que deje ver los ojos); piratas (pañuelo y camiseta de rayas, sin espada); Zootopia (orejas de zorro o de conejo y camisa, sin insignias de policía).\n' +
+            'Plan B: accesorios en Miniso Land (Nanjing Road, día 1) y orejas de Mickey dentro del parque nada más entrar (100–159 ¥).',
+          subparadas: [
+            {
+              id: '5c191f93c9ee2d55',
+              nombre: 'Fuyou Shangsha, otro edificio del mercado',
+              local: '福佑商厦',
+              opcional: true,
+              ...en(C.fuyou),
+              notas: 'Otro edificio de pequeños artículos, junto a la puerta norte del jardín, por si falta algo. Horario sin confirmar.',
+            },
+          ],
+        },
+        {
           id: '2a97c5e4b1308df6',
-          hora: '16:35',
+          hora: '17:05',
           fin: '19:15',
           nombre: 'Bazar de Yuyuan y Old Street',
           corto: 'el bazar',
