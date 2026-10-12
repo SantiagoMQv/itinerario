@@ -154,7 +154,7 @@ describe('reserva SQL primero, ganador único ligado al original', () => {
   it('namespace/metadata de objeto o grant incorrecto jamás adopta huérfano extranjero', async () => {
     for (const campo of ['claveObjeto', 'solicitudCanonica']) {
       const f = fixture(); const leer = f.objetos.leer;
-      f.objetos.leer = async (k) => ({ ...await leer(k) as object, [campo]: 'objeto-ajeno' });
+      f.objetos.leer = async (...args) => ({ ...await leer(...args) as object, [campo]: 'objeto-ajeno' });
       await expect(f.crear().respaldar(f.captura(), contexto())).rejects.toMatchObject({ codigo: 503 });
       expect(f.eventos).not.toContain('final-commit');
     }
@@ -203,6 +203,69 @@ describe('reserva SQL primero, ganador único ligado al original', () => {
     expect(f.eventos).toEqual([]);
     Object.assign(copia, { id: 'otro' }); f.objetos.ponerSiAusente = async () => { throw new Error('sustituido'); };
     await expect(a.respaldar(f.captura(), contexto())).resolves.toMatchObject({ primera: true });
+  });
+});
+
+describe('puerto de objetos con admisión física y contexto capturado', () => {
+  it('rechaza presupuesto físico insuficiente antes de reservar', async () => {
+    const f = fixture();
+    await expect(f.crear().respaldar(f.captura(), { ...contexto(),
+      presupuesto: { ...presupuesto, maxBytesEntrada: 3 } })).rejects.toMatchObject({ codigo: 413 });
+    expect(f.eventos).toEqual([]);
+  });
+  it('GET de otra operación recibe el cuerpo inicial, no el actual', async () => {
+    const f = fixture(); const leer = f.objetos.leer; const textos: string[] = [];
+    f.objetos.leer = async (...args) => { textos.push(args[1]); return leer(...args); };
+    const a = f.crear(); await a.respaldar(f.captura(), contexto());
+    const otra = { ...ref(), operacionId: 'ABCDEF12-1234-4123-8123-123456789ABF' };
+    await a.respaldar(f.captura(undefined, otra), contexto());
+    expect(textos).toEqual([serializarSolicitudRespaldo(plan, ref()), serializarSolicitudRespaldo(plan, ref())]);
+    expect(f.eventos.filter((e) => e === 'put')).toHaveLength(1);
+  });
+  for (const p of [{ ...presupuesto, maxBytesChunk: 0 }, { ...presupuesto, maxBytesRetenidos: 1000000 },
+    { ...presupuesto, maxBytesEntrada: 1 }, { ...presupuesto, maxBytesRetenidos: NaN }]) {
+    it(`presupuesto ${JSON.stringify(p)} deniega antes de reserva y GET`, async () => {
+      const f = fixture(); const a = f.crear(); await a.respaldar(f.captura(), contexto());
+      f.eventos.length = 0;
+      await expect(a.respaldar(f.captura(), { ...contexto(), presupuesto: p })).rejects.toThrow();
+      expect(f.eventos).toEqual([]);
+      await expect(a.descargar(ref().fotoId, { ...contexto(), presupuesto: p })).rejects.toThrow();
+      expect(f.eventos).not.toContain('get'); expect(f.eventos).not.toContain('put'); expect(f.eventos).not.toContain('final-commit');
+    });
+  }
+  it('chunk cero es configuración inválida incluso en descarga ausente: cero SQL', async () => {
+    const f = fixture();
+    await expect(f.crear().descargar(ref().fotoId, { ...contexto(),
+      presupuesto: { ...presupuesto, maxBytesChunk: 0 } })).rejects.toMatchObject({ codigo: 503 });
+    expect(f.eventos).toEqual([]);
+  });
+  it('GET presupuesto getter rechazado antes de consulta sin invocarlo', async () => {
+    const f = fixture(); const p = { ...presupuesto }; let llamadas = 0;
+    Object.defineProperty(p, 'maxBytesEntrada', { get() { llamadas++; return 2200000; }, enumerable: true });
+    await expect(f.crear().descargar(ref().fotoId, { ...contexto(), presupuesto: p })).rejects.toMatchObject({ codigo: 503 });
+    expect(llamadas).toBe(0); expect(f.eventos).toEqual([]);
+  });
+  for (const bytes of [0, 3]) {
+    it(`frontera de retención exacta ${bytes} bytes antes de reservar`, async () => {
+      const f = fixture(); const c = contexto(); const minimo = 2 * Math.ceil(bytes / 65536) * 65536 + 729600 + 720908 + bytes;
+      const captura = f.captura(new Uint8Array(bytes));
+      await expect(f.crear().respaldar(captura, { ...c, presupuesto: { ...presupuesto, maxBytesRetenidos: minimo - 1 } })).rejects.toMatchObject({ codigo: 413 });
+      expect(f.eventos).toEqual([]);
+      await expect(f.crear().respaldar(captura, { ...c, presupuesto: { ...presupuesto, maxBytesRetenidos: minimo } })).resolves.toMatchObject({ primera: true });
+    });
+  }
+  it('PUT y GET reciben presupuesto congelado y la misma vigencia', async () => {
+    const f = fixture(); const c = contexto(); const poner = f.objetos.ponerSiAusente; const leer = f.objetos.leer;
+    const recibidos: unknown[] = [];
+    f.objetos.ponerSiAusente = async (...args) => { recibidos.push(args[3]); return poner(...args); };
+    f.objetos.leer = async (...args) => { recibidos.push(args[2]); expect(args[1]).toBe(f.reserva()!.solicitudCanonica); return leer(...args); };
+    await f.crear().respaldar(f.captura(), c);
+    for (const valor of recibidos) {
+      const capturado = valor as { presupuesto: PresupuestoFotos; vigencia: VigenciaFotos };
+      expect(Object.isFrozen(capturado)).toBe(true); expect(Object.isFrozen(capturado.presupuesto)).toBe(true);
+      expect(capturado.presupuesto).toEqual(presupuesto); expect(capturado.vigencia).toBe(c.vigencia);
+      expect(Object.keys(capturado)).toEqual(['presupuesto', 'vigencia']);
+    }
   });
 });
 

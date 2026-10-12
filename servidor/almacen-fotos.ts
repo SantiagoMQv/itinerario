@@ -40,9 +40,40 @@ export interface ObjetoOriginalFotos {
 /** Namespace privado e inmutable exclusivamente del protocolo; lectura fresca de objeto
  * completo+metadata, sin URLs públicas/presign/fallback. C implementará IF ABSENT real.
  * No delete, reemplazo, age-GC ni compensaciones. Resolución perdida es incertidumbre. */
+export interface ContextoObjetosFotos {
+  readonly presupuesto: PresupuestoFotos;
+  readonly vigencia: VigenciaFotos;
+}
 export interface ObjetosFotos {
-  ponerSiAusente(claveObjeto: string, original: Blob, solicitudCanonica: string): Promise<unknown>;
-  leer(claveObjeto: string): Promise<unknown | null>;
+  ponerSiAusente(claveObjeto: string, original: Blob, solicitudCanonica: string, contexto: ContextoObjetosFotos): Promise<unknown>;
+  leer(claveObjeto: string, solicitudCanonicaEsperada: string, contexto: ContextoObjetosFotos): Promise<unknown | null>;
+}
+export const MAX_BYTES_METADATA_OBJETO_FOTOS = 65536;
+export const BYTES_CABECERA_OBJETO_FOTOS = 12;
+export const MAGIC_OBJETO_FOTOS = Object.freeze([0x49, 0x54, 0x49, 0x4e, 0x46, 0x4f, 0x54, 0x01]);
+
+/** Admisión pura del objeto físico, independiente del proveedor. */
+export function admitirMarcoObjetoFotos(bytesOriginal: number, solicitudCanonica: string,
+  presupuesto: PresupuestoFotos): { bytesMetadata: number; bytesFisicos: number } {
+  const p = copiarPresupuestoFotos(presupuesto);
+  if (p.maxBytesChunk === 0) throw new FalloFotos(503);
+  if (typeof solicitudCanonica !== 'string' || solicitudCanonica.length < 1
+    || solicitudCanonica.length > MAX_BYTES_METADATA_OBJETO_FOTOS) throw new FalloFotos(413);
+  const bytesMetadata = new TextEncoder().encode(solicitudCanonica).length;
+  if (bytesMetadata > MAX_BYTES_METADATA_OBJETO_FOTOS) throw new FalloFotos(413);
+  if (!Number.isSafeInteger(bytesOriginal) || bytesOriginal < 0
+    || bytesOriginal > Number.MAX_SAFE_INTEGER - BYTES_CABECERA_OBJETO_FOTOS - bytesMetadata) throw new FalloFotos(413);
+  const bytesFisicos = BYTES_CABECERA_OBJETO_FOTOS + bytesMetadata + bytesOriginal;
+  if (bytesFisicos > 5 * 1024 ** 3 || bytesFisicos > p.maxBytesEntrada) throw new FalloFotos(413);
+  // Cobrar otra representación del Blob y framing sin asumir sharing del runtime.
+  let extra = 8 * MAX_BYTES_METADATA_OBJETO_FOTOS + BYTES_CABECERA_OBJETO_FOTOS;
+  for (const n of [p.maxBytesChunk, p.maxBytesChunk, p.maxBytesChunk, bytesOriginal]) {
+    if (n > Number.MAX_SAFE_INTEGER - extra) throw new FalloFotos(413);
+    extra += n;
+  }
+  if (extra > p.maxBytesRetenidos) throw new FalloFotos(413);
+  admitirOriginalFotos(bytesOriginal, { ...p, maxBytesRetenidos: p.maxBytesRetenidos - extra });
+  return Object.freeze({ bytesMetadata, bytesFisicos });
 }
 export interface ConfiguracionAlmacenFotos {
   readonly plan: Itinerario;
@@ -98,7 +129,9 @@ export function crearAlmacenFotos(configuracion: ConfiguracionAlmacenFotos): Alm
         try { void stream.cancel().catch(() => {}); } catch { /* Sólo limpieza, sin await. */ }
       }
     };
-    const valor = await c.vigencia.esperar(() => leer(reserva.claveObjeto).then((v) => {
+    const inicial = deserializarSolicitudRespaldo(plan, reserva.solicitudCanonica);
+    admitirMarcoObjetoFotos(inicial.original.bytesOriginal, reserva.solicitudCanonica, c.presupuesto);
+    const valor = await c.vigencia.esperar(() => leer(reserva.claveObjeto, reserva.solicitudCanonica, Object.freeze({ presupuesto: c.presupuesto, vigencia: c.vigencia })).then((v) => {
       try { c.vigencia.comprobar(); } catch (e) { cancelarValor(v); throw e; }
       return v;
     }), true);
@@ -171,6 +204,7 @@ export function crearAlmacenFotos(configuracion: ConfiguracionAlmacenFotos): Alm
       const original = Blob.prototype.slice.call(captura.original, 0) as Blob;
       if (original.size !== solicitud.original.bytesOriginal) throw new FalloFotos(400);
       admitirOriginalFotos(original.size, p);
+      admitirMarcoObjetoFotos(original.size, canonico, p);
       const resultado = await c.vigencia.esperar(() => reservar(c.huellaActor, plan.id, canonico), true);
       if (camposFoto(resultado, ['tipo'])) {
         if (resultado.tipo === 'sin-sesion') throw new FalloFotos(401);
@@ -184,7 +218,7 @@ export function crearAlmacenFotos(configuracion: ConfiguracionAlmacenFotos): Alm
         || !mismosOriginalesRespaldo(plan, fija.solicitud.original, solicitud.original)) throw new FalloFotos(409);
       if (primera && fija.reserva.solicitudCanonica !== canonico) throw new FalloFotos(503);
       if (primera) {
-        const puesto = await c.vigencia.esperar(() => poner(fija.reserva.claveObjeto, original, canonico), true);
+        const puesto = await c.vigencia.esperar(() => poner(fija.reserva.claveObjeto, original, canonico, Object.freeze({ presupuesto: c.presupuesto, vigencia: c.vigencia })), true);
         // false indica que no ganó el IF ABSENT, no concede permiso nuevo; lectura decide.
         if (puesto !== true && puesto !== false) throw new FalloFotos(503);
       }
@@ -202,6 +236,7 @@ export function crearAlmacenFotos(configuracion: ConfiguracionAlmacenFotos): Alm
     },
     async descargar(fotoId: string, contexto: ContextoAlmacenFotos): Promise<Blob> {
       const c = { ...contexto, presupuesto: copiarPresupuestoFotos(contexto.presupuesto) };
+      if (c.presupuesto.maxBytesChunk === 0) throw new FalloFotos(503);
       if (!esIdFoto(fotoId)) throw new FalloFotos(400);
       const fila = await c.vigencia.esperar(() => consultar(c.huellaActor, plan.id, fotoId), true);
       if (camposFoto(fila, ['tipo'])) {
@@ -212,6 +247,7 @@ export function crearAlmacenFotos(configuracion: ConfiguracionAlmacenFotos): Alm
       const fija = capturarReserva(plan, fila.reserva);
       if (fija.solicitud.fotoId !== fotoId) throw new FalloFotos(503);
       admitirOriginalFotos(fija.solicitud.original.bytesOriginal, c.presupuesto);
+      admitirMarcoObjetoFotos(fija.solicitud.original.bytesOriginal, fija.reserva.solicitudCanonica, c.presupuesto);
       const remoto = await objeto(fija.reserva, c);
       const lector = remoto.original.getReader();
       const captura = new CapturadorOriginalFotos(fija.solicitud.original.bytesOriginal, c.presupuesto);

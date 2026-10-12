@@ -1,4 +1,5 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
+import { crearObjetosFotosR2, type VinculoR2Fotos } from '../../servidor/objetos-r2';
 import { itinerario as plan } from '../../src/datos/itinerario';
 import { serializarSolicitudRespaldo, serializarReciboRespaldo, deserializarSolicitudRespaldo,
   deserializarReciboRespaldo, type SolicitudRespaldo } from '../../src/fotos-protocolo';
@@ -21,6 +22,24 @@ function post(s = ref, datos = new Uint8Array([1, 2, 3])) {
   const form = new FormData(); form.append('solicitud', serializarSolicitudRespaldo(plan, s));
   form.append('original', new Blob([datos as Uint8Array<ArrayBuffer>], { type: 'application/octet-stream' }), 'original');
   return new Request(origen + '/api/fotos/respaldo', { method: 'POST', headers: { Origin: origen }, body: form });
+}
+/** Transporte de prueba acotado: Node FormData puede emitir el Blob entero. No cambia
+ * Origin/HTTPS ni el parser; copia las cabeceras reales del Request local de prueba. */
+function postAcotado(s: SolicitudRespaldo, datos: Uint8Array<ArrayBuffer>) {
+  const solicitud = post(s, datos); const lector = solicitud.body!.getReader();
+  let pendiente: Uint8Array | null = null; let pos = 0;
+  const body = new ReadableStream<Uint8Array>({ async pull(c) {
+    try {
+      if (!pendiente || pos === pendiente.length) {
+        const r = await lector.read();
+        if (r.done) { lector.releaseLock(); c.close(); return; }
+        pendiente = r.value; pos = 0;
+      }
+      const chunk = pendiente; if (!chunk) throw new Error('Transporte local sin chunk.');
+      const fin = Math.min(pos + 65536, chunk.length); c.enqueue(chunk.subarray(pos, fin)); pos = fin;
+    } catch (e) { c.error(e); }
+  }, async cancel() { await lector.cancel(); lector.releaseLock(); } }, { highWaterMark: 0 });
+  return new Request(solicitud.url, { method: 'POST', headers: solicitud.headers, body, duplex: 'half' } as RequestInit);
 }
 function fixture() {
   let viva = true; let autentificaciones = 0; let reserva: ReservaFotos | null = null; let original: Blob | null = null;
@@ -50,6 +69,120 @@ function fixture() {
   const crear = () => crearControladorFotos({ plan, origen, autenticar, repositorio, objetos });
   return { crear, eventos, repositorio, objetos, revocar: () => { viva = false; }, autentificaciones: () => autentificaciones };
 }
+
+afterEach(() => { vi.restoreAllMocks(); });
+
+/** Fixture local: clases/WebAPI reales, puertos SQL/auth modelados, sin fetch externo. */
+class BucketApiLocal implements VinculoR2Fotos {
+  readonly objetos = new Map<string, Blob>(); readonly eventos: string[] = [];
+  perdida = false; ausente = false; alterar: ((b: Uint8Array<ArrayBuffer>) => Uint8Array<ArrayBuffer>) | null = null;
+  async put(k: string, b: Blob, opciones: Parameters<VinculoR2Fotos['put']>[2]) {
+    this.eventos.push('put'); expect(opciones.onlyIf.get('If-None-Match')).toBe('*');
+    expect(opciones.httpMetadata).toEqual({ contentType: 'application/octet-stream' });
+    if (this.objetos.has(k)) return null;
+    this.objetos.set(k, b); if (this.perdida) throw new Error('respuesta privada perdida');
+    return { key: k, size: b.size };
+  }
+  async get(k: string) {
+    this.eventos.push('get'); const b = this.objetos.get(k); if (!b || this.ausente) return null;
+    const datos = new Uint8Array(await b.arrayBuffer()); const salida = this.alterar ? this.alterar(datos) : datos;
+    let pos = 0;
+    const body = new ReadableStream<Uint8Array>({ pull(c) {
+      if (pos === salida.length) { c.close(); return; }
+      const fin = Math.min(pos + 65536, salida.length); c.enqueue(salida.slice(pos, fin)); pos = fin;
+    } }, { highWaterMark: 0 });
+    return { key: k, size: b.size, bodyUsed: false, body };
+  }
+}
+function composicionR2() {
+  const f = fixture(); const bucket = new BucketApiLocal(); let viva = true;
+  const fetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('Tráfico externo prohibido en este fixture.'));
+  const autenticar = async (): Promise<RegistroSesion | null> => {
+    f.eventos.push('auth-real-local'); return viva ? { id: 'abcdef12-1234-4123-8123-123456789abd', huella: 'a'.repeat(64),
+      viajeId: plan.id, dispositivoId: 'local', creadaEn: 0, venceEn: Number.MAX_SAFE_INTEGER, revocada: false } : null;
+  };
+  const objetos = crearObjetosFotosR2({ plan, bucket });
+  const api = crearControladorFotos({ plan, origen, autenticar, repositorio: f.repositorio, objetos });
+  return { ...f, api, bucket, fetch, revocarLocal: () => { viva = false; } };
+}
+
+describe('composición local R2+A+HTTP conserva original y límites de autoridad', () => {
+  for (const bytes of [0, 3, 1048581]) {
+    it(`original ${bytes} bytes con prefijo completo, EOF y descarga privada`, async () => {
+      const f = composicionR2(); const datos = new Uint8Array(bytes); datos.fill(37);
+      const s = { ...ref, original: { ...ref.original, bytesOriginal: bytes } };
+      const r = await f.api.atender(postAcotado(s, datos), presupuesto); expect(r.status).toBe(201);
+      const recibo = await r.text(); expect(deserializarReciboRespaldo(plan, recibo).original.nombre).toBe(ref.original.nombre);
+      expect((await f.api.atender(postAcotado(s, datos), presupuesto)).status).toBe(200);
+      const descarga = await f.api.atender(new Request(`${origen}/api/fotos/${fotoId}/original`), presupuesto);
+      expect(descarga.status).toBe(200); expect(new Uint8Array(await descarga.arrayBuffer())).toEqual(datos);
+      expect(f.bucket.eventos.filter((e) => e === 'put')).toHaveLength(1); expect(f.bucket.objetos.size).toBe(1);
+      expect(f.fetch).not.toHaveBeenCalled();
+    });
+  }
+  it('nueva operación compatible GET usa cuerpo inicial y mantiene recibos', async () => {
+    const f = composicionR2(); const primero = await (await f.api.atender(post(), presupuesto)).text();
+    const previo = [...f.bucket.objetos.values()][0]; const snapshot = new Uint8Array(await previo.arrayBuffer());
+    const otra = { ...ref, operacionId: 'ABCDEF12-1234-4123-8123-123456789ABF' };
+    const r = await f.api.atender(post(otra), presupuesto); expect(r.status).toBe(200);
+    expect(deserializarReciboRespaldo(plan, await r.text()).operacionId).toBe(otra.operacionId);
+    expect(deserializarReciboRespaldo(plan, primero).operacionId).toBe(ref.operacionId);
+    expect([...f.bucket.objetos.values()][0]).toBe(previo); expect(new Uint8Array(await previo.arrayBuffer())).toEqual(snapshot);
+    expect(f.bucket.eventos).toEqual(['put', 'get', 'get']); expect(f.fetch).not.toHaveBeenCalled();
+  });
+  it('reserva existente vacía sigue 503/NOPUT y no finaliza', async () => {
+    const f = composicionR2(); await f.repositorio.reservar('a', plan.id, serializarSolicitudRespaldo(plan, ref));
+    const r = await f.api.atender(post(), presupuesto); expect(r.status).toBe(503);
+    expect(f.bucket.eventos).toEqual(['get']); expect(f.eventos).not.toContain('final'); expect(f.bucket.objetos.size).toBe(0);
+  });
+  it('PUT persistido con respuesta perdida no confirma ni reintenta automáticamente', async () => {
+    const f = composicionR2(); f.bucket.perdida = true;
+    const r = await f.api.atender(post(), presupuesto); expect(r.status).toBe(503); expect(await r.text()).not.toContain('acuse-respaldo');
+    expect(f.bucket.eventos).toEqual(['put']); expect(f.bucket.objetos.size).toBe(1); expect(f.eventos).not.toContain('final');
+    const previo = [...f.bucket.objetos.values()][0];
+    expect((await f.api.atender(post(), presupuesto)).status).toBe(200);
+    expect(f.bucket.eventos).toEqual(['put', 'get']); expect([...f.bucket.objetos.values()][0]).toBe(previo);
+  });
+  for (const variante of ['ultimo-byte', 'EOF-corto', 'EOF-largo', 'cabecera', 'metadata'] as const) {
+    it(`corrupción ${variante} impide final/ACK, conserva objeto y reserva`, async () => {
+      const f = composicionR2(); const datos = new Uint8Array(1048581); datos.fill(9);
+      const s = { ...ref, original: { ...ref.original, bytesOriginal: datos.length } };
+      f.bucket.alterar = (b) => {
+        if (variante === 'EOF-corto') return b.slice(0, -1);
+        if (variante === 'EOF-largo') { const c = new Uint8Array(b.length + 1); c.set(b); return c; }
+        b[variante === 'cabecera' ? 7 : variante === 'metadata' ? 14 : b.length - 1] ^= 1; return b;
+      };
+      const r = await f.api.atender(postAcotado(s, datos), presupuesto);
+      expect(r.status).toBe(variante === 'ultimo-byte' ? 409 : 503); expect(await r.text()).not.toContain('acuse-respaldo');
+      expect(f.eventos).not.toContain('final'); expect(f.bucket.objetos.size).toBe(1);
+      const previo = [...f.bucket.objetos.values()][0]; f.bucket.alterar = null;
+      expect((await f.api.atender(postAcotado(s, datos), presupuesto)).status).toBe(200);
+      expect(f.bucket.eventos.filter((e) => e === 'put')).toHaveLength(1); expect([...f.bucket.objetos.values()][0]).toBe(previo);
+      expect(f.fetch).not.toHaveBeenCalled();
+    });
+  }
+  it('entrada admite multipart pero framing extra requiere 413 antes de reserva', async () => {
+    const f = composicionR2(); const solicitud = post();
+    const longitud = (await solicitud.clone().arrayBuffer()).byteLength;
+    // Con cero original, JSON+multipart es mayor que framing: usar retención exacta
+    // independiente de wire para comprobar la admisión extra del Blob compuesto.
+    expect(longitud).toBeGreaterThan(3);
+    const r = await f.api.atender(solicitud, { ...presupuesto, maxBytesRetenidos: 1000000 });
+    expect(r.status).toBe(413); expect(f.bucket.eventos).toEqual([]); expect(f.eventos).not.toContain('reserva');
+  });
+  it('revocación fresca tras R2 conserva objeto pero no entrega acuse', async () => {
+    const f = composicionR2(); const get = f.bucket.get.bind(f.bucket);
+    // Crear otro adaptador antes de atender para capturar el método de prueba.
+    f.bucket.get = async (k) => { const r = await get(k); f.revocarLocal(); return r; };
+    const autenticar = async () => { f.eventos.push('auth'); return f.eventos.filter((e) => e === 'auth').length === 1
+      ? { id: 'abcdef12-1234-4123-8123-123456789abd', huella: 'a'.repeat(64), viajeId: plan.id,
+        dispositivoId: 'local', creadaEn: 0, venceEn: Number.MAX_SAFE_INTEGER, revocada: false } : null; };
+    const api = crearControladorFotos({ plan, origen, autenticar, repositorio: f.repositorio,
+      objetos: crearObjetosFotosR2({ plan, bucket: f.bucket }) });
+    expect((await api.atender(post(), presupuesto)).status).toBe(401);
+    expect(f.eventos).not.toContain('final'); expect(f.bucket.objetos.size).toBe(1);
+  });
+});
 
 describe('API autónoma HTTPS protegida', () => {
   it('201 y 200 usan codec exacto de recibo, GET privado conserva bytes y no confirma', async () => {
