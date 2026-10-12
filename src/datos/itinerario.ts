@@ -656,7 +656,7 @@ export const itinerario: Itinerario = {
             'Pueblo de agua de las dinastías Ming y Qing: canales, puentes de piedra y casas sobre el agua. El pueblo es gratis; lo de pago abre de 08:30 a 17:00. Antes de las 10:30 está tranquilo; la calle Beidajie se llena a mediodía.\n' +
             'Orden: el jardín Kezhi (课植园, 20 ¥, 45–60 min), una mansión con jardín de 1912–1927, el más grande del pueblo; la barca de remos desde su embarcadero, pasando bajo el puente Fangsheng; y la calle vieja.\n' +
             'El bono de 60 ¥ solo incluye Kezhi, Hexin y el museo Helong: sale a cuenta si se va a los tres.\n' +
-            'Hasta el 28 de octubre es la temporada cultural de otoño (hanfu, ópera kunqu, vendedores ambulantes), sobre todo por la tarde y la noche: preguntar el programa del día en el centro de visitantes (021-5924 0077).',
+            'Temporada cultural de otoño: casi todo (kunqu en barca, hanfu, luces en el puente) terminó el 7 de octubre, y para el jueves 22 no hay nada confirmado. Preguntar en el centro de visitantes (021-5924 0077) por si hay pingtan o 船拳 ese día. De noche el pueblo se ilumina de 19:00 a 22:00, pero entre semana se vacía hacia las 20:00.',
           gastos: [
             { concepto: 'jardín Kezhi', min: 20 },
             { concepto: 'barca de remos (200 ¥ la barca, entre dos)', min: 100 },
@@ -1786,6 +1786,7 @@ export const itinerario: Itinerario = {
     { id: '71ea52c093b6fd84', texto: 'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.' },
     { id: 'b1f8074a6d3c92e5', texto: 'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.' },
     { id: '095cbe73a24f681d', texto: 'Domingo noche: decidir cena giratoria en la Perla o solo vistas; reservar solo tras ver el precio final.' },
+    { id: 'dbb04bf7fb5b181c', texto: 'Jueves 22: llamar al 189 3062 5815 (o que llame el hotel) para saber si el espectáculo nocturno de luces del jardín Kezhi de Zhujiajiao (朱家角光影幻境·课植园, 118 ¥, de 17:00 a 21:00) abre ese día. Si abre, se puede invertir el día: Yuyuan por la mañana y Zhujiajiao por la tarde.' },
     { id: 'ef64a20d831c7b95', texto: 'Sábado noche: mirar la programación y la entrada de Hush/INS para el 24.' },
     { id: 'ec67c889c1582263', texto: 'Jueves 22: reservar mesa en Quanjude para las 19:45 (021-6418 1577, o que llame el hotel).' },
   ],

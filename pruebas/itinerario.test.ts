@@ -72,24 +72,25 @@ const TEXTOS_HEREDADOS = [
   'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.',
   'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.',
   'Domingo noche: decidir cena giratoria en la Perla o solo vistas; reservar solo tras ver el precio final.',
+  'Jueves 22: llamar al 189 3062 5815 (o que llame el hotel) para saber si el espectáculo nocturno de luces del jardín Kezhi de Zhujiajiao (朱家角光影幻境·课植园, 118 ¥, de 17:00 a 21:00) abre ese día. Si abre, se puede invertir el día: Yuyuan por la mañana y Zhujiajiao por la tarde.',
   'Sábado noche: mirar la programación y la entrada de Hush/INS para el 24.',
   'Jueves 22: reservar mesa en Quanjude para las 19:45 (021-6418 1577, o que llame el hotel).',
 ];
 
 describe('identidades persistentes', () => {
-  test('las 159 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
+  test('las 160 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
     const subs = paradas.flatMap(({ p }) => p.subparadas ?? []);
     const pendientes = itinerario.pendientes ?? [];
     expect(paradas).toHaveLength(42);
     expect(subs).toHaveLength(108);
-    expect(pendientes).toHaveLength(8);
+    expect(pendientes).toHaveLength(9);
     const ids = [itinerario.id, ...paradas.map(({ p }) => p.id), ...subs.map((s) => s.id), ...pendientes.map((p) => p.id)];
     for (const id of ids) expect(id).toMatch(/^[a-f0-9]{16}$/);
-    expect(new Set(ids).size).toBe(159);
+    expect(new Set(ids).size).toBe(160);
     // Cada identidad está escrita en los datos, no calculada a partir del contenido ni del orden.
     const fuente = readFileSync(new URL('../src/datos/itinerario.ts', import.meta.url), 'utf8');
     const literales = [...fuente.matchAll(/\bid: '([a-f0-9]{16})'/g)].map((m) => m[1]);
-    expect(literales).toHaveLength(159);
+    expect(literales).toHaveLength(160);
     expect(literales.sort()).toEqual([...ids].sort());
     expectTypeOf<Pick<Itinerario, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
     expectTypeOf<Pick<Parada, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
@@ -141,7 +142,7 @@ describe('identidades persistentes', () => {
     expect(conSubs.subs.some((s) => original.subs.find((o) => o.s.id === s.s.id)!.i !== s.i)).toBe(true);
     for (const t of cambiado.tramos) expect(t.id).toBe(t.hasta.id);
     expect(cambiado.listaPendientes.map((p) => p.id)).toEqual(modelo.listaPendientes.map((p) => p.id).reverse());
-    expect(cambiado.pendientes).toEqual(Array(8).fill('Otro texto'));
+    expect(cambiado.pendientes).toEqual(Array(9).fill('Otro texto'));
   });
 
   test('conserva exactamente las claves y los textos heredados en su orden original', () => {
