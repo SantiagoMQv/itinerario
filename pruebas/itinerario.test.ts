@@ -42,14 +42,16 @@ const CLAVES_HEREDADAS = [
   '2026-10-22|22:00|Hotel Aqua Suhe NO.1',
   '2026-10-23|09:45|Shanghai Disneyland',
   '2026-10-23|22:50|Hotel Aqua Suhe NO.1',
-  '2026-10-24|10:45|Estación de Shanghái',
-  '2026-10-24|12:50|Estación de Nankín',
-  '2026-10-24|13:15|Comida junto a Jiming Temple',
-  '2026-10-24|14:00|Museo Paleontológico de Nankín',
-  '2026-10-24|16:40|Paseo junto a Jiming Temple',
-  '2026-10-24|17:35|Estación de Nankín',
-  '2026-10-24|19:40|Estación de Shanghái',
-  '2026-10-24|20:00|Hotel Aqua Suhe NO.1',
+  '2026-10-24|08:30|Estación de Shanghái',
+  '2026-10-24|10:44|Estación de Nankín',
+  '2026-10-24|11:10|Museo Paleontológico de Nankín',
+  '2026-10-24|14:25|Estación de Nankín',
+  '2026-10-24|16:40|Estación de Shanghái',
+  '2026-10-24|16:55|Hotel Aqua Suhe NO.1',
+  '2026-10-24|17:30|Parque Guilin al anochecer',
+  '2026-10-24|18:55|Pagoda de Longhua iluminada',
+  '2026-10-24|19:15|Cena en Longhua Hui',
+  '2026-10-24|21:05|Hotel Aqua Suhe NO.1',
   '2026-10-24|22:00|Speak Low',
   '2026-10-24|23:45|Hush (INS Land)',
   '2026-10-24|26:30|Hotel Aqua Suhe NO.1',
@@ -68,7 +70,7 @@ const CLAVES_HEREDADAS = [
 const TEXTOS_HEREDADOS = [
   'Museo de Historia Natural (domingo 25): reservar la entrada (no venden en taquilla).',
   'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.',
-  'Tren y museo: comprobar 12306, elegir estaciones y horarios reales y hacer la reserva nominal del museo.',
+  'Sábado 24: comprar ya los trenes G7006 (上海站 09:00) y G7017 (南京站 14:57), y reservar el museo (franja de 09:00 a 12:00) en cuanto se abra, hacia el miércoles 21.',
   'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.',
   'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.',
   'Domingo noche: decidir cena giratoria en la Perla o solo vistas; reservar solo tras ver el precio final.',
@@ -78,19 +80,19 @@ const TEXTOS_HEREDADOS = [
 ];
 
 describe('identidades persistentes', () => {
-  test('las 160 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
+  test('las 170 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
     const subs = paradas.flatMap(({ p }) => p.subparadas ?? []);
     const pendientes = itinerario.pendientes ?? [];
-    expect(paradas).toHaveLength(42);
-    expect(subs).toHaveLength(108);
+    expect(paradas).toHaveLength(44);
+    expect(subs).toHaveLength(116);
     expect(pendientes).toHaveLength(9);
     const ids = [itinerario.id, ...paradas.map(({ p }) => p.id), ...subs.map((s) => s.id), ...pendientes.map((p) => p.id)];
     for (const id of ids) expect(id).toMatch(/^[a-f0-9]{16}$/);
-    expect(new Set(ids).size).toBe(160);
+    expect(new Set(ids).size).toBe(170);
     // Cada identidad está escrita en los datos, no calculada a partir del contenido ni del orden.
     const fuente = readFileSync(new URL('../src/datos/itinerario.ts', import.meta.url), 'utf8');
     const literales = [...fuente.matchAll(/\bid: '([a-f0-9]{16})'/g)].map((m) => m[1]);
-    expect(literales).toHaveLength(160);
+    expect(literales).toHaveLength(170);
     expect(literales.sort()).toEqual([...ids].sort());
     expectTypeOf<Pick<Itinerario, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
     expectTypeOf<Pick<Parada, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
@@ -135,7 +137,7 @@ describe('identidades persistentes', () => {
     }
     expect(cambiado.paradas[0].id).toBe(0);
     expect(cambiado.paradas[0].p.id).toBe(modelo.paradas.at(-1)!.p.id);
-    expect(modelo.paradas.at(-1)!.id).toBe(41);
+    expect(modelo.paradas.at(-1)!.id).toBe(43);
     // Con tres sitios hay al menos dos del mismo grupo (seguros u opcionales): invertirlos cambia su índice.
     const conSubs = cambiado.paradas.find((p) => p.subs.length > 2)!;
     const original = modelo.paradas.find((p) => p.p.id === conSubs.p.id)!;
