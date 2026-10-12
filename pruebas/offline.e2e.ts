@@ -377,3 +377,59 @@ test('núcleo Vite compilado real prepara fuentes/worker y reabre en montaje Pag
   expect((await page.reload())!.status()).toBe(200);
   await expect(page.locator('#dias')).toContainText('Todo');
 });
+
+/** Todas las entradas de CacheStorage («caché URL»), ordenadas: para comparar antes y después. */
+const inventarioCaches = (page: Page) => page.evaluate(async () => {
+  const salida: string[] = [];
+  for (const nombre of await caches.keys()) {
+    for (const req of await (await caches.open(nombre)).keys()) salida.push(`${nombre} ${req.url}`);
+  }
+  return salida.sort();
+});
+/** Abre la ficha de TX Huaihai y su bloque «Fotos» (la app compilada, en el día del 22). */
+async function fotosDeHuaihai(page: Page) {
+  await expect(page.locator('#contenido')).not.toBeEmpty();
+  await page.locator('#contenido li.parada .fila', { hasText: 'TX Huaihai' }).click();
+  await expect(page.locator('#contenido li.parada.abierta', { hasText: 'TX Huaihai' })).toBeVisible();
+  const bloque = page.locator('[data-fotos-destino="p:c80e3471f9ab562d"]');
+  await bloque.locator('[data-fotos-alternar]').scrollIntoViewIfNeeded();
+  await bloque.locator('[data-fotos-alternar]').click();
+  await expect(bloque.locator('[data-fotos-anadir]')).toBeVisible();
+  return bloque;
+}
+
+test('fotos locales: se guardan desde la ficha, se ven sin conexión y nunca entran en CacheStorage', async ({ page, context }) => {
+  await context.route('https://tiles.openfreemap.org/**', (ruta) => ruta.abort());
+  usarCompilada = true;
+  await page.clock.setFixedTime(new Date('2026-10-22T13:30:00+08:00'));
+  await controlar(page, '/itinerario/');
+  await preparar(page);
+  const preparada = await inventarioCaches(page);
+  expect(preparada.length).toBeGreaterThan(0);
+
+  await page.reload();
+  const bloque = await fotosDeHuaihai(page);
+  const png = Buffer.from(await page.evaluate(async () => {
+    const c = document.createElement('canvas'); c.width = 24; c.height = 36;
+    const g = c.getContext('2d')!; g.fillStyle = '#2453d1'; g.fillRect(0, 0, 24, 36);
+    const blob = await new Promise<Blob>((ok) => c.toBlob((b) => ok(b!), 'image/png'));
+    return Array.from(new Uint8Array(await blob.arrayBuffer()));
+  }));
+  const selector = page.waitForEvent('filechooser');
+  await bloque.locator('[data-fotos-anadir]').click();
+  await (await selector).setFiles([{ name: 'sin-red.png', mimeType: 'image/png', buffer: png }]);
+  await expect(bloque.locator('[data-foto-id] img')).toHaveCount(1);
+  expect(await inventarioCaches(page)).toEqual(preparada);
+
+  // Sin red: la app sale de la copia preparada y la foto, de IndexedDB.
+  await desconectar(context);
+  expect((await page.reload())!.status()).toBe(200);
+  const sinRed = await fotosDeHuaihai(page);
+  const img = sinRed.locator('[data-foto-id] img');
+  await expect(img).toHaveCount(1);
+  await expect(img).toHaveJSProperty('complete', true);
+  expect(await img.evaluate((i) => (i as HTMLImageElement).naturalWidth)).toBeGreaterThan(0);
+  const final = await inventarioCaches(page);
+  expect(final).toEqual(preparada);
+  expect(final.filter((e) => /blob:|\/api\/|\/entrar|itinerario-fotos/.test(e))).toEqual([]);
+});

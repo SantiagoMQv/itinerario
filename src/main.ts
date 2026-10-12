@@ -17,6 +17,8 @@ import {
   momentoEn,
   trayectosApretados,
 } from './modelo';
+import type { DestinoFoto } from './fotos';
+import { crearFotosUi } from './fotos-interfaz';
 import { descargaAnterior, descargarMapas, registrarServiceWorker } from './offline';
 import type { Operacion } from './progreso';
 import { capturarLegado, crearProgresoInterfaz, identidadDispositivo, resumenCompartido, uuidAleatorio } from './progreso-interfaz';
@@ -104,6 +106,22 @@ const estado = {
   abierta: null as number | null,
   claveMomento: '',
 };
+
+// ---------- Fotos (solo en este móvil) ----------
+
+/** Nombre de la parada o del sitio de dentro, para títulos y nombres accesibles de sus fotos. */
+function nombreFotos(d: DestinoFoto): string {
+  const p = modelo.paradas.find((x) => x.p.id === d.paradaId);
+  if (!p) return 'esta parada';
+  return d.tipo === 'parada' ? p.p.nombre : (p.subs.find((x) => x.s.id === d.subparadaId)?.s.nombre ?? p.p.nombre);
+}
+const fotosUi = crearFotosUi({
+  plan: itinerario,
+  contenido: el.contenido,
+  nombreDe: nombreFotos,
+  // El panel abierto ya lo dice en su línea de estado; el aviso cubre el caso de haberlo cerrado.
+  anunciar: (texto) => aviso(texto),
+});
 
 // ---------- Almacenamiento en este móvil ----------
 
@@ -1035,6 +1053,7 @@ function abrirFicha(p: ParadaC) {
   }
   expandir(true);
   estado.abierta = p.id;
+  fotosUi.preparar();
   marcarLista(momentoActual());
   alLlegarArriba(() => mostrarFila(el.contenido.querySelector(`li.parada[data-id="${p.id}"]`)));
 }
@@ -1124,6 +1143,7 @@ function filaParada(p: ParadaC, esOrigen: boolean): string {
           ${q.local ? botonEnsenar(p) : ''}
           ${enlacesMapas(p)}
         </div>
+        ${esOrigen ? '' : fotosUi.html({ tipo: 'parada', viajeId: itinerario.id, paradaId: q.id })}
       </div>
     </li>`;
 }
@@ -1165,6 +1185,7 @@ function subparadasHtml(p: ParadaC): string {
               : ''
           }
         </div>
+        ${fotosUi.html({ tipo: 'subparada', viajeId: itinerario.id, paradaId: p.p.id, subparadaId: x.s.id })}
       </div>
     </li>`;
   };
@@ -1253,6 +1274,7 @@ function pintarLista(dia: DiaC) {
     if (tramo) filas.push(filaTramo(tramo));
     filas.push(filaParada(p, false));
   }
+  fotosUi.desmontar();
   el.contenido.innerHTML = `
     <h2 class="titulo-lista"><span>Itinerario del día</span><small>${paradas(visitas)} · ${esc(km(dia.km))}</small></h2>
     <ol class="lista">${filas.join('')}</ol>
@@ -1263,6 +1285,7 @@ function pintarLista(dia: DiaC) {
       ${dia.d.notas ? `<div class="notas-dia">${parrafos(dia.d.notas, '')}</div>` : ''}
       ${LEYENDA}
     </section>`;
+  fotosUi.pintarCuentas();
   estado.claveMomento = '';
 }
 
@@ -1357,6 +1380,8 @@ el.contenido.addEventListener(
 
 el.contenido.addEventListener('click', (e) => {
   const objetivo = e.target as HTMLElement;
+  // Las fotos van antes: un toque en su bloque nunca pliega la ficha ni cambia la parada.
+  if (fotosUi.manejarClic(objetivo)) return;
   if (objetivo.closest('[data-guardar-mapas]')) return el.offline.click();
   const ancla = objetivo.closest<HTMLAnchorElement>('a[href^="#"]');
   if (ancla) {
@@ -1411,7 +1436,10 @@ el.contenido.addEventListener('click', (e) => {
   const c = rollo();
   const antes = fila.getBoundingClientRect().top;
   estado.abierta = yaAbierta ? -1 : p.id;
-  if (!yaAbierta) enfocar(p);
+  if (!yaAbierta) {
+    enfocar(p);
+    fotosUi.preparar();
+  }
   marcarLista(momentoActual());
   // La fila tocada se queda bajo el dedo: la ficha que se pliega encima (la de la parada anterior,
   // por ejemplo) no la mueve de sitio.
@@ -1642,6 +1670,7 @@ function pintarResumen() {
   rollo().scrollTop = 0;
   ultimoCompartido = '';
   const antes = faltanDias() > 0;
+  fotosUi.desmontar();
   el.contenido.innerHTML = `
     ${bloqueAntes()}
     ${antes ? COMO_FUNCIONA : ''}
@@ -2421,9 +2450,13 @@ function cerrarTaxi(desdeHistorial = false) {
 }
 
 el.taxiCerrar.addEventListener('click', () => cerrarTaxi());
-addEventListener('popstate', () => cerrarTaxi(true));
+addEventListener('popstate', () => {
+  fotosUi.cerrarVisor(true);
+  cerrarTaxi(true);
+});
 addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
+  if (fotosUi.cerrarVisor()) return;
   if (!el.taxi.hidden) cerrarTaxi();
   else cerrarFichaCorta();
 });

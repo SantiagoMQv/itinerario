@@ -35,6 +35,7 @@ Une en una sola pantalla el mapa y el reloj: la ruta del día se reproduce sobre
 - Línea de tiempo por día con reproducción, saltos entre paradas y velocidad; la cámara sigue el recorrido. Vista «Todo» con todos los días.
 - Ficha de cada parada: horario, notas, enlaces, gasto por persona (yuanes y euros aproximados), distancia al hotel, enlaces a Amap, Apple Maps y Google Maps, y tarjeta a pantalla completa para el taxista.
 - Planes opcionales, notas por día, secciones de información del viaje (vuelos, hotel, prioridades, descartes) y lista de pendientes que se marcan en el móvil. Piloto (sin publicar): las marcas y las casillas se guardan en el móvil y se comparten entre los dos editores al sincronizar; un acuse del servidor no prueba que el otro móvil lo haya visto.
+- Fotos del viaje (piloto, sin publicar): se añaden desde la ficha de cada parada o sitio de dentro y se guardan solo en ese móvil (IndexedDB), con vista previa preparada en el propio móvil. No se envían, no se comparten con el otro móvil y aún no tienen copia de seguridad.
 - PWA con service worker y descarga de mapas para uso sin conexión. Nada puede depender de servicios bloqueados en China (Google Fonts, CDN como jsDelivr): fuentes y recursos van incluidos en la app.
 - Coordenadas en WGS-84; las de Amap, Apple Maps (en China) y Trip.com vienen en GCJ-02 y hay que convertirlas.
 - Web estática publicada en GitHub Pages desde un repositorio público: el itinerario es visible para quien tenga el enlace.

@@ -2135,6 +2135,245 @@ body.vista-todo .lista {
   stroke-linecap: round;
 }
 
+/* ---------- Fotos (solo en este móvil) ---------- */
+
+/* En la ficha y en cada sitio de dentro: «Fotos · 2» discreto; al abrirlo, las miniaturas y «Añadir foto». */
+.fotos {
+  margin-top: 12px;
+}
+.sub-detalle .fotos {
+  margin-top: 8px;
+}
+.fotos-cuenta {
+  font-variant-numeric: tabular-nums;
+}
+.fotos-panel {
+  padding-top: 10px;
+}
+.fotos-estado {
+  margin: 0 0 8px;
+  color: var(--tinta-suave);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.fotos-estado:empty {
+  margin: 0;
+}
+.fotos-error {
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1.5px dashed var(--borde-fuerte);
+  border-radius: 8px;
+  font-size: 14.5px;
+}
+.fotos-error p {
+  margin: 0 0 8px;
+}
+.fotos-lista,
+.fotos-sesiones {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.fotos-lista {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+  gap: 6px;
+  max-width: 420px;
+}
+.fotos-lista:empty,
+.fotos-sesiones:empty {
+  display: none;
+}
+.foto-abrir {
+  display: block;
+  width: 100%;
+  aspect-ratio: 1;
+  padding: 0;
+  overflow: hidden;
+  border: 1.5px solid var(--borde-fuerte);
+  border-radius: 6px;
+  background: var(--etiqueta);
+  color: var(--etiqueta-texto);
+}
+.foto-vista {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  height: 100%;
+}
+.foto-vista img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.foto-texto {
+  padding: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.2;
+  text-align: center;
+}
+.fotos-sesiones {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 8px;
+}
+.foto-sesion {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  font-size: 14px;
+  line-height: 1.35;
+}
+.foto-sesion > span {
+  flex: 1 1 100%;
+  overflow-wrap: anywhere;
+}
+.fotos-vacio {
+  margin: 0 0 6px;
+  color: var(--tinta-suave);
+  font-size: 14.5px;
+}
+.fotos-acciones {
+  margin-top: 10px;
+}
+.fotos-acciones[hidden],
+.fotos-error[hidden],
+.fotos-vacio[hidden] {
+  display: none;
+}
+.fotos-nota {
+  max-width: 34em;
+}
+
+/* Visor: pantalla completa de papel, como la tarjeta del taxista; se cierra con ✕, Escape o volver. */
+#visor-foto {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  grid-template-rows: auto minmax(200px, 1fr) auto;
+  gap: 10px;
+  overflow-y: auto;
+  padding: calc(var(--arriba) + 12px) calc(var(--der) + 16px) calc(var(--abajo) + 16px) calc(var(--izq) + 16px);
+  color: var(--tinta);
+}
+#visor-foto[hidden] {
+  display: none;
+}
+.visor-cabecera {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 48px;
+  gap: 2px 12px;
+  align-items: start;
+}
+.visor-cabecera h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  font-stretch: 92%;
+  line-height: 1.25;
+}
+.visor-nombre {
+  grid-column: 1;
+  margin: 0;
+  color: var(--tinta-suave);
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.visor-cerrar {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  display: grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border: 1.5px solid var(--borde-fuerte);
+  border-radius: 50%;
+  background: var(--papel);
+  color: var(--tinta);
+}
+.visor-cerrar svg {
+  width: 22px;
+  height: 22px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+}
+.visor-imagen {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  border-radius: 8px;
+  background: var(--etiqueta);
+  color: var(--etiqueta-texto);
+}
+.visor-imagen img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+.visor-texto {
+  margin: 0;
+  padding: 16px;
+  font-size: 15px;
+  font-weight: 600;
+  text-align: center;
+}
+.visor-pie {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.visor-pie p {
+  margin: 0;
+}
+.visor-pesos {
+  color: var(--tinta-suave);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+.visor-aviso {
+  font-size: 14.5px;
+  line-height: 1.4;
+}
+.visor-aviso:empty {
+  display: none;
+}
+.visor-acciones,
+.visor-confirmar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.visor-acciones[hidden],
+.visor-confirmar[hidden] {
+  display: none;
+}
+.visor-confirmar p {
+  flex: 1 1 100%;
+  font-size: 14.5px;
+}
+/* Borrar es lo único que avisa: contorno y texto en rojo de aviso, sin relleno. */
+.visor-confirmar [data-visor-confirmar] {
+  border-color: var(--aviso);
+  background: var(--papel);
+  color: var(--aviso);
+}
+/* Apaisado: la foto deja sitio a las acciones y todo se desplaza si no cabe. */
+@media (max-height: 500px) {
+  #visor-foto {
+    grid-template-rows: auto minmax(160px, 1fr) auto;
+  }
+}
+
 /* Tras marcar, un instante sin botones activos en «ahora»: el segundo toque de un doble toque no cuenta. */
 #ahora.enfriando button {
   pointer-events: none;
