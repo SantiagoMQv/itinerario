@@ -70,7 +70,7 @@ const CLAVES_HEREDADAS = [
 const TEXTOS_HEREDADOS = [
   'Museo de Historia Natural (domingo 25): reservar la entrada (no venden en taquilla).',
   'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.',
-  'Sábado 24: comprar ya los trenes G7006 (上海站 09:00) y G7017 (南京站 14:57), y reservar el museo en cuanto se abra, hacia el miércoles 21: franja de entrada de 09:00 a 12:00 (se entra a las 11:10). Comprobar al reservar que se puede seguir dentro después de las 12:00; si no, llamar al 025-8328 2255.',
+  'Sábado 24: comprar ya los trenes G7006 (上海站 09:00) y G7017 (南京站 14:57), y reservar el museo en cuanto se abra, hacia el miércoles 21: franja de entrada de 09:00 a 12:00 (se entra a las 11:10). Dudas: 025-8328 2255, de miércoles a domingo de 09:00 a 17:00.',
   'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.',
   'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.',
   'Domingo noche: decidir cena giratoria en la Perla o solo vistas; reservar solo tras ver el precio final.',
