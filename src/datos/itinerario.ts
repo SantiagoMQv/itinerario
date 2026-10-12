@@ -1791,6 +1791,7 @@ export const itinerario: Itinerario = {
         'Nankín: Niushoushan, Mausoleo Ming Xiaoling, Palacio Presidencial y los demás museos.',
         'Shanghái: Museo de Arte Contemporáneo, China Art Museum, Templo del Buda de Jade y varios centros comerciales.',
         'Masaje en Kangyou Four Seasons (222 Jinyuan Road): era el plan para el miércoles si no había habitación temprano.',
+        'Outlet Shanghai Village (上海购物村, 申迪东路88号), junto a Disneyland: Nike, adidas, New Balance, Puma, Levi’s, The North Face, Columbia… con un 30–60 % de descuento. Cabría el domingo 25 de 17:00 a 19:00 en lugar de los cafés (línea 11 directa desde Wukang Road, unos 45 min).',
       ],
     },
   ],
