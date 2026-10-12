@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { crearProgreso } from '../src/progreso';
 import { itinerario } from '../src/datos/itinerario';
-import { codificarJsonFiel, exportarArchivoPortable, inspeccionarArchivoPortable,
+import { codificarJsonFiel, exportarArchivoPortable, inspeccionarArchivoPortable, crearConjuntoRecuperacion,
   type CapturaPortable, type LimitesPortables } from '../src/portabilidad';
 const limites: LimitesPortables = { maxRegistros: 100, maxBytesMetadatos: 100000,
   maxBytesArchivo: 4000000, maxProfundidad: 64 };
@@ -73,6 +73,13 @@ describe('M1: catálogo válido también cuando no hay registros durables', () =
   });
 });
 describe('archivo portable completo, no autenticación ni importador', () => {
+  it('constructor de conjunto no omite campos desconocidos en referencias históricas', async () => {
+    const archivo = (await exportarArchivoPortable(itinerario, captura(), limites)).archivo;
+    const presupuesto = { maxArchivos: 10, maxBytesConjunto: 40000000, maxBytesInventario: 100000,
+      maxRegistrosConjunto: 1000, maxObservaciones: 1000, maxProcedencias: 1000 };
+    const fuente = { trabajoId: 'origen', archivo, observaciones: [], procedencias: [], extra: new Map() };
+    await expect(crearConjuntoRecuperacion(itinerario, archivo, [fuente], limites, presupuesto)).rejects.toThrow();
+  });
   it('produce un Blob versionado verificable, distingue vacío/ausencia y conserva texto exacto', async () => {
     const r = await exportarArchivoPortable(itinerario, captura(), limites);
     expect(r.archivo).toBeInstanceOf(Blob); expect(r.archivo.size).toBeGreaterThan(20);
@@ -152,6 +159,26 @@ describe('archivo portable completo, no autenticación ni importador', () => {
       const alterado = new Blob([r!.archivo.slice(0, -1), new Uint8Array([254])]);
       await expect(inspeccionarArchivoPortable(itinerario, alterado, limites)).rejects.toThrow('CRC');
     }
+  });
+  it.each(['IMAGE/HEIC', 'image/HEIC', 'image/heic\0', 'image/héic'])('descriptor MIME crudo %s rechaza aunque slice lo transforme', async (mime) => {
+    const fotoId = '12345678-1234-4123-8123-123456789abc';
+    const original = new Blob(['123456789'], { type: 'image/heic' });
+    const metadata = { formato: 1, fotoId, destino: { tipo: 'parada', viajeId: itinerario.id,
+      paradaId: itinerario.dias[0].paradas[0].id }, nombre: '\0 e\u0301 ', mimeDeclarado: 'image/heic',
+      incorporada: -0, ultimaModificacion: -0, bytesOriginal: 9, miniatura: { tipo: 'pendiente' } };
+    const a = await exportarArchivoPortable(itinerario, { ...captura(), fotos: { presente: true, tablas: {
+      metadatos: [{ clave: fotoId, valor: metadata }], originales: [{ clave: fotoId, valor: original }],
+      miniaturas: [] } } }, limites);
+    const control = await inspeccionarArchivoPortable(itinerario, a.archivo, limites);
+    expect(control.leerSegmento(0).type).toBe('image/heic');
+    expect(a.manifiesto.segmentos[0].crc32).toBe(0xcbf43926);
+    const manifiesto = JSON.parse(codificarJsonFiel(a.manifiesto, limites));
+    manifiesto.segmentos[0].mime = mime;
+    // CRC del manifiesto recalculado y CRC binario conocido intacto: no es un fallo de integridad.
+    const incompatible = empaquetar(manifiesto, [original]);
+    await expect(inspeccionarArchivoPortable(itinerario, incompatible, limites)).rejects.toThrow('MIME');
+    expect(manifiesto.segmentos[0].mime).toBe(mime);
+    expect(metadata.mimeDeclarado).toBe('image/heic');
   });
   it('archivo determinista; metadata corrupta/magic/versión y límites rechazan', async () => {
     const a = await exportarArchivoPortable(itinerario, captura(), limites);

@@ -2,11 +2,12 @@ import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
 import { abrirFotosLocal, capturarFotosLocal } from '../src/fotos-local';
 import { abrirProgresoLocal, capturarProgresoLocal } from '../src/progreso-local';
 import { abrirRespaldoFotosLocal, capturarRespaldoFotosLocal } from '../src/fotos-respaldo-local';
-import { inspeccionarArchivoPortable } from '../src/portabilidad';
+import { inspeccionarArchivoPortable, exportarArchivoPortable, inspeccionarConjuntoRecuperacion, codificarJsonFiel } from '../src/portabilidad';
+import { crearPortabilidadHistorica } from '../src/portabilidad-historico';
 import { aplicarOperacion, crearProgreso } from '../src/progreso';
 import { describe, expect, it, vi } from 'vitest';
 import { itinerario } from '../src/datos/itinerario';
-import { crearExportadorLocal } from '../src/portabilidad-local';
+import { crearExportadorLocal, crearImportadorRecuperacionLocal } from '../src/portabilidad-local';
 const fotoId = '12345678-1234-4123-8123-123456789abc';
 const borradaId = '22345678-1234-4123-8123-123456789abc';
 const operacionId = '32345678-1234-4123-8123-123456789abc';
@@ -56,6 +57,81 @@ function planConCatalogoInvalido(caso: typeof casosCatalogoInvalido[number]) {
   if (caso === 'pendiente-cruzado') plan.pendientes = [{ id: paradas[0].id, texto: 'Colisión con parada' }];
   return plan;
 }
+const limitesConjunto = { maxArchivos: 20, maxBytesConjunto: 40000000, maxBytesInventario: 100000,
+  maxRegistrosConjunto: 1000, maxObservaciones: 1000, maxProcedencias: 1000 };
+const presupuestoHistoria = { maxImportaciones: 20, maxObservaciones: 1000, maxProcedencias: 1000, maxBytesHistoria: 40000000 };
+describe('exportación con historia separada', () => {
+  it.each([-1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])('presupuesto conjunto inseguro %s se rechaza sin aperturas', async (n) => {
+    const fabrica = new IDBFactory(); const abrir = vi.spyOn(fabrica, 'open');
+    await expect(crearExportadorLocal({ plan: itinerario, limites, fabrica, leerLegado: () => null })
+      .exportarRecuperacion({ ...limitesConjunto, maxArchivos: n })).rejects.toThrow();
+    expect(abrir).not.toHaveBeenCalled();
+  });
+  it('conjunto plano migra TODOS los originales y restaura sólo fotos actuales, nunca tombstone histórico', async () => {
+    const fabrica = new IDBFactory(); const h = crearPortabilidadHistorica({ plan: itinerario, limites, fabrica, limitesHistoria: presupuestoHistoria });
+    const antiguo = await exportarArchivoPortable(itinerario, { viajeId: itinerario.id,
+      fotos: { presente: true, tablas: { metadatos: [{ clave: fotoId, valor: { formato: 1, tipo: 'borrada', fotoId } }], originales: [], miniaturas: [] } },
+      progreso: { presente: false, tablas: {} }, respaldos: { presente: false, tablas: {} }, legado: { marcas: ' antiguo\0 ', 'marcas-hora': null, 'pendientes-hechos': null } }, limites);
+    const job = await h.archivar(antiguo.archivo);
+    const f = await abrirFotosLocal(itinerario, { fabrica });
+    await f.guardarOriginal({ metadatos: metadata(), original: new Blob(['abc'], { type: 'image/heic' }) }); f.cerrar();
+    const e = crearExportadorLocal({ plan: itinerario, limites, fabrica, limitesHistoria: presupuestoHistoria, leerLegado: () => 'actual e\u0301' });
+    expect((await e.exportarActual()).excluidas).toContain('historia-archivada');
+    const conjunto = await e.exportarRecuperacion(limitesConjunto);
+    expect(conjunto.archivos).toHaveLength(2);
+    const destino = new IDBFactory(); const opciones = { plan: itinerario, limites, fabrica: destino, limitesHistoria: presupuestoHistoria };
+    const resultado = await crearImportadorRecuperacionLocal(opciones).importarConjunto(conjunto, limitesConjunto);
+    expect(resultado).toMatchObject({ tipo: 'historia-confirmada', actual: { fotos: { tipo: 'observadas' } } });
+    const historicas = await crearPortabilidadHistorica(opciones).listar();
+    expect(historicas).toHaveLength(2); expect(historicas.every((r) => r.trabajoId !== job.trabajoId)).toBe(true);
+    expect(historicas.some((r) => r.procedencias.some((p) => p.trabajoId === job.trabajoId))).toBe(true);
+    const d = await abrirFotosLocal(itinerario, { fabrica: destino }); expect(await (await d.leerOriginal(fotoId))!.text()).toBe('abc'); d.cerrar();
+    const siguiente = await crearExportadorLocal({ ...opciones, leerLegado: () => null }).exportarRecuperacion(limitesConjunto);
+    expect(siguiente.archivos).toHaveLength(3);
+    const inventario = (await inspeccionarConjuntoRecuperacion(itinerario, siguiente, limites, limitesConjunto)).inventario;
+    expect(inventario.archivos.every((a) => a.procedencias.every((p) => Object.keys(p).sort().join(',') === 'trabajoId,viajeId'))).toBe(true);
+    expect((await destino.databases()).map((d) => d.name).sort()).toEqual([nombreFotos, `itinerario-portabilidad:${encodeURIComponent(itinerario.id)}`].sort());
+  });
+  it.each(['falta', 'extra', 'duplicado', 'ultimo-crc', 'inventario-extra', 'inventario-no-canonico',
+    'limite-bytes', 'limite-inventario', 'limite-registros', 'limite-archivos', 'version'] as const)
+  ('conjunto %s se rechaza entero antes de escrituras o creación destino', async (caso) => {
+    const fabrica = new IDBFactory(); const opciones = { plan: itinerario, limites, fabrica, limitesHistoria: presupuestoHistoria };
+    const f = await abrirFotosLocal(itinerario, { fabrica });
+    await f.guardarOriginal({ metadatos: metadata(), original: new Blob(['abc'], { type: 'image/heic' }) }); f.cerrar();
+    const e = crearExportadorLocal({ ...opciones, leerLegado: () => null });
+    const actual = await e.exportarActual(); await crearPortabilidadHistorica(opciones).archivar(actual.archivo.archivo);
+    const c = await e.exportarRecuperacion(limitesConjunto);
+    let inventario = c.inventario; let archivos = [...c.archivos]; const presupuesto = { ...limitesConjunto };
+    if (caso === 'falta') archivos = archivos.slice(0, -1);
+    if (caso === 'extra') archivos.push({ referencia: 'historico-99999999', archivo: archivos[0].archivo });
+    if (caso === 'duplicado') archivos.push(archivos[0]);
+    if (caso === 'ultimo-crc') archivos[1] = { ...archivos[1], archivo: new Blob([archivos[1].archivo.slice(0, -1), new Uint8Array([255])]) };
+    if (caso === 'inventario-no-canonico') inventario = new Blob([' ', c.inventario]);
+    if (caso === 'inventario-extra' || caso === 'version') {
+      const m = JSON.parse(await c.inventario.text()); if (caso === 'version') m.formato = 2; else m.extra = true;
+      inventario = new Blob([codificarJsonFiel(m, limites)]);
+    }
+    if (caso === 'limite-bytes') presupuesto.maxBytesConjunto = 1;
+    if (caso === 'limite-inventario') presupuesto.maxBytesInventario = c.inventario.size - 1;
+    if (caso === 'limite-registros') presupuesto.maxRegistrosConjunto = 0;
+    if (caso === 'limite-archivos') presupuesto.maxArchivos = 1;
+    const destino = new IDBFactory(); const abrir = vi.spyOn(destino, 'open');
+    const r = await crearImportadorRecuperacionLocal({ ...opciones, fabrica: destino }).importarConjunto({ inventario, archivos }, presupuesto);
+    expect(r).toEqual({ tipo: 'rechazado-antes-escribir', trabajos: [], actual: null });
+    expect(abrir).not.toHaveBeenCalled(); expect(await destino.databases()).toEqual([]);
+  });
+  it('exportar legacy no declara completo un snapshot que excluye historia presente', async () => {
+    const fabrica = new IDBFactory(); const archivo = await exportarArchivoPortable(itinerario, {
+      viajeId: itinerario.id, fotos: { presente: false, tablas: {} }, progreso: { presente: false, tablas: {} },
+      respaldos: { presente: false, tablas: {} }, legado: { marcas: null, 'marcas-hora': null, 'pendientes-hechos': null },
+    }, limites);
+    const h = crearPortabilidadHistorica({ plan: itinerario, limites, fabrica,
+      limitesHistoria: { maxImportaciones: 10, maxObservaciones: 100, maxProcedencias: 100, maxBytesHistoria: 40000000 } });
+    expect((await h.archivar(archivo.archivo)).historia).toBe('confirmada');
+    await expect(crearExportadorLocal({ plan: itinerario, limites, fabrica, leerLegado: () => null }).exportar())
+      .rejects.toMatchObject({ codigo: 'historia-presente' });
+  });
+});
 describe('M1: ningún catálogo inválido inicia captura ni lee legado', () => {
   it.each(casosCatalogoInvalido)('constructor rechaza %s sin IO de forma síncrona', async (caso) => {
     const plan = planConCatalogoInvalido(caso); const fabrica = new IDBFactory();

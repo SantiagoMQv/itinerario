@@ -3,6 +3,7 @@ import { crearProgreso } from './progreso';
 import { tamanoBlob, tipoBlob, type MetadatosFoto, type FotoBorrada } from './fotos';
 import type { RegistroLocal } from './progreso-local';
 import type { EntradaRespaldo } from './fotos-respaldo';
+import { validarDatosHistoricos, type ObservacionHistorica, type ProcedenciaHistorica } from './portabilidad-historico';
 import { validarFotosPortables } from './fotos-local';
 import { validarProgresoPortable } from './progreso-local';
 import { validarRespaldosPortables } from './fotos-respaldo-local';
@@ -341,7 +342,12 @@ function vista(archivo: Blob, manifiesto: ManifiestoPortable, inicio: number): A
   return { archivo, manifiesto, leerSegmento: (indice) => {
     if (!Number.isSafeInteger(indice) || indice < 0 || indice >= segmentos.length) fallo('referencia de segmento inválida');
     const s = segmentos[indice];
-    return Blob.prototype.slice.call(archivo, inicio + s.offset, inicio + s.offset + s.bytes, s.mime) as Blob;
+    const binario = Blob.prototype.slice.call(archivo, inicio + s.offset, inicio + s.offset + s.bytes, s.mime) as Blob;
+    // slice convierte ASCII a minúsculas y descarta MIME con caracteres no imprimibles.
+    // Ese cambio no debe hacer compatible un descriptor RAW distinto de la vista nativa.
+    // Se rechaza; nunca se normaliza el manifiesto ni mimeDeclarado de los metadatos.
+    if (tipoBlob(binario) !== s.mime) fallo('MIME del segmento incompatible con Blob nativo');
+    return binario;
   } };
 }
 /** Acción explícita. Archivo completo o rechazo: no existen exportaciones parciales.
@@ -462,4 +468,138 @@ export async function inspeccionarArchivoPortable(planEntrada: Itinerario, archi
     if (await crcBlob(r.leerSegmento(i)) !== manifiesto.segmentos[i].crc32) fallo(`CRC del segmento ${i}`);
   }
   return r;
+}
+
+/** Presupuestos agregados explícitos: sumas seguras, nunca deduplicación por CRC/tamaño. */
+export interface LimitesConjunto {
+  readonly maxArchivos: number; readonly maxBytesConjunto: number; readonly maxBytesInventario: number;
+  readonly maxRegistrosConjunto: number; readonly maxObservaciones: number; readonly maxProcedencias: number;
+}
+export interface EntradaInventario {
+  readonly referencia: string; readonly tipo: 'actual' | 'historico'; readonly trabajoOrigen: string | null;
+  readonly observaciones: readonly ObservacionHistorica[]; readonly procedencias: readonly ProcedenciaHistorica[];
+}
+export interface InventarioRecuperacion {
+  readonly formato: 1; readonly alcance: 'fuentes-durables-declaradas'; readonly viajeId: string;
+  readonly actual: 'actual'; readonly fuentes: readonly ['fotos', 'progreso', 'respaldos', 'legado', 'historia'];
+  readonly archivos: readonly EntradaInventario[];
+}
+/** Conjunto plano: inventario UTF8 y archivos ITINPORTv1 originales, sin ZIP ni envelope recursivo. */
+export interface ConjuntoRecuperacion {
+  readonly inventario: Blob; readonly archivos: readonly { readonly referencia: string; readonly archivo: Blob }[];
+}
+export interface ConjuntoInspeccionado {
+  readonly inventario: InventarioRecuperacion;
+  readonly archivos: readonly { readonly referencia: string; readonly inspeccion: ArchivoPortable }[];
+}
+export function copiarLimitesConjunto(entrada: LimitesConjunto): LimitesConjunto {
+  exigirCampos(entrada, ['maxArchivos', 'maxBytesConjunto', 'maxBytesInventario', 'maxRegistrosConjunto', 'maxObservaciones', 'maxProcedencias']);
+  const copia = { ...entrada };
+  for (const n of Object.values(copia)) if (typeof n !== 'number' || !Number.isSafeInteger(n) || n < 0) fallo('límite agregado inválido');
+  return copia;
+}
+const fuentesConjunto = ['fotos', 'progreso', 'respaldos', 'legado', 'historia'] as const;
+function referenciaConjunto(v: unknown): v is string {
+  return typeof v === 'string' && (v === 'actual' || /^historico-[0-9]{8}$/.test(v));
+}
+/** Bytecap antes de JSON.parse; profundidad/canonicalidad después. No garantiza heap previo
+ * a parsear ni atomicidad global entre fuentes. Todos los archivos se inspeccionan antes de salida. */
+export async function inspeccionarConjuntoRecuperacion(planEntrada: Itinerario, entrada: ConjuntoRecuperacion,
+  limitesEntrada: LimitesPortables, presupuestoEntrada: LimitesConjunto): Promise<ConjuntoInspeccionado> {
+  const plan = copiarPlanPortable(planEntrada); const limites = copiarLimitesPortables(limitesEntrada);
+  const presupuesto = copiarLimitesConjunto(presupuestoEntrada);
+  exigirCampos(entrada, ['inventario', 'archivos']);
+  const inventarioBlob = entrada.inventario; const bytesInventario = tamanoBlob(inventarioBlob);
+  if (bytesInventario > presupuesto.maxBytesInventario || !Array.isArray(entrada.archivos)
+    || entrada.archivos.length > presupuesto.maxArchivos) fallo('conjunto excesivo');
+  let bytesTotales = bytesInventario;
+  const archivos: { referencia: string; archivo: Blob }[] = []; const refs = new Set<string>();
+  for (const a of entrada.archivos) {
+    exigirCampos(a, ['referencia', 'archivo']);
+    if (!referenciaConjunto(a.referencia) || refs.has(a.referencia)) fallo('referencia desconocida/duplicada');
+    refs.add(a.referencia);
+    const bytes = tamanoBlob(a.archivo);
+    if (bytes > limites.maxBytesArchivo) fallo('archivo excesivo');
+    bytesTotales = suma(bytesTotales, bytes);
+    if (bytesTotales > presupuesto.maxBytesConjunto) fallo('maxBytesConjunto excedido');
+    archivos.push({ referencia: a.referencia, archivo: a.archivo as Blob });
+  }
+  if (bytesTotales > presupuesto.maxBytesConjunto) fallo('maxBytesConjunto excedido');
+  const bytes = new Uint8Array(await Blob.prototype.arrayBuffer.call(inventarioBlob));
+  const texto = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(bytes);
+  const desconocido: unknown = JSON.parse(texto);
+  const limitesInventario = { ...limites, maxBytesMetadatos: presupuesto.maxBytesInventario };
+  if (codificarJsonFiel(desconocido, limitesInventario) !== texto) fallo('inventario no canónico');
+  exigirCampos(desconocido, ['formato', 'alcance', 'viajeId', 'actual', 'fuentes', 'archivos']);
+  if (desconocido.formato !== 1 || desconocido.alcance !== 'fuentes-durables-declaradas'
+    || desconocido.viajeId !== plan.id || desconocido.actual !== 'actual'
+    || JSON.stringify(desconocido.fuentes) !== JSON.stringify(fuentesConjunto)
+    || !Array.isArray(desconocido.archivos) || desconocido.archivos.length !== archivos.length) fallo('inventario incompatible');
+  const inventario = desconocido as unknown as InventarioRecuperacion;
+  const declaradas = new Set<string>(); let observaciones = 0; let procedencias = 0; let actuales = 0;
+  for (const a of inventario.archivos) {
+    exigirCampos(a, ['referencia', 'tipo', 'trabajoOrigen', 'observaciones', 'procedencias']);
+    if (!referenciaConjunto(a.referencia) || declaradas.has(a.referencia) || !refs.has(a.referencia)) fallo('inventario no exacto');
+    declaradas.add(a.referencia);
+    if (a.referencia === 'actual') {
+      if (a.tipo !== 'actual' || a.trabajoOrigen !== null || a.observaciones.length || a.procedencias.length) fallo('snapshot actual incompatible');
+      actuales++;
+    } else if (a.tipo !== 'historico' || typeof a.trabajoOrigen !== 'string'
+      || !a.trabajoOrigen.length || a.trabajoOrigen.length > 512) fallo('histórico incompatible');
+    validarDatosHistoricos(a.observaciones, a.procedencias, limitesInventario, {
+      maxImportaciones: presupuesto.maxArchivos, maxObservaciones: presupuesto.maxObservaciones,
+      maxProcedencias: presupuesto.maxProcedencias, maxBytesHistoria: presupuesto.maxBytesConjunto,
+    });
+    observaciones = suma(observaciones, a.observaciones.length); procedencias = suma(procedencias, a.procedencias.length);
+  }
+  if (actuales !== 1 || declaradas.size !== refs.size || observaciones > presupuesto.maxObservaciones
+    || procedencias > presupuesto.maxProcedencias) fallo('inventario incompleto/excesivo');
+  const salida: ConjuntoInspeccionado['archivos'][number][] = []; let registros = 0;
+  for (const a of archivos) {
+    const inspeccion = await inspeccionarArchivoPortable(plan, a.archivo, limites);
+    for (const base of [inspeccion.manifiesto.captura.fotos, inspeccion.manifiesto.captura.progreso, inspeccion.manifiesto.captura.respaldos]) {
+      for (const lista of Object.values(base.tablas)) registros = suma(registros, lista.length);
+    }
+    if (registros > presupuesto.maxRegistrosConjunto) fallo('maxRegistrosConjunto excedido');
+    salida.push({ referencia: a.referencia, inspeccion });
+  }
+  return { inventario, archivos: salida };
+}
+/** Snapshots históricos y actual pueden repetir fotos por corresponder a momentos distintos.
+ * No deduplica por CRC/size y no empaqueta conjuntos anteriores como binarios anidados. */
+export async function crearConjuntoRecuperacion(planEntrada: Itinerario, actual: Blob,
+  historiaEntrada: readonly { readonly trabajoId: string; readonly archivo: Blob;
+    readonly observaciones: readonly ObservacionHistorica[]; readonly procedencias: readonly ProcedenciaHistorica[] }[],
+  limitesEntrada: LimitesPortables, presupuestoEntrada: LimitesConjunto): Promise<ConjuntoRecuperacion> {
+  const plan = copiarPlanPortable(planEntrada); const limites = copiarLimitesPortables(limitesEntrada);
+  const presupuesto = copiarLimitesConjunto(presupuestoEntrada);
+  if (!Array.isArray(historiaEntrada) || suma(historiaEntrada.length, 1) > presupuesto.maxArchivos
+    || historiaEntrada.length > 99999999) fallo('maxArchivos excedido');
+  let total = tamanoBlob(actual); let obs = 0; let procedencias = 0;
+  for (const h of historiaEntrada) {
+    exigirCampos(h, ['trabajoId', 'archivo', 'observaciones', 'procedencias']);
+    if (typeof h.trabajoId !== 'string' || !h.trabajoId.length || h.trabajoId.length > 512
+      || !Array.isArray(h.observaciones) || !Array.isArray(h.procedencias)) fallo('fuente histórica inválida');
+    validarDatosHistoricos(h.observaciones, h.procedencias, { ...limites, maxBytesMetadatos: presupuesto.maxBytesInventario }, {
+      maxImportaciones: presupuesto.maxArchivos, maxObservaciones: presupuesto.maxObservaciones,
+      maxProcedencias: presupuesto.maxProcedencias, maxBytesHistoria: presupuesto.maxBytesConjunto,
+    });
+    const bytes = tamanoBlob(h.archivo); if (bytes > limites.maxBytesArchivo) fallo('archivo histórico excesivo');
+    total = suma(total, bytes); obs = suma(obs, h.observaciones.length); procedencias = suma(procedencias, h.procedencias.length);
+  }
+  if (total > presupuesto.maxBytesConjunto || obs > presupuesto.maxObservaciones || procedencias > presupuesto.maxProcedencias) fallo('presupuesto agregado excedido');
+  const historia = structuredClone(historiaEntrada);
+  const entradas: EntradaInventario[] = [{ referencia: 'actual', tipo: 'actual', trabajoOrigen: null, observaciones: [], procedencias: [] }];
+  const archivos = [{ referencia: 'actual', archivo: actual }];
+  for (const [i, h] of historia.entries()) {
+    const referencia = `historico-${String(i).padStart(8, '0')}`;
+    entradas.push({ referencia, tipo: 'historico', trabajoOrigen: h.trabajoId, observaciones: h.observaciones, procedencias: h.procedencias });
+    archivos.push({ referencia, archivo: h.archivo });
+  }
+  const inventario: InventarioRecuperacion = { formato: 1, alcance: 'fuentes-durables-declaradas', viajeId: plan.id,
+    actual: 'actual', fuentes: fuentesConjunto, archivos: entradas };
+  const texto = codificarJsonFiel(inventario, { ...limites, maxBytesMetadatos: presupuesto.maxBytesInventario });
+  const conjunto = { inventario: new Blob([texto], { type: 'application/json' }), archivos };
+  await inspeccionarConjuntoRecuperacion(plan, conjunto, limites, presupuesto);
+  return conjunto;
 }
