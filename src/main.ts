@@ -19,12 +19,24 @@ import {
 } from './modelo';
 import type { DestinoFoto } from './fotos';
 import { crearFotosUi } from './fotos-interfaz';
+import type { ComposicionRespaldoFotos } from './fotos-respaldo-interfaz';
 import { descargaAnterior, descargarMapas, registrarServiceWorker } from './offline';
-import { componerPortabilidad } from './portabilidad-interfaz';
+import { componerPortabilidad, type ComposicionPortabilidad } from './portabilidad-interfaz';
 import type { Operacion } from './progreso';
 import { capturarLegado, crearProgresoInterfaz, identidadDispositivo, resumenCompartido, uuidAleatorio } from './progreso-interfaz';
 import type { ResultadoAccion, ResultadoDeshacer, ResumenCompartido } from './progreso-interfaz';
 import type { Enlace, Gasto, Transporte } from './tipos';
+
+/** Lo único que cambia de una entrada a otra; la web publicada (src/publica.ts) pasa las dos a null. */
+export interface ComposicionItinerario {
+  readonly respaldo: ComposicionRespaldoFotos | null;
+  readonly portabilidad: ComposicionPortabilidad | null;
+}
+
+/** Arranca la app sobre el documento de index.html: importar este módulo no inicializa nada. */
+export function arrancarItinerario(composicion: ComposicionItinerario): void {
+// Las dos composiciones se leen una sola vez, antes de inicializar nada.
+const { respaldo, portabilidad } = composicion;
 
 const modelo = construirModelo(itinerario);
 const ultimoHotel = [...modelo.paradas].reverse().find((p) => p.p.categoria === 'hotel') ?? null;
@@ -122,9 +134,9 @@ const fotosUi = crearFotosUi({
   nombreDe: nombreFotos,
   // El panel abierto ya lo dice en su línea de estado; el aviso cubre el caso de haberlo cerrado.
   anunciar: (texto) => aviso(texto),
-  // Respaldo manual y catálogo APAGADOS en la web publicada: ni red, ni ledger, ni texto nuevo.
-  // Solo una composición explícita los activa (T7 decidirá dónde y cómo); no hay flag, entorno ni URL.
-  respaldo: null,
+  // Respaldo manual y catálogo: la composición de la entrada. La web publicada pasa null (ni red, ni ledger,
+  // ni texto nuevo); no hay flag, entorno ni URL que la cambie.
+  respaldo,
 });
 
 // ---------- Almacenamiento en este móvil ----------
@@ -194,9 +206,9 @@ const progreso = crearProgresoInterfaz({
 
 // ---------- Copia de este móvil (portabilidad local) ----------
 
-// APAGADA en la web publicada: null → ni sección en «Todo», ni texto, ni base de historia, ni lecturas. Solo una
-// composición explícita en el código la activa, con presupuestos finitos de quien compone; no hay flag, entorno ni URL.
-const portabilidadUi = componerPortabilidad(null, {
+// La composición de la entrada. La web publicada pasa null → ni sección en «Todo», ni texto, ni base de historia,
+// ni lecturas; no hay flag, entorno ni URL que la cambie.
+const portabilidadUi = componerPortabilidad(portabilidad, {
   plan: itinerario,
   // Solo las tres claves anteriores; si no se puede leer el almacenamiento, falla (nunca equivale a «sin marcas»).
   leerLegado: (campo) => {
@@ -2576,3 +2588,4 @@ void progreso.abrir().then(() => progreso.sincronizar());
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') void progreso.refrescar().then(() => progreso.sincronizar());
 });
+}

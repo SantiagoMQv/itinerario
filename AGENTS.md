@@ -13,7 +13,8 @@ Todo en español: la interfaz, los comentarios, los nombres del código (`parada
 | `src/datos/itinerario.ts` | El plan: días, paradas, subparadas, notas, precios. Casi todos los cambios de contenido son aquí. |
 | `src/tipos.ts` | Formato del itinerario, con un comentario por campo. |
 | `src/modelo.ts` | Convierte el plan en horas absolutas, tramos y avisos de incoherencias. |
-| `src/main.ts` | Interfaz: panel (hoja de tres alturas en móvil), «ahora», lista, fichas, marcas, tarjeta del taxi. |
+| `src/main.ts` | Interfaz, como fábrica `arrancarItinerario(composición)` (importarla no arranca nada): panel (hoja de tres alturas en móvil), «ahora», lista, fichas, marcas, tarjeta del taxi. |
+| `src/publica.ts` | Entrada de la web publicada: arranca la interfaz con respaldo y portabilidad a `null` (apagados). |
 | `src/mapa.ts` | Mapa (MapLibre + OpenFreeMap), marcadores, cámara. |
 | `src/offline.ts` | Service worker y descarga de mapas para usar sin conexión. |
 | `src/estilos.css` | Estilos. Tokens de color en `:root`; la noche, con `:root[data-tema='oscuro']`. |
