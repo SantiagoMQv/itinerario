@@ -121,9 +121,10 @@ No se revoca ni deshace IO ya iniciado. Esta unidad no cierra T6 ni autoriza rol
 `GET /api/fotos/listado` sirve una página manual de INITIAL confirmados, con su texto
 canónico exacto. No descarga originales, miniaturas, URLs, claves R2, reservas ni recibos;
 no escribe datos, importa fotos, confirma ledger ni desencadena otras páginas.
-La biblioteca cliente manual E3 está cerrada localmente según el gate del padre;
-esto no certifica proveedores ni dispositivos físicos. No está conectada a la interfaz publicada.
-La interfaz sigue pendiente; el límite de recuperación del piloto se documenta abajo.
+La biblioteca cliente manual E3 y su interfaz de composición explícita están preparadas
+localmente; esto no certifica proveedores ni dispositivos físicos. La composición publicada
+sigue desactivada con `null`: no hay catálogo visible, consultas ni respaldo automático.
+El límite de recuperación del piloto permanece vigente; T6 global y T7–9 siguen pendientes.
 
 La preparación `prepararListadoFotos` copia el plan antes de inspeccionar presupuesto
 o métodos, construye internamente el repositorio E1 real y captura todo antes del await
@@ -175,9 +176,15 @@ locks/referencias de puertos pendientes. No hay retries ni fallback de caché, a
 
 ## Cliente manual E3 · biblioteca sin conexión a la interfaz
 
-`src/fotos-listado.ts` exporta `crearClienteListadoFotos(opciones)`. No agrega botones,
-arranque automático, respaldo en segundo plano ni integración en `main.ts`. Pages sigue
-estático y publicado; esta biblioteca no autoriza despliegue ni cierra T6.
+`src/fotos-listado.ts` exporta `crearClienteListadoFotos(opciones)`; la interfaz preparada
+sólo se habilita mediante composición explícita. `src/perfil-piloto.ts` valida y congela
+políticas no secretas antes de cualquier IO, sin valores operativos ni consumidores nuevos.
+Concordancia de filas y original, origen HTTPS exacto y cota HTTP multipart conservadora
+(B + 65.536 + cabeceras acumuladas + 228) son controles locales; el objeto R2 usa otro
+encuadre (12 + N + B, N≤65.536). El límite de cuerpo del proveedor es una declaración,
+no una comprobación de cuenta ni garantía de heap, CPU, coste o capacidad del móvil.
+`main.ts` conserva ambas composiciones en `null`; Pages sigue estático y publicado.
+Este contrato no activa funciones, autoriza despliegue ni cierra T6 o T7–9.
 
 ### Acción explícita y resultado
 
