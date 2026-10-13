@@ -1,9 +1,12 @@
 import type { Itinerario } from './tipos';
-import { crearCapturaFoto, esDestinoFoto, esFotoBorrada, tamanoBlob, tipoBlob, type CapturaFoto, type DestinoFoto,
-  type MetadatosFoto } from './fotos';
+import { copiarMetadatos, crearCapturaFoto, esDestinoFoto, esFotoBorrada, tamanoBlob, tipoBlob, type CapturaFoto,
+  type DestinoFoto, type MetadatosFoto } from './fotos';
 import { abrirFotosLocal, type FotosLocal } from './fotos-local';
 import { LIMITES_IMAGEN, crearMiniatura, inspeccionarImagen, type InspeccionImagen, type MiniaturaImagen,
   type MotorMiniatura } from './fotos-imagen';
+import { avisoBorradoRespaldo, componerRespaldoFotos, crearSeccionFotosViaje, textoEstadoRespaldo,
+  textoResultadoRespaldo, type CambioRespaldo, type ComposicionRespaldoFotos, type EstadoRespaldo,
+  type RespaldoFotos, type SeccionFotosViaje } from './fotos-respaldo-interfaz';
 
 /**
  * Fotos locales en la interfaz del viaje. Dos piezas:
@@ -12,7 +15,9 @@ import { LIMITES_IMAGEN, crearMiniatura, inspeccionarImagen, type InspeccionImag
  *    y es dueño de cada URL blob que crea (visitas, visor y descargas).
  * 2. `crearFotosUi`: bloques «Fotos» de fichas y subparadas, selector de archivo y visor, sin innerHTML
  *    con nombres de archivo ni textos de error.
- * Cero red: las fotos no viajan ni se mezclan con el progreso compartido.
+ * Cero red por sí mismas: las fotos no viajan ni se mezclan con el progreso compartido. Solo con la composición
+ * EXPLÍCITA del respaldo (`OpcionesFotosUi.respaldo`; la web publicada pasa null) aparecen el respaldo manual en
+ * el visor y «Fotos del viaje» en «Todo», y cada envío o consulta empieza con un toque.
  */
 
 export type ClaveDestino = string;
@@ -87,6 +92,11 @@ export interface FotosInterfaz {
   borrar(fotoId: string): Promise<'borrada' | 'ocupada' | 'fallo'>;
   urlsVivas(): number;
   cerrar(): void;
+  /** El MISMO almacén abierto, para el respaldo (nunca una segunda conexión); null si no está listo.
+   * Opcional para controladores sustitutos: sin él no hay respaldo. */
+  puerto?(): FotosLocal | null;
+  /** Indexa una foto que ya guardó en este móvil la descarga del catálogo (no escribe nada). */
+  incorporar?(metadatos: MetadatosFoto): void;
 }
 
 const NO_GUARDADA = 'No se pudo guardar en este móvil.';
@@ -550,6 +560,19 @@ export function crearFotosInterfaz(dependencias: DependenciasFotos): FotosInterf
       for (const v of visitas.values()) n += v.urls.size;
       return n;
     },
+    puerto: () => (fase === 'lista' && local ? local : null),
+    incorporar(metadatos) {
+      if (fase !== 'lista') return;
+      let m: MetadatosFoto;
+      try { m = copiarMetadatos(plan, metadatos); } catch { return; }
+      if (borrando.has(m.fotoId)) return;
+      indice.set(m.fotoId, m);
+      const visita = visitas.get(claveDestino(m.destino));
+      // Igual que una foto recién guardada: solo si su destino está a la vista se prepara o se lee su vista previa.
+      if (visita && m.miniatura.tipo === 'pendiente') encolarVista(m.fotoId, visita);
+      else if (visita && m.miniatura.tipo === 'lista') encolar(() => cargarMiniatura(m.fotoId, visita));
+      avisar(claveDestino(m.destino));
+    },
     cerrar() {
       generacion++;
       for (const clave of [...visitas.keys()]) cerrarVisitaClave(clave);
@@ -574,9 +597,16 @@ export interface OpcionesFotosUi {
   /** Aviso para un resultado cuyo panel ya está cerrado (con el panel abierto lo dice su línea de estado). */
   readonly anunciar: (texto: string) => void;
   readonly controlador?: FotosInterfaz;
+  /** Respaldo manual y catálogo, solo con composición EXPLÍCITA. null u omitido (la web publicada): ni red,
+   * ni ledger, ni texto nuevo. No hay flag de compilación, entorno ni URL que lo active. */
+  readonly respaldo?: ComposicionRespaldoFotos | null;
 }
 export interface FotosUi {
   readonly controlador: FotosInterfaz;
+  /** Hay composición de respaldo: solo entonces existen el bloque del visor y «Fotos del viaje». */
+  readonly respaldoActivo: boolean;
+  /** Monta «Fotos del viaje» en su sección de «Todo»; sin composición no hace nada. */
+  montarFotosViaje(contenedor: HTMLElement): void;
   /** Bloque «Fotos» (solo atributos con IDs del plan y texto escapado) para incrustar en la ficha. */
   html(destino: DestinoFoto): string;
   /** Delegación de clics: devuelve true si el clic era de fotos (va antes que los manejadores de fila). */
@@ -610,6 +640,8 @@ const TEXTO_ESTADO: Record<EstadoEntrada, string> = {
 const ICONO_CAMARA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l1.6-2.2h6.8L17 8h3v11H4z" /><circle cx="12" cy="13.2" r="3.4" /></svg>';
 const ICONO_CERRAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>';
 const NOTA = 'Se guardan solo en este móvil y funcionan sin conexión. Por ahora no se comparten con el otro móvil ni tienen copia de seguridad.';
+const NOTA_RESPALDO = 'Se guardan en este móvil y funcionan sin conexión. Puedes respaldar cada foto en el servidor del viaje desde su visor.';
+const CONFIRMAR_BORRADO = '¿Borrar esta foto de este móvil? Se borran el original y su vista previa; no se puede deshacer.';
 
 function elemento<K extends keyof HTMLElementTagNameMap>(tag: K, clase?: string, texto?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -631,6 +663,13 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
   /** Último resultado de una acción, por destino (se muestra en la línea de estado del panel). */
   const mensajes = new Map<ClaveDestino, string>();
   const controlador = opciones.controlador ?? crearFotosInterfaz({ plan, alCambiar: (clave) => alCambiar(clave) });
+  // Gate de composición: con null no se construye nada (ni ledger, ni red, ni texto nuevo). Sin IO al crearse.
+  const composicion = opciones.respaldo ?? null;
+  const respaldo: RespaldoFotos | null = componerRespaldoFotos(composicion, { plan,
+    puerto: () => controlador.puerto?.() ?? null,
+    incorporar: (m) => controlador.incorporar?.(m),
+    alCambiar: (que) => alCambiarRespaldo(que) });
+  let seccion: SeccionFotosViaje | null = null;
 
   function alCambiar(clave: ClaveDestino | null) {
     for (const [c, bloque] of abiertos) {
@@ -641,6 +680,13 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     }
     pintarCuentas();
     if (visorFoto) actualizarVisor();
+    // Al abrirse (o fallar) las fotos de este móvil, «Fotos del viaje» ya puede leer su estado local.
+    if (clave === null) seccion?.alCambiar({ tipo: 'resumen' });
+  }
+  /** Repinta desde lo ya leído del ledger (0 IO): la línea del visor de ESA foto y «Fotos del viaje». */
+  function alCambiarRespaldo(que: CambioRespaldo): void {
+    if (que.tipo === 'foto' && visorFoto === que.fotoId && respaldo) pintarRespaldo(que.fotoId, respaldo.estado(que.fotoId));
+    seccion?.alCambiar(que);
   }
   function cerrarAbierto(clave: ClaveDestino) {
     abiertos.delete(clave);
@@ -685,7 +731,8 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       anadir.insertAdjacentHTML('afterbegin', ICONO_CAMARA);
       anadir.append('Añadir foto');
       acciones.append(anadir);
-      panel.replaceChildren(estado, error, lista, sesion, vacio, acciones, elemento('p', 'cifras fotos-nota', NOTA));
+      panel.replaceChildren(estado, error, lista, sesion, vacio, acciones,
+        elemento('p', 'cifras fotos-nota', respaldo ? NOTA_RESPALDO : NOTA));
     }
     const foco = document.activeElement instanceof HTMLElement && panel.contains(document.activeElement) ? document.activeElement : null;
     const huella = (e: Element) => ['data-foto-id', 'data-foto-reintentar', 'data-foto-descartar', 'data-fotos-anadir', 'data-fotos-reabrir']
@@ -904,11 +951,61 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     acciones.append(boton('Borrar de este móvil', 'boton', { 'visor-borrar': '' }));
     const confirmar = elemento('div', 'visor-confirmar');
     confirmar.hidden = true;
-    confirmar.append(elemento('p', '', '¿Borrar esta foto de este móvil? Se borran el original y su vista previa; no se puede deshacer.'),
+    confirmar.append(elemento('p', 'visor-confirmar-texto', CONFIRMAR_BORRADO),
       boton('Cancelar', 'boton', { 'visor-cancelar': '' }), boton('Borrar', 'boton tinta', { 'visor-confirmar': '' }));
     const pie = elemento('div', 'visor-pie');
-    pie.append(pesos, avisoVisor, acciones, confirmar);
+    pie.append(pesos, avisoVisor);
+    if (respaldo) {
+      // Solo con composición: estado durable del ledger de ESTA foto y sus acciones manuales. Abrir no envía nada.
+      const bloque = elemento('div', 'visor-respaldo');
+      const accionesRespaldo = elemento('div', 'visor-respaldo-acciones');
+      accionesRespaldo.hidden = true;
+      bloque.append(elemento('p', 'visor-respaldo-nota', 'Comprobando el respaldo en este móvil…'), accionesRespaldo);
+      pie.append(bloque);
+    }
+    pie.append(acciones, confirmar);
     visor.replaceChildren(cabecera, imagen, pie);
+  }
+  /** Línea y botones del respaldo según lo durable; solo se sustituyen los botones si cambian (el foco no salta). */
+  function pintarRespaldo(id: string, estado: EstadoRespaldo | null) {
+    const bloque = visor?.querySelector<HTMLElement>('.visor-respaldo');
+    const datos = datosFoto(id);
+    if (!visor || !bloque || !datos || visorFoto !== id) return;
+    const nota = bloque.querySelector<HTMLElement>('.visor-respaldo-nota');
+    const acciones = bloque.querySelector<HTMLElement>('.visor-respaldo-acciones');
+    if (!nota || !acciones) return;
+    const texto = estado ? textoEstadoRespaldo(estado) : 'Comprobando el respaldo en este móvil…';
+    if (nota.textContent !== texto) nota.textContent = texto;
+    const nombre = datos.entrada.nombre;
+    const botones: HTMLButtonElement[] = [];
+    const tipo = estado?.tipo;
+    if (tipo === 'sin-respaldo' || tipo === 'preparado') {
+      const b = boton(`Respaldar (${peso(datos.entrada.bytesOriginal)})`, 'boton', { 'visor-respaldar': '' });
+      b.setAttribute('aria-label', `Respaldar «${nombre}» en el servidor del viaje (${peso(datos.entrada.bytesOriginal)})`);
+      botones.push(b);
+    } else if (tipo === 'enviando') {
+      botones.push(boton('Pausar el respaldo', 'boton', { 'visor-pausar': '' }));
+    } else if (tipo === 'sin-confirmar' || tipo === 'pausado') {
+      // Misma operación: reintentar nunca prepara otra y quita la pausa si la hay.
+      botones.push(boton(tipo === 'pausado' ? 'Reanudar el respaldo' : 'Reintentar el respaldo', 'boton', { 'visor-reanudar': '' }));
+    }
+    const firma = botones.map((b) => `${b.textContent}|${b.getAttributeNames().join(',')}`).join(';');
+    if (acciones.dataset.firma === firma) return;
+    const foco = document.activeElement instanceof HTMLElement && acciones.contains(document.activeElement);
+    acciones.dataset.firma = firma;
+    acciones.replaceChildren(...botones);
+    acciones.hidden = botones.length === 0;
+    // El botón pulsado cambia (Respaldar → Pausar → ninguno): el foco pasa al nuevo o, si no hay, a «Ver original».
+    if (foco) (botones[0] ?? visor.querySelector<HTMLElement>('.visor-acciones button'))?.focus();
+  }
+  function cargarRespaldo(id: string) {
+    if (!respaldo) return;
+    const gen = genVisor;
+    void respaldo.leer(id).then((estado) => {
+      if (gen === genVisor && visorFoto === id) pintarRespaldo(id, estado);
+    }, () => {
+      if (gen === genVisor && visorFoto === id) pintarRespaldo(id, { tipo: 'ilegible' });
+    });
   }
   function mostrarEnVisor(url: string, alt: string) {
     const imagen = visor?.querySelector('.visor-imagen');
@@ -948,6 +1045,8 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     history.pushState({ visorFoto: true }, '');
     historial = true;
     visor.querySelector<HTMLElement>('[data-visor-cerrar]')?.focus();
+    // Solo el ledger local (0 red): abrir el visor nunca envía, consulta ni reintenta nada.
+    cargarRespaldo(id);
     const url = await controlador.verMiniatura(id);
     if (!url) return;
     if (gen !== genVisor) { controlador.soltarUrl(url); return; }
@@ -1021,10 +1120,41 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       else avisoVisor(siSigue('Sigue sin vista previa; el original está guardado.'));
       return;
     }
+    const enviar = objetivo.closest<HTMLElement>('[data-visor-respaldar], [data-visor-reanudar]');
+    if (enviar && respaldo) {
+      // Un toque, una acción: con la carga en curso la línea de estado ya ofrece «Pausar».
+      if (enviar.getAttribute('aria-disabled') === 'true') return;
+      enviar.setAttribute('aria-disabled', 'true');
+      const nombre = datosFoto(id)?.entrada.nombre ?? '';
+      const r = await (enviar.hasAttribute('data-visor-reanudar') ? respaldo.reintentar(id) : respaldo.respaldar(id));
+      const texto = textoResultadoRespaldo(r);
+      // Visor cerrado o sustituido: el resultado se dice fuera, con el nombre de la foto; este visor no se toca.
+      if (!vigenteVisor()) { anunciar(`«${nombre}»: ${texto}`); return; }
+      enviar.removeAttribute('aria-disabled');
+      avisoVisor(texto);
+      pintarRespaldo(id, respaldo.estado(id));
+      return;
+    }
+    const pausar = objetivo.closest<HTMLElement>('[data-visor-pausar]');
+    if (pausar && respaldo) {
+      if (pausar.getAttribute('aria-disabled') === 'true') return;
+      pausar.setAttribute('aria-disabled', 'true');
+      const r = await respaldo.pausar(id);
+      if (!vigenteVisor()) return;
+      pausar.removeAttribute('aria-disabled');
+      // Solo se afirma la pausa si el ledger la tiene; si no, no se dice que se paró.
+      avisoVisor(r.tipo === 'pausado' || r.tipo === 'respaldada' ? textoResultadoRespaldo(r)
+        : 'No se pudo pausar; el envío puede seguir.');
+      pintarRespaldo(id, respaldo.estado(id));
+      return;
+    }
     const acciones = visor.querySelector<HTMLElement>('.visor-acciones');
     const confirmar = visor.querySelector<HTMLElement>('.visor-confirmar');
     if (!acciones || !confirmar) return;
     if (objetivo.closest('[data-visor-borrar]')) {
+      // Con respaldo, el aviso dice lo que consta en este móvil (D-U1): se permite borrar, avisando.
+      const aviso = confirmar.querySelector('.visor-confirmar-texto');
+      if (aviso) aviso.textContent = respaldo ? avisoBorradoRespaldo(respaldo.estado(id)) : CONFIRMAR_BORRADO;
       acciones.hidden = true; confirmar.hidden = false;
       confirmar.querySelector<HTMLElement>('[data-visor-cancelar]')?.focus();
       return;
@@ -1039,13 +1169,22 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       if (borrar.getAttribute('aria-disabled') === 'true') return;
       borrar.setAttribute('aria-disabled', 'true');
       const datos = datosFoto(id);
+      // Un envío propio de esta foto se pausa ANTES de borrar la copia local. Si la pausa no consta, no se afirma.
+      let pausa = '';
+      if (respaldo?.enCurso(id)) {
+        const p = await respaldo.pausar(id);
+        // Nada destructivo fuera del visor vigente: si se cerró mientras tanto, no se borra.
+        if (!vigenteVisor()) return;
+        pausa = p.tipo === 'pausado' ? ' Su respaldo quedó en pausa, sin confirmar.'
+          : p.tipo === 'respaldada' ? '' : ' No se pudo pausar su respaldo: el servidor puede recibirla igualmente.';
+      }
       const r = await controlador.borrar(id);
       if (!vigenteVisor()) {
         // El resultado durable se dice en el panel de SU destino; el visor que haya ahora no se toca.
         if (datos && r !== 'ocupada') {
           const clave = claveDestino(datos.destino);
           const sigue = controlador.entradas(datos.destino).some((e) => e.fotoId === id);
-          mensajes.set(clave, r === 'borrada' ? 'Foto borrada de este móvil.'
+          mensajes.set(clave, r === 'borrada' ? `Foto borrada de este móvil.${pausa}`
             : sigue ? 'No se pudo borrar una foto: sigue guardada en este móvil.' : '');
           alCambiar(clave);
         }
@@ -1058,20 +1197,30 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
         // Tras cerrar el visor (fuera del modal), para que la línea de estado se anuncie.
         if (datos) {
           const clave = claveDestino(datos.destino);
-          mensajes.set(clave, 'Foto borrada de este móvil.');
+          mensajes.set(clave, `Foto borrada de este móvil.${pausa}`);
           alCambiar(clave);
         }
       } else {
         borrar.removeAttribute('aria-disabled');
-        if (r === 'fallo') avisoVisor(siSigue('No se pudo borrar: la foto sigue guardada en este móvil.'));
+        if (r === 'fallo') avisoVisor(siSigue(`No se pudo borrar: la foto sigue guardada en este móvil.${pausa}`));
       }
     }
   }
 
   return {
     controlador,
+    respaldoActivo: respaldo !== null,
+    montarFotosViaje(contenedor) {
+      if (!respaldo || !composicion) return;
+      seccion ??= crearSeccionFotosViaje({ respaldo, nombreDe, maxFilas: composicion.listado.maxFilas,
+        fotos: () => controlador.fase });
+      seccion.montar(contenedor);
+      // Solo metadata local (0 red), como al abrir un bloque «Fotos»: el estado de cada respaldo vive en este móvil.
+      if (controlador.fase === 'cerrada') void controlador.abrir();
+    },
     html,
     manejarClic(objetivo) {
+      if (seccion && objetivo.closest('[data-fotos-viaje]')) return seccion.manejarClic(objetivo);
       const bloque = objetivo.closest<HTMLElement>('[data-fotos-destino]');
       if (!bloque || !contenido.contains(bloque)) return false;
       if (objetivo.closest('[data-fotos-alternar]')) { void alternar(bloque); return true; }
@@ -1099,6 +1248,8 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     desmontar() {
       cerrarVisor();
       for (const clave of [...abiertos.keys()]) cerrarAbierto(clave);
+      // Solo la vista: el respaldo y el catálogo siguen siendo del controlador (una acción en curso no se corta).
+      seccion?.desmontar();
     },
     pintarCuentas,
     cerrarVisor,

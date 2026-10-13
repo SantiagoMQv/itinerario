@@ -121,6 +121,9 @@ const fotosUi = crearFotosUi({
   nombreDe: nombreFotos,
   // El panel abierto ya lo dice en su línea de estado; el aviso cubre el caso de haberlo cerrado.
   anunciar: (texto) => aviso(texto),
+  // Respaldo manual y catálogo APAGADOS en la web publicada: ni red, ni ledger, ni texto nuevo.
+  // Solo una composición explícita los activa (T7 decidirá dónde y cómo); no hay flag, entorno ni URL.
+  respaldo: null,
 });
 
 // ---------- Almacenamiento en este móvil ----------
@@ -1706,6 +1709,7 @@ function pintarResumen() {
         : ''
     }
     <section class="seccion compartido" id="compartido">${htmlCompartido()}</section>
+    ${fotosUi.respaldoActivo ? '<section class="seccion fotos-viaje" id="fotos-viaje" data-fotos-viaje></section>' : ''}
     ${modelo.secciones
       .map(
         (sec) => `<section class="seccion">
@@ -1717,6 +1721,9 @@ function pintarResumen() {
       .join('')}
     ${antes ? '' : COMO_FUNCIONA}`;
   contarPendientes();
+  // Solo existe con la composición del respaldo (la web publicada no la tiene). Pintar no consulta nada.
+  const fotosViaje = el.contenido.querySelector<HTMLElement>('[data-fotos-viaje]');
+  if (fotosViaje) fotosUi.montarFotosViaje(fotosViaje);
 }
 
 function contarPendientes() {

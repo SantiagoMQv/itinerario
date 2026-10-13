@@ -2249,6 +2249,62 @@ body.vista-todo .lista {
   max-width: 34em;
 }
 
+/* «Fotos del viaje» en «Todo» (solo con la composición del respaldo): este móvil y, a un toque, el servidor. */
+.fotos-viaje h4 {
+  margin: 16px 0 4px;
+}
+.estado-fotos-viaje,
+.estado-catalogo {
+  max-width: 34em;
+  margin: 0 0 8px;
+  font-size: 14.5px;
+  line-height: 1.4;
+}
+.filas-fotos-viaje {
+  display: flex;
+  flex-direction: column;
+  list-style: none;
+}
+/* Acotado a la sección: gana a `.seccion ul` (sangría de 18 px y margen) y a `.seccion li + li` sin !important,
+   para que cada fila empiece en la misma columna que su línea de estado. */
+.fotos-viaje .filas-fotos-viaje {
+  margin: 0 0 8px;
+  padding-left: 0;
+}
+.fotos-viaje .filas-fotos-viaje li + li {
+  margin-top: 0;
+}
+.filas-fotos-viaje:empty,
+.acciones-catalogo:empty {
+  display: none;
+}
+.filas-fotos-viaje li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 10px;
+  padding: 8px 0;
+  border-top: 1px solid var(--borde);
+  font-size: 14.5px;
+  line-height: 1.35;
+}
+.fila-texto {
+  display: flex;
+  flex: 1 1 14em;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.fila-estado {
+  color: var(--tinta-suave);
+  font-size: 13.5px;
+}
+/* Lo único que avisa: el servidor contestó algo que no corresponde y no se vuelve a enviar. */
+.fila-estado.bloqueada {
+  color: var(--aviso);
+}
+
 /* Visor: pantalla completa de papel, como la tarjeta del taxista; se cierra con ✕, Escape o volver. */
 #visor-foto {
   position: fixed;
@@ -2366,6 +2422,32 @@ body.vista-todo .lista {
   border-color: var(--aviso);
   background: var(--papel);
   color: var(--aviso);
+}
+/* Respaldo (solo con la composición activada): lo que consta en este móvil y su acción manual.
+   Sin color de éxito: «confirmado» se dice con palabras y nada se pinta como garantía. */
+.visor-respaldo {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  border-top: 1px solid var(--borde);
+}
+.visor-respaldo-nota {
+  font-size: 14.5px;
+  line-height: 1.4;
+}
+.visor-respaldo-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.visor-respaldo-acciones[hidden] {
+  display: none;
+}
+/* Solo con respaldo (único caso en que existe .visor-respaldo): el aviso de borrado D-U1 ocupa varias líneas y
+   se lee con interlineado de texto. Sin composición, el visor publicado queda exactamente igual. */
+.visor-pie:has(> .visor-respaldo) .visor-confirmar p {
+  line-height: 1.4;
 }
 /* Apaisado: la foto deja sitio a las acciones y todo se desplaza si no cabe. */
 @media (max-height: 500px) {
