@@ -63,13 +63,67 @@ no hay atomicidad física entre proveedores. Reintentos compatibles conservan el
 inicial y reciben su propio recibo, sin segundo PUT. Reserva con objeto ausente: 503,
 sin ACK, adopción, takeover ni retry garantizado; se conservan reservas/objetos inciertos.
 
+## Recuperación del piloto · límite de disponibilidad aceptado
+
+El usuario eligió explícitamente **aceptar el límite de respaldo del piloto**: ciertas
+interrupciones no garantizan recuperación, sin sacrificar originales ni ocultar incertidumbre.
+Esta aceptación no autoriza publicación, proveedores, costes, secretos, borrados ni cambios
+que debiliten autenticación o recuperación. No agrega UI ni vuelve visible un aviso en la app.
+
+**Respaldo sin confirmar. Conserva el original; reintentar no garantiza recuperarlo.**
+
+| Interrupción o resultado | Estado conservado y acción manual |
+| --- | --- |
+| INSERT de reserva ejecutado, pero respuesta SQL perdida; o ganador muerto antes del PUT | Reserva incierta. Otro intento de la misma foto sólo hace GET; si falta el objeto, devuelve 503, sin PUT ni ACK. No hay recuperación garantizada. |
+| PUT rechazado/fallido sin objeto, incluido el rechazo 429 modelado localmente | Se conserva la reserva. Reintentar no obtiene permiso para otro PUT: GET ausente devuelve 503 sin ACK. No acredita un 429 real del proveedor. |
+| PUT persistido, respuesta perdida | Puede recuperarse manualmente si GET entrega el objeto íntegro: comparación completa hasta EOF, identidad RAW exacta, sesión fresca y finalización SQL antes del ACK. No hay segundo PUT. |
+| Finalización SQL persistida, respuesta perdida | El recibo remoto no confirma por sí solo el ledger local. Un intento manual vuelve a comparar el objeto completo, reautentica y finaliza antes de recibir ACK, sin segundo PUT. |
+| 503 recibido por el transporte público | Causa genérica: no permite diagnosticar «reserva vacía», muerte del ganador ni pérdida definitiva. Conserva el original, la operación y SENT; queda incierta, no respaldada ni bloqueada por contradicción. |
+| Página vacía del catálogo | Sólo dice que esa página no tiene INITIAL confirmados. No prueba ausencia de reservas, objetos, huérfanos ni historia remota. |
+
+SQL005 reserva de forma única por viaje/foto; **sólo el INSERT ganador confirmado**
+autoriza un PUT IF ABSENT en esa invocación. GET ausente no prueba muerte del ganador ni
+excluye un PUT tardío. No se agrega antigüedad, lease, takeover, hash witness, adopción,
+reset, UUID alternativo ni borrado para escapar de una reserva incierta. No se demostró
+necesidad de SQL007 ni se modifica el esquema.
+
+Antes del primer HTTP, el transporte real guarda SENT mediante el ledger durable y lee
+el original vivo de PhotoDB. Cada acción manual conserva UUID de foto, UUID de operación,
+metadata y todos los bytes originales; no normaliza mayúsculas, NUL, NFD, -0 ni MIME.
+Los positivos locales usan MIME representable por Blob nativo, sin alterar sus constructores.
+Los dos editores del mismo viaje tienen los mismos permisos: el creador no es propietario.
+Listar, descargar, guardar e importar nunca constituyen ACK fresco del ledger.
+No hay reintento automático, temporizador de reanudación ni seguimiento de páginas.
+
+Las cuatro regresiones R añadidas en `pruebas/servidor/worker-fotos.test.ts` conectan
+PhotoDB/ledger con transporte manual real, login HMAC/cookie Node, Worker/router y SDK Neon
+reales; todos los fetch SQL terminan en SQL001–006/PGlite local, con R2 modelado.
+Declaran pérdidas de respuesta tras reserva, PUT y finalización, y rechazo de PUT sin objeto.
+Observan SENT antes de HTTP, reabren las mismas bases locales, comparan originales/operación,
+seis tablas SQL completas y objetos, y exigen EOF/autenticación fresca antes de ACK.
+Las fuentes están preparadas; su ejecución y validación R quedan a cargo del padre.
+No son evidencia propia de RED/GREEN ni sustituyen el gate local anterior de E3.
+
+PGlite usa una conexión con BEGIN/ROLLBACK exterior: los snapshots se toman **antes**
+del ROLLBACK, no prueban COMMIT físico, locks multiconexión ni persistencia real.
+Siguen pendientes T7–9: Neon/R2 reales, confianza CF-IP, heap/GC/prefetch/SDK y coste,
+móviles físicos, cookies entre sitios y migración de origen antes de retirar Pages.
+Las cotas lógicas existentes no cambian ni certifican RAM física o aptitud del proveedor.
+
+Reversión **sólo de código R**: retirar estas cuatro regresiones y esta documentación;
+no ejecutar DROP, reverse SQL, delete, reset, GC, adopción, lease, hash witness ni cambiar UUID.
+Conservar SQL005/006, filas, reservas, operaciones, recibos, objetos R2, PhotoDB, ledger,
+SENT/NEG, raíces, progreso, historia, sesiones, legado, cachés, viajes ajenos y huérfanos previos.
+No se revoca ni deshace IO ya iniciado. Esta unidad no cierra T6 ni autoriza rollout.
+
 ## Catálogo privado de metadatos · preparado sólo localmente
 
 `GET /api/fotos/listado` sirve una página manual de INITIAL confirmados, con su texto
 canónico exacto. No descarga originales, miniaturas, URLs, claves R2, reservas ni recibos;
 no escribe datos, importa fotos, confirma ledger ni desencadena otras páginas.
-La biblioteca cliente manual E3 está escrita pero su verificación completa sigue pendiente.
-No está conectada a la interfaz publicada. La interfaz y la recuperación R siguen pendientes.
+La biblioteca cliente manual E3 está cerrada localmente según el gate del padre;
+esto no certifica proveedores ni dispositivos físicos. No está conectada a la interfaz publicada.
+La interfaz sigue pendiente; el límite de recuperación del piloto se documenta abajo.
 
 La preparación `prepararListadoFotos` copia el plan antes de inspeccionar presupuesto
 o métodos, construye internamente el repositorio E1 real y captura todo antes del await
@@ -303,7 +357,8 @@ Con Node 22.22.2 y dependencias existentes:
   envelopes SQL sintéticos negativos; no sustituye el positivo Worker/SDK/PGlite.
 - `npm test -- pruebas/fotos-listado.test.ts pruebas/servidor/worker-fotos.test.ts`:
   cliente manual, guards y Worker/SDK/PGlite con estado local no vacío. El padre observó
-  el RED inicial del comportamiento; la validación completa de E3 sigue pendiente.
+  el RED inicial del comportamiento y cerró E3 localmente en su gate anterior.
+  Las cuatro regresiones R nuevas aún requieren ejecución del padre; no heredan ese resultado.
 - `npm run check`: los cuatro controles TypeScript existentes. El control estricto adicional
   E3 debe incluir cliente, pruebas unitarias/nativas e integración Worker.
 - `npm test`: regresión completa, incluidos SQL/PGlite preexistentes en memoria.
@@ -347,8 +402,8 @@ limpiar huérfanos ni intentar deshacer promesas ya iniciadas.
 Revisión E2: `api-listado-fotos.ts` → Worker/router → pruebas → estas cotas/documentación.
 Reversión **sólo de código E2**: retirar la API de catálogo y su integración/pruebas/docs
 (diez superficies), conservando E1, SQL005/006, todos los datos/recibos/objetos y el resto
-anterior. No DROP, reverse SQL, delete, GC, reset ni adopción. La validación E3,
-su futura interfaz, R y T7–9 siguen pendientes; esta unidad no cierra T6 ni habilita respaldo automático.
+anterior. No DROP, reverse SQL, delete, GC, reset ni adopción. E3 tiene cierre local del padre;
+su futura interfaz, validación R y T7–9 siguen pendientes. Esta unidad no cierra T6 ni habilita respaldo automático.
 
 Revisión E3: `src/fotos-listado.ts` → protocolo/copy/guards existentes (sólo lectura)
 → unitarias → integración Worker → fixture nativo → cotas/documentación.

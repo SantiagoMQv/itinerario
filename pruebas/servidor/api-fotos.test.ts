@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
+import { Buffer } from 'node:buffer';
 import { crearObjetosFotosR2, type VinculoR2Fotos } from '../../servidor/objetos-r2';
 import { itinerario as plan } from '../../src/datos/itinerario';
 import { serializarSolicitudRespaldo, serializarReciboRespaldo, deserializarSolicitudRespaldo,
@@ -8,6 +9,46 @@ import { clavePrivadaFotos, type ReservaFotos, type RepositorioFotos, type Objet
 import type { PresupuestoFotos } from '../../servidor/multipart-fotos';
 import type { RegistroSesion } from '../../servidor/sesiones';
 
+// Comparación completa nativa de bytes: evita la aserción estructural de cada índice.
+function comprobarBytesIguales(actual: Uint8Array, esperados: Uint8Array): void {
+  expect(actual.byteLength).toBe(esperados.byteLength);
+  expect(Buffer.compare(actual, esperados)).toBe(0);
+}
+describe('comparación nativa completa de bytes', () => {
+  it('acepta vacíos y copias iguales con bytes 0 y 255', () => {
+    comprobarBytesIguales(new Uint8Array(), new Uint8Array());
+    const esperados = new Uint8Array([0, 23, 127, 255]);
+    comprobarBytesIguales(new Uint8Array(esperados), esperados);
+  });
+  it('compara vistas con offsets diferentes sin incluir bytes externos', () => {
+    const actual = new Uint8Array([99, 0, 23, 255, 88]).subarray(1, 4);
+    const esperados = new Uint8Array([77, 66, 0, 23, 255, 55]).subarray(2, 5);
+    comprobarBytesIguales(actual, esperados);
+  });
+  it.each([2, 4])('rechaza longitud %s aunque coincida el prefijo', (longitud) => {
+    const esperados = new Uint8Array([0, 23, 255]);
+    const actual = new Uint8Array([0, 23, 255, 7]).slice(0, longitud);
+    expect(() => comprobarBytesIguales(actual, esperados)).toThrow();
+  });
+  it.each([0, 4, 8])('rechaza diferencia en el byte %s', (posicion) => {
+    const esperados = new Uint8Array([0, 23, 41, 63, 127, 139, 183, 211, 255]);
+    const actual = new Uint8Array(esperados); actual[posicion] ^= 1;
+    expect(() => comprobarBytesIguales(actual, esperados)).toThrow();
+  });
+  it('rechaza una copia mutada sin modificar el original', () => {
+    const original = new Uint8Array([0, 23, 255]); const copia = new Uint8Array(original);
+    copia[1] = 24;
+    expect(() => comprobarBytesIguales(copia, original)).toThrow();
+    expect(original[1]).toBe(23);
+  });
+  it.each([0, 2])('rechaza diferencia en el byte %s de una vista con offset', (posicion) => {
+    const respaldo = new Uint8Array([99, 0, 23, 255, 88]);
+    const actual = respaldo.subarray(1, 4);
+    const esperados = new Uint8Array([77, 66, 0, 23, 255, 55]).subarray(2, 5);
+    actual[posicion] ^= 1;
+    expect(() => comprobarBytesIguales(actual, esperados)).toThrow();
+  });
+});
 const origen = 'https://viaje.test';
 const presupuesto: PresupuestoFotos = { maxBytesOriginal: 2000000, maxBytesEntrada: 2200000,
   maxBytesChunk: 65536, maxBytesCabeceras: 1024, maxBytesRetenidos: 8000000,
@@ -115,7 +156,7 @@ describe('composición local R2+A+HTTP conserva original y límites de autoridad
       const recibo = await r.text(); expect(deserializarReciboRespaldo(plan, recibo).original.nombre).toBe(ref.original.nombre);
       expect((await f.api.atender(postAcotado(s, datos), presupuesto)).status).toBe(200);
       const descarga = await f.api.atender(new Request(`${origen}/api/fotos/${fotoId}/original`), presupuesto);
-      expect(descarga.status).toBe(200); expect(new Uint8Array(await descarga.arrayBuffer())).toEqual(datos);
+      expect(descarga.status).toBe(200); comprobarBytesIguales(new Uint8Array(await descarga.arrayBuffer()), datos);
       expect(f.bucket.eventos.filter((e) => e === 'put')).toHaveLength(1); expect(f.bucket.objetos.size).toBe(1);
       expect(f.fetch).not.toHaveBeenCalled();
     });

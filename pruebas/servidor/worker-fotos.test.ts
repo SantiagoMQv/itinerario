@@ -7,6 +7,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { crearClienteListadoFotos } from '../../src/fotos-listado';
 import { abrirFotosLocal } from '../../src/fotos-local';
 import { abrirRespaldoFotosLocal } from '../../src/fotos-respaldo-local';
+import { crearTransporteFotos } from '../../src/fotos-transporte';
 import { abrirProgresoLocal } from '../../src/progreso-local';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import worker, { type EntornoWorker } from '../../servidor/worker';
@@ -238,6 +239,140 @@ describe('Fotos Worker real + SDK real + SQL001–006 local; cookie reenviada en
       expect(await fotos.leerMetadatos(base.fotoId)).toBeNull();
     } finally { c.cerrar(); progreso.cerrar(); ledger.cerrar(); fotos.cerrar(); }
   });
+  it.each(['reserva-respuesta-perdida', 'put-persistido-respuesta-perdida',
+    'final-persistido-respuesta-perdida', 'put-rechazado-modelado'] as const)
+    ('acción manual real conserva original/SENT e incertidumbre: %s en modelo local', async (modo) => {
+      const f = preparar();
+      const uno = await iniciar(f.entorno, 'uno'); const dos = await iniciar(f.entorno, 'dos');
+      const fabrica = new IDBFactory();
+      let fotos = await abrirFotosLocal(plan, { fabrica });
+      let ledger = await abrirRespaldoFotosLocal(plan, fotos, { fabrica });
+      const captura = { metadatos: { ...base.original, mimeDeclarado: 'image/png',
+        miniatura: { tipo: 'pendiente' as const } },
+      original: new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' }) };
+      let cookie = uno; let solicitudes = 0;
+      const estadosHttp: number[] = []; const orden: string[] = [];
+      let perderSql = true; let perderPut = true;
+      f.hooks.despues = async (q) => {
+        if (q.includes('leer_sesion')) orden.push('sesion');
+        if (q.includes('finalizar_foto')) orden.push('final');
+        if (perderSql && q.includes(modo === 'reserva-respuesta-perdida' ? 'reservar_foto'
+          : modo === 'final-persistido-respuesta-perdida' ? 'finalizar_foto' : 'ninguna-consulta')) {
+          perderSql = false;
+          throw new Error('Entrega SDK perdida después del SQL local, no COMMIT físico');
+        }
+      };
+      if (modo === 'put-persistido-respuesta-perdida') {
+        const putOriginal = f.bucket.put;
+        f.bucket.put = async (...args) => {
+          const resultado = await Reflect.apply(putOriginal, f.bucket, args);
+          if (perderPut) { perderPut = false; throw new Error('Respuesta PUT perdida en modelo R2'); }
+          return resultado;
+        };
+      }
+      if (modo === 'put-rechazado-modelado') f.bucket.rechazoPut = '429';
+      f.bucket.alEof = async () => { orden.push('eof'); };
+      const abrirTransporte = () => crearTransporteFotos({ plan, origen, fuente: fotos, ledger,
+        maxBytesOriginal: 2000000, fetch: async (entrada, opciones) => {
+          // Lectura durable ANTES del primer HTTP, también en el reintento explícito.
+          const enviada = await ledger.leer(base.fotoId);
+          expect(enviada).toMatchObject({ fotoId: base.fotoId, operacionId: base.operacionId,
+            fase: 'enviada', enviada: true, pausada: false, recibo: null });
+          expect(enviada?.original).toEqual(referencia.original);
+          const r = new Request(entrada, opciones);
+          expect(r.method).toBe('POST'); expect(r.url).toBe(origen + '/api/fotos/respaldo');
+          expect(r.headers.get('Content-Type')).toMatch(/^multipart\/form-data; boundary=/);
+          r.headers.set('Origin', origen); r.headers.set('Cookie', cookie);
+          solicitudes++;
+          const salida = await worker.fetch(r, f.entorno);
+          estadosHttp.push(salida.status); return salida;
+        } });
+      const local = async () => ({ fotos: await fotos.listar(), ledger: await ledger.listar(),
+        miniatura: await fotos.leerMiniatura(base.fotoId),
+        bytes: [...new Uint8Array(await (await fotos.leerOriginal(base.fotoId))!.arrayBuffer())] });
+      await fotos.guardarOriginal(captura);
+      const preparada = await ledger.preparar(captura, base.operacionId);
+      // EntradaRespaldo tiene campos adicionales: el transporte exige sólo estos tres.
+      const referencia = { fotoId: preparada.fotoId, operacionId: preparada.operacionId,
+        original: preparada.original };
+      const solicitud: SolicitudRespaldo = { version: 1, tipo: 'solicitud-respaldo', viajeId: plan.id,
+        ...referencia };
+      let transporte = abrirTransporte();
+      const antes = await snapshot(f.bucket); const originalAntes = await local();
+      try {
+        expect(solicitudes).toBe(0); expect(preparada.fase).toBe('preparado');
+        await expect(transporte.subir(referencia)).rejects.toMatchObject({
+          name: 'ErrorTransporteFotos', estado: 'incierta' });
+        expect(estadosHttp).toEqual([503]); expect(solicitudes).toBe(1);
+        const incierta = await snapshot(f.bucket); const localIncierto = await local();
+        expect(incierta.sql.fotos_reservas).toHaveLength(1);
+        expect(incierta.sql.fotos_operaciones).toHaveLength(1);
+        const objetoPersistido = modo === 'put-persistido-respuesta-perdida'
+          || modo === 'final-persistido-respuesta-perdida';
+        expect(incierta.objetos).toHaveLength(objetoPersistido ? 1 : 0);
+        if (objetoPersistido) {
+          const marco = Buffer.from(incierta.objetos[0][1], 'base64');
+          const longitud = new DataView(marco.buffer, marco.byteOffset).getUint32(8, false);
+          expect(new TextDecoder().decode(marco.subarray(12, 12 + longitud)))
+            .toBe(serializarSolicitudRespaldo(plan, solicitud));
+          expect([...marco.subarray(12 + longitud)]).toEqual(originalAntes.bytes);
+        }
+        expect(incierta.sql.fotos_reservas).toEqual([expect.objectContaining({
+          solicitud_canonica: serializarSolicitudRespaldo(plan, solicitud) })]);
+        expect(incierta.sql.fotos_operaciones).toEqual([expect.objectContaining({
+          recibo_canonico: modo === 'final-persistido-respuesta-perdida' ? acuse(solicitud) : null })]);
+        for (const t of ['viajes', 'sesiones', 'decisiones', 'intentos_sesion'])
+          expect(incierta.sql[t]).toEqual(antes.sql[t]);
+        expect(localIncierto.fotos).toEqual(originalAntes.fotos);
+        expect(localIncierto.bytes).toEqual([1, 2, 3]); expect(localIncierto.miniatura).toBeNull();
+        expect(localIncierto.ledger).toEqual([{ ...preparada, fase: 'enviada', enviada: true }]);
+        expect(Object.is(localIncierto.ledger[0].original.incorporada, -0)).toBe(true);
+        expect(Object.is(localIncierto.ledger[0].original.ultimaModificacion, -0)).toBe(true);
+        // Reabrir las mismas bases no regenera UUID, borra historia ni inicia red.
+        transporte.cerrar(); ledger.cerrar(); fotos.cerrar();
+        fotos = await abrirFotosLocal(plan, { fabrica });
+        ledger = await abrirRespaldoFotosLocal(plan, fotos, { fabrica });
+        expect(await local()).toEqual(localIncierto); expect(solicitudes).toBe(1);
+        cookie = dos; transporte = abrirTransporte();
+        const llamadasAntes = f.llamadas.length; const eventosAntes = f.bucket.eventos.length;
+        orden.length = 0;
+        const recuperable = modo === 'put-persistido-respuesta-perdida'
+          || modo === 'final-persistido-respuesta-perdida';
+        if (recuperable) {
+          const confirmada = await transporte.reintentar(referencia);
+          expect(confirmada).toMatchObject({ ...referencia, fase: 'respaldada', enviada: true,
+            recibo: { ...solicitud, tipo: 'acuse-respaldo', objetoOriginalDurable: true, metadatosDurables: true } });
+          // EOF íntegro precede a autenticación DB fresca y finalización; no ACK por GET solo.
+          expect(orden).toEqual(['sesion', 'eof', 'sesion', 'final']);
+        } else {
+          await expect(transporte.reintentar(referencia)).rejects.toMatchObject({
+            name: 'ErrorTransporteFotos', estado: 'incierta' });
+          expect(await local()).toEqual(localIncierto);
+          expect(orden).toEqual(['sesion']);
+        }
+        expect(estadosHttp).toEqual([503, recuperable ? 200 : 503]); expect(solicitudes).toBe(2);
+        expect(f.bucket.eventos.slice(eventosAntes)).toEqual(['get']);
+        expect(f.bucket.eventos.filter((e) => e === 'put')).toHaveLength(
+          modo === 'reserva-respuesta-perdida' ? 0 : 1);
+        const consultasRetry = f.llamadas.slice(llamadasAntes);
+        expect(consultasRetry.filter((q) => q.query.includes('reservar_foto'))).toHaveLength(1);
+        expect(consultasRetry.filter((q) => q.query.includes('finalizar_foto'))).toHaveLength(recuperable ? 1 : 0);
+        const final = await snapshot(f.bucket);
+        expect(final.objetos).toEqual(incierta.objetos);
+        expect(final.sql.fotos_reservas).toEqual(incierta.sql.fotos_reservas);
+        expect(final.sql.fotos_operaciones).toHaveLength(1);
+        if (!recuperable || modo === 'final-persistido-respuesta-perdida') expect(final).toEqual(incierta);
+        else expect(final.sql.fotos_operaciones).toEqual([expect.objectContaining({ recibo_canonico: acuse(solicitud) })]);
+        for (const t of ['viajes', 'sesiones', 'decisiones', 'intentos_sesion']) expect(final.sql[t]).toEqual(antes.sql[t]);
+        const localFinal = await local();
+        expect(localFinal.fotos).toEqual(originalAntes.fotos); expect(localFinal.bytes).toEqual(originalAntes.bytes);
+        transporte.cerrar(); ledger.cerrar(); fotos.cerrar();
+        fotos = await abrirFotosLocal(plan, { fabrica }); ledger = await abrirRespaldoFotosLocal(plan, fotos, { fabrica });
+        expect(await local()).toEqual(localFinal); expect(solicitudes).toBe(2);
+        // Snapshots del modelo ANTES del ROLLBACK exterior; no prueba de persistencia física.
+      } finally { transporte.cerrar(); ledger.cerrar(); fotos.cerrar(); }
+    });
+
   it('lista INITIAL exacto tras login HMAC y respaldo 201 sin cambiar SQL ni R2', async () => {
     const f = preparar(); const cookie = await iniciar(f.entorno);
     expect((await worker.fetch(post(cookie).solicitud, f.entorno)).status).toBe(201);
