@@ -1856,7 +1856,13 @@ export const itinerario: Itinerario = {
           reserva: 'Reservar ya, para dos a las 18:30: +86 21 2828 6888 (centralita del hotel, +86 21 6882 8888) o en shangri-la.com. Preguntar si ese domingo hay cangrejo peludo (大闸蟹) o langosta.',
           notas:
             'El bufé de cena mejor valorado de Shanghái en su precio (Ctrip 4,7): más de diez puestos de cocina en vivo (china, japonesa, india, libanesa con cocinero libanés, del sudeste asiático y occidental), marisco en hielo, sashimi, patas de centollo, cochinillo asado y el pollo a la mantequilla indio, lo más elogiado; soufflés y postres.\n' +
-            'Cena de viernes a domingo: 487 ¥ por persona con el 10 % de servicio y los impuestos incluidos, de 17:30 a 21:30. Los cócteles se pagan aparte. Comer ligero a mediodía.',
+            'Cena de viernes a domingo: 487 ¥ por persona con el 10 % de servicio y los impuestos incluidos, de 17:30 a 21:30. Gratis: té, café y refrescos; vino y cócteles, aparte. Comer ligero a mediodía.\n' +
+            'Cómo amortizarlo: ir a por lo más caro por bocado y dejar lo que llena. Platos pequeños y muchas vueltas: hay dos horas.\n' +
+            '1) Nada más llegar, el marisco en hielo, que es lo mejor del bufé y lo que antes se acaba: patas de centollo (帝王蟹腿, la estrella), ostras (生蚝), gambas, vieiras y sashimi de salmón en corte grueso. Las ostras, el cangrejo peludo (大闸蟹) y el filete salen por tandas a ciertas horas: preguntar al llegar «请问生蚝和大闸蟹几点上？» (¿a qué hora sacan las ostras y el cangrejo?).\n' +
+            '2) Pedir ya el soufflé de vainilla (香草舒芙蕾), que se hace al momento: «舒芙蕾在哪里点？» (¿dónde se pide el soufflé?).\n' +
+            '3) Calientes caros: langosta gratinada con queso (芝士焗龙虾), foie gras a la plancha (法式鹅肝), chuletas de cordero (羊扒) y filete del puesto de carne, pato laqueado, y el pollo a la mantequilla indio con un trozo de naan recién hecho.\n' +
+            '4) Segunda vuelta al marisco y, para terminar, el soufflé, crème brûlée (焦糖布丁) y helado de té verde.\n' +
+            'Evitar: arroz, fideos, pho, pasta, pan, sopas, fritos, ensaladas y refrescos, que llenan y valen poco; beber té o agua. Lo de cada día cambia: preguntar al reservar qué marisco habrá.',
           gastos: [{ concepto: 'bufé de cena (servicio incluido)', min: 487 }],
           subparadas: [
             {
