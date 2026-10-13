@@ -7,9 +7,12 @@ import { crearProgreso } from '../../src/progreso';
 import { serializarProgreso } from '../../src/progreso-json';
 import { serializarSolicitudRespaldo, serializarReciboRespaldo, type SolicitudRespaldo } from '../../src/fotos-protocolo';
 import type { PresupuestoFotos } from '../../servidor/multipart-fotos';
+import type { PaginaListadoFotos } from '../../src/fotos-listado-protocolo';
 import type { VinculoR2Fotos } from '../../servidor/objetos-r2';
 import { crearComposicionFotos } from '../../servidor/composicion-fotos';
 import { crearEjecutorNeon } from '../../servidor/ejecutor-neon';
+import { clavePrivadaFotos } from '../../servidor/almacen-fotos';
+import { calcularCotasListadoFotos } from '../../servidor/repositorio-listado-fotos';
 
 const origen = 'https://piloto.example';
 const clave = 'clave-sintetica-exclusivamente-local-123456';
@@ -18,6 +21,8 @@ const dsn = 'postgresql://viajero:clave-sintetica@ep-piloto-test.eu-central-1.aw
 const presupuesto: PresupuestoFotos = { maxBytesOriginal: 2000000, maxBytesEntrada: 2200000,
   maxBytesChunk: 65536, maxBytesCabeceras: 1024, maxBytesRetenidos: 8000000,
   maxBloquesOriginal: 100, bytesBloque: 65536, plazoMs: 10000 };
+const presupuestoListado = { maxFilas: 1, maxOperacionesPorFoto: 64,
+  maxBytesSql: 5 * 1024 ** 2, maxBytesRespuesta: 512 * 1024, maxBytesRetenidos: 64 * 1024 ** 2, plazoMs: 1000 };
 const base: SolicitudRespaldo = { version: 1, tipo: 'solicitud-respaldo', viajeId: plan.id,
   fotoId: 'ABCDEF12-1234-4123-8123-123456789ABD', operacionId: 'ABCDEF12-1234-4123-8123-123456789ABC',
   original: { formato: 1, fotoId: 'ABCDEF12-1234-4123-8123-123456789ABD',
@@ -26,7 +31,7 @@ const base: SolicitudRespaldo = { version: 1, tipo: 'solicitud-respaldo', viajeI
 const consultas = new Map([
   ['admitir_intento', 2], ['crear_sesion', 7], ['leer_sesion', 2], ['revocar_sesion', 2],
   ['listar_sesiones', 2], ['revocar_otra_sesion', 3], ['consultar_progreso', 3], ['confirmar_progreso', 4],
-  ['reservar_foto', 8], ['finalizar_foto', 10], ['consultar_foto', 3],
+  ['reservar_foto', 8], ['finalizar_foto', 10], ['consultar_foto', 3], ['listar_fotos_confirmadas', 7],
 ].map(([nombre, cantidad]) => {
   const n = Number(cantidad);
   return [`SELECT itinerario.${nombre}(${Array.from({ length: n }, (_, i) => `$${i + 1}`).join(', ')}) AS resultado`, n];
@@ -170,7 +175,7 @@ function acuse(s = base) {
 
 beforeAll(async () => {
   db = await PGlite.create('memory://');
-  for (const n of ['001_base.sql', '002_progreso.sql', '003_sesiones.sql', '004_limite.sql', '005_fotos.sql']) {
+  for (const n of ['001_base.sql', '002_progreso.sql', '003_sesiones.sql', '004_limite.sql', '005_fotos.sql', '006_listado_fotos.sql']) {
     await db.exec(await readFile(new URL('../../servidor/migraciones/' + n, import.meta.url), 'utf8'));
   }
   await db.query('INSERT INTO itinerario.viajes VALUES ($1,0,$2)', [plan.id, serializarProgreso(crearProgreso(plan))]);
@@ -179,7 +184,260 @@ beforeEach(async () => { await db.exec('BEGIN'); });
 afterEach(async () => { await db.exec('ROLLBACK'); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 afterAll(async () => { await db?.close(); });
 
-describe('Fotos Worker real + SDK real + SQL001–005 local; cookie reenviada en Node', () => {
+describe('Fotos Worker real + SDK real + SQL001–006 local; cookie reenviada en Node', () => {
+  it('lista INITIAL exacto tras login HMAC y respaldo 201 sin cambiar SQL ni R2', async () => {
+    const f = preparar(); const cookie = await iniciar(f.entorno);
+    expect((await worker.fetch(post(cookie).solicitud, f.entorno)).status).toBe(201);
+    const entorno = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: { ...presupuestoListado } };
+    const antes = await snapshot(f.bucket); f.llamadas.length = 0; f.bucket.eventos.length = 0;
+    const r = await worker.fetch(req('/api/fotos/listado', { headers: { Cookie: cookie } }), entorno);
+    expect(r.status).toBe(200);
+    expect(await r.text()).toBe('{"version":1,"tipo":"listado-respaldos","viajeId":' + JSON.stringify(plan.id)
+      + ',"solicitudesIniciales":[' + JSON.stringify(serializarSolicitudRespaldo(plan, base)) + '],"continuacion":null}');
+    expect(f.llamadas.filter((q) => q.query.includes('listar_fotos_confirmadas'))).toHaveLength(1);
+    expect(f.llamadas.filter((q) => q.query.includes('leer_sesion'))).toHaveLength(2);
+    expect(fotosSql(f)).toEqual([]); expect(f.bucket.eventos).toEqual([]);
+    expect(await snapshot(f.bucket)).toEqual(antes);
+  });
+  it('listado por dos editores, página manual N1, vacío y todos los datos intactos', async () => {
+    const f = preparar(); const cookie = await iniciar(f.entorno, 'uno'); const otro = await iniciar(f.entorno, 'dos');
+    const entorno = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: { ...presupuestoListado } };
+    const vacio = await worker.fetch(req('/api/fotos/listado', { headers: { Cookie: cookie } }), entorno);
+    expect(vacio.status).toBe(200); expect((await vacio.json() as PaginaListadoFotos).solicitudesIniciales).toEqual([]);
+    const segundaId = 'BBCDEF12-1234-4123-8123-123456789ABD';
+    const segunda = { ...base, fotoId: segundaId, operacionId: 'BBCDEF12-1234-4123-8123-123456789ABC',
+      original: { ...base.original, fotoId: segundaId } };
+    for (const s of [base, segunda]) expect((await worker.fetch(post(cookie, s).solicitud, f.entorno)).status).toBe(201);
+    const antes = await snapshot(f.bucket); f.llamadas.length = 0; f.bucket.eventos.length = 0;
+    const primera = await worker.fetch(req('/api/fotos/listado', { headers: { Cookie: otro } }), entorno);
+    expect(primera.status).toBe(200); const pagina = await primera.json() as PaginaListadoFotos;
+    expect(pagina.solicitudesIniciales).toEqual([serializarSolicitudRespaldo(plan, base)]);
+    expect(typeof pagina.continuacion).toBe('string');
+    const siguiente = await worker.fetch(req('/api/fotos/listado?continuacion=' + encodeURIComponent(pagina.continuacion!),
+      { headers: { Cookie: cookie } }), entorno);
+    expect(siguiente.status).toBe(200); expect(await siguiente.json()).toEqual({ version: 1, tipo: 'listado-respaldos',
+      viajeId: plan.id, solicitudesIniciales: [serializarSolicitudRespaldo(plan, segunda)], continuacion: null });
+    expect(f.llamadas.filter((q) => q.query.includes('listar_fotos_confirmadas'))).toHaveLength(2);
+    expect(f.llamadas.filter((q) => q.query.includes('leer_sesion'))).toHaveLength(4);
+    expect(f.bucket.eventos).toEqual([]); expect(fotosSql(f)).toEqual([]);
+    expect(await snapshot(f.bucket)).toEqual(antes);
+  });
+
+  it.each(['revocada', 'caducada', 'cookie-otro'])('listado RETURN entregado tarde: %s niega página con auth DB fresca', async (modo) => {
+    const f = preparar(); const cookie = await iniciar(f.entorno, 'uno'); const otro = await iniciar(f.entorno, 'dos');
+    expect((await worker.fetch(post(cookie).solicitud, f.entorno)).status).toBe(201);
+    const entorno = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: { ...presupuestoListado } };
+    const r = req('/api/fotos/listado', { headers: { Cookie: cookie } });
+    const llegada = barrera(); const gate = barrera();
+    f.llamadas.length = 0; f.bucket.eventos.length = 0;
+    f.hooks.despues = async (q) => { if (q.includes('listar_fotos_confirmadas')) { llegada.liberar(); await gate.espera; } };
+    const pendiente = worker.fetch(r, entorno); await llegada.espera;
+    if (modo === 'revocada') await db.exec('UPDATE itinerario.sesiones SET revocada=true');
+    if (modo === 'caducada') await db.exec('UPDATE itinerario.sesiones SET creada_en=0,vence_en=1');
+    if (modo === 'cookie-otro') r.headers.set('Cookie', otro);
+    const antes = await snapshot(f.bucket); gate.liberar(); await errorPrivado(await pendiente, 401, true);
+    expect(f.llamadas.filter((q) => q.query.includes('leer_sesion'))).toHaveLength(2);
+    expect(f.llamadas.filter((q) => q.query.includes('listar_fotos_confirmadas'))).toHaveLength(1);
+    expect(f.bucket.eventos).toEqual([]); expect(fotosSql(f)).toEqual([]);
+    expect(await snapshot(f.bucket)).toEqual(antes);
+  });
+
+  it.each(['ausente', 'malformada', 'revocada', 'caducada', 'otro-viaje'])('listado auth inicial %s antes de cursor inválido', async (modo) => {
+    const f = preparar(); let cookie = await iniciar(f.entorno);
+    const entorno = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: { ...presupuestoListado } };
+    if (modo === 'ausente') cookie = ''; if (modo === 'malformada') cookie = '__Host-itinerario=no-token';
+    if (modo === 'revocada') await db.exec('UPDATE itinerario.sesiones SET revocada=true');
+    if (modo === 'caducada') await db.exec('UPDATE itinerario.sesiones SET creada_en=0,vence_en=1');
+    if (modo === 'otro-viaje') {
+      await db.query('INSERT INTO itinerario.viajes VALUES ($1,0,$2)', ['otro', serializarProgreso(crearProgreso(plan))]);
+      await db.exec("UPDATE itinerario.sesiones SET viaje_id='otro'");
+    }
+    f.llamadas.length = 0;
+    await errorPrivado(await worker.fetch(req('/api/fotos/listado?continuacion=%FF', { headers: { Cookie: cookie } }), entorno), 401, true);
+    expect(f.llamadas.filter((q) => q.query.includes('listar_fotos_confirmadas'))).toEqual([]);
+    expect(f.bucket.eventos).toEqual([]);
+  });
+
+  it.each(['inicial', 'sql', 'fresca'])('listado aborto SDK pendiente en %s no continúa ni muta', async (paso) => {
+    const f = preparar(); const cookie = await iniciar(f.entorno);
+    const entorno = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: { ...presupuestoListado } };
+    const llegada = barrera(); const gate = barrera(); let auth = 0;
+    f.llamadas.length = 0;
+    f.hooks.despues = async (q) => {
+      if (q.includes('leer_sesion')) auth++;
+      if ((paso === 'sql' && q.includes('listar_fotos_confirmadas'))
+        || (q.includes('leer_sesion') && auth === (paso === 'fresca' ? 2 : paso === 'inicial' ? 1 : -1))) {
+        llegada.liberar(); await gate.espera;
+      }
+    };
+    const ac = new AbortController(); const pendiente = worker.fetch(req('/api/fotos/listado',
+      { headers: { Cookie: cookie }, signal: ac.signal }), entorno);
+    await llegada.espera; ac.abort(); await errorPrivado(await pendiente, 503, true);
+    const antes = await snapshot(f.bucket); gate.liberar();
+    await Promise.allSettled(f.transporte.mock.results.map((r) => r.value));
+    expect(f.llamadas.filter((q) => q.query.includes('listar_fotos_confirmadas'))).toHaveLength(paso === 'inicial' ? 0 : 1);
+    expect(auth).toBe(paso === 'fresca' ? 2 : 1); expect(await snapshot(f.bucket)).toEqual(antes);
+  });
+
+  it.each(['inicial', 'sql', 'fresca'])('listado plazo SDK pendiente en %s ignora entrega tardía', async (paso) => {
+    const f = preparar(); const cookie = await iniciar(f.entorno);
+    const entorno = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: { ...presupuestoListado, plazoMs: 20 } };
+    const llegada = barrera(); const gate = barrera(); let auth = 0;
+    f.llamadas.length = 0;
+    f.hooks.despues = async (q) => {
+      if (q.includes('leer_sesion')) auth++;
+      if ((paso === 'sql' && q.includes('listar_fotos_confirmadas'))
+        || (q.includes('leer_sesion') && auth === (paso === 'fresca' ? 2 : paso === 'inicial' ? 1 : -1))) {
+        llegada.liberar(); await gate.espera;
+      }
+    };
+    vi.useFakeTimers(); const pendiente = worker.fetch(req('/api/fotos/listado', { headers: { Cookie: cookie } }), entorno);
+    await llegada.espera; await vi.advanceTimersByTimeAsync(20); await errorPrivado(await pendiente, 503, true);
+    const antes = await snapshot(f.bucket); gate.liberar();
+    await Promise.allSettled(f.transporte.mock.results.map((r) => r.value));
+    expect(f.llamadas.filter((q) => q.query.includes('listar_fotos_confirmadas'))).toHaveLength(paso === 'inicial' ? 0 : 1);
+    expect(auth).toBe(paso === 'fresca' ? 2 : 1); expect(await snapshot(f.bucket)).toEqual(antes);
+  });
+
+  it.each(['inicial', 'sql', 'fresca'])('listado infraestructura fallida %s no publica ni filtra causa', async (paso) => {
+    const f = preparar(); const cookie = await iniciar(f.entorno); let auth = 0;
+    const entorno = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: { ...presupuestoListado } };
+    f.llamadas.length = 0;
+    f.hooks.antes = async (q) => {
+      if (q.includes('leer_sesion')) auth++;
+      if ((paso === 'sql' && q.includes('listar_fotos_confirmadas'))
+        || (q.includes('leer_sesion') && auth === (paso === 'fresca' ? 2 : paso === 'inicial' ? 1 : -1)))
+        throw new Error('Detalle privado infraestructura SQL');
+    };
+    await errorPrivado(await worker.fetch(req('/api/fotos/listado', { headers: { Cookie: cookie } }), entorno), 503, true);
+    expect(f.bucket.eventos).toEqual([]); expect(fotosSql(f)).toEqual([]);
+  });
+
+  it('listado aislado no inspecciona bucket/presupuesto binario incluso accessors hostiles', async () => {
+    const f = preparar(); const cookie = await iniciar(f.entorno);
+    const entorno = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: { ...presupuestoListado } };
+    const getter = vi.fn(() => { throw new Error('R2 no debe inspeccionarse'); });
+    for (const nombre of ['FOTOS_BUCKET', 'FOTOS_PRESUPUESTO']) Object.defineProperty(entorno, nombre, { get: getter });
+    const r = await worker.fetch(req('/api/fotos/listado', { headers: { Cookie: cookie } }), entorno);
+    expect(r.status).toBe(200); expect(getter).not.toHaveBeenCalled(); expect(f.bucket.eventos).toEqual([]);
+  });
+
+  it.each(['ausente', 'getter', 'parcial', 'retencion'])('config listado %s 503 sólo listado, no auth/lista/cuerpo', async (modo) => {
+    const f = preparar(); const cookie = await iniciar(f.entorno); const getter = vi.fn();
+    const entorno: EntornoWorker = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: { ...presupuestoListado } };
+    if (modo === 'ausente') delete entorno.FOTOS_LISTADO_PRESUPUESTO;
+    if (modo === 'getter') Object.defineProperty(entorno, 'FOTOS_LISTADO_PRESUPUESTO', { get: getter });
+    if (modo === 'parcial') delete (entorno.FOTOS_LISTADO_PRESUPUESTO as Partial<typeof presupuestoListado>).maxFilas;
+    if (modo === 'retencion') entorno.FOTOS_LISTADO_PRESUPUESTO = { ...presupuestoListado, maxBytesRetenidos: 51431475 };
+    f.llamadas.length = 0;
+    await errorPrivado(await worker.fetch(req('/api/fotos/listado'), entorno), 503, true);
+    expect(f.llamadas).toEqual([]); expect(getter).not.toHaveBeenCalled();
+    expect((await worker.fetch(post(cookie).solicitud, entorno)).status).toBe(201);
+    expect((await worker.fetch(req('/api/progreso', { headers: { Cookie: cookie } }), entorno)).status).toBe(200);
+  });
+
+  it('listingbudget accessor nunca leído en binarios/login/progreso/entrada/assets/unknown', async () => {
+    const f = preparar(); const getter = vi.fn(() => { throw new Error('Campo de otra ruta'); });
+    Object.defineProperty(f.entorno, 'FOTOS_LISTADO_PRESUPUESTO', { get: getter });
+    const cookie = await iniciar(f.entorno);
+    expect((await worker.fetch(post(cookie).solicitud, f.entorno)).status).toBe(201);
+    for (const ruta of [`/api/fotos/${base.fotoId}/original`, '/api/progreso', '/', '/entrar'])
+      expect((await worker.fetch(req(ruta, { headers: { Cookie: cookie } }), f.entorno)).status).toBe(200);
+    expect((await worker.fetch(req('/api/fotos/listado/'), f.entorno)).status).toBe(404);
+    expect(getter).not.toHaveBeenCalled();
+  });
+
+  it('listado captura origin/budget antes de digest credenciales y siguiente request recaptura', async () => {
+    const f = preparar(); const cookie = await iniciar(f.entorno);
+    const entorno = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: { ...presupuestoListado } };
+    const llegada = barrera(); const gate = barrera(); const digest = crypto.subtle.digest.bind(crypto.subtle);
+    vi.spyOn(crypto.subtle, 'digest').mockImplementationOnce(async (...args) => {
+      llegada.liberar(); await gate.espera; return digest(...args);
+    });
+    const pendiente = worker.fetch(req('/api/fotos/listado', { headers: { Cookie: cookie } }), entorno);
+    await llegada.espera; entorno.FOTOS_ORIGEN = 'https://otra.example'; entorno.FOTOS_LISTADO_PRESUPUESTO.maxFilas = 0;
+    gate.liberar(); expect((await pendiente).status).toBe(200);
+    await errorPrivado(await worker.fetch(req('/api/fotos/listado', { headers: { Cookie: cookie } }), entorno), 503, true);
+  });
+
+  it('listado conserva seis tablas completas, viaje ajeno, historia cruda SQL y reserva incierta sin adoptarla', async () => {
+    const f = preparar(); const cookie = await iniciar(f.entorno, 'uno'); const editor = await iniciar(f.entorno, 'dos');
+    const op = { id: 'historia-propia', dispositivoId: 'uno', tipo: 'parada',
+      paradaId: plan.dias[0].paradas[0].id, marca: 'hecha', revision: 0, horaReal: -0 };
+    expect((await worker.fetch(req('/api/progreso', { method: 'POST', headers: { Cookie: cookie,
+      Origin: origen, 'Content-Type': 'application/json' }, body: serializarProgreso(op) }), f.entorno)).status).toBe(200);
+    expect((await worker.fetch(post(cookie).solicitud, f.entorno)).status).toBe(201);
+    const pendienteId = 'DBCDEF12-1234-4123-8123-123456789ABD';
+    const pendiente = { ...base, fotoId: pendienteId, operacionId: 'DBCDEF12-1234-4123-8123-123456789ABC',
+      original: { ...base.original, fotoId: pendienteId } };
+    f.hooks.despues = async (q) => { if (q.includes('reservar_foto')) throw new Error('Entrega perdida en fixture'); };
+    await errorPrivado(await worker.fetch(post(cookie, pendiente).solicitud, f.entorno), 503);
+    f.hooks.despues = undefined;
+    const ajeno = { ...plan, id: 'viaje-ajeno-fixture' };
+    await db.query('INSERT INTO itinerario.viajes VALUES ($1,0,$2)', [ajeno.id, serializarProgreso(crearProgreso(ajeno))]);
+    // Esquema SQL admite JSON objeto opaco. No se presenta como DTO válido de
+    // progreso/PhotoDB/legacy del cliente, ni se pide a la app migrarlo o repararlo.
+    const raizCruda = '{"schemaAnterior":0,"nombre":"\\u0000e\\u0301","numero":-0}';
+    const historiaCruda = '{"anterior":true,"texto":"\\u0000e\\u0301","hora":-0}';
+    await db.query('INSERT INTO itinerario.viajes VALUES ($1,7,$2)', ['legado-sql-fixture', raizCruda]);
+    await db.query('INSERT INTO itinerario.decisiones VALUES ($1,$2,$3,1,$4)',
+      [ajeno.id, 'historia-ajena', 'positiva', historiaCruda]);
+    await db.query('INSERT INTO itinerario.sesiones VALUES ($1,$2,$3,1,$4,false,$5)',
+      ['fbcdef12-1234-4123-8123-123456789abc', 'f'.repeat(64), ajeno.id, Number.MAX_SAFE_INTEGER,
+        '{"dispositivoId":"ajeno","nombreDispositivo":"e\\u0301"}']);
+    await db.query('INSERT INTO itinerario.intentos_sesion VALUES ($1,1,3)', ['e'.repeat(64)]);
+    const fotoId = 'EBCDEF12-1234-4123-8123-123456789ABD';
+    const reservaId = 'FBCDEF12-1234-4123-8123-123456789ABD';
+    const solicitudAjena = { ...base, viajeId: ajeno.id, fotoId, operacionId: '9BCDEF12-1234-4123-8123-123456789ABC',
+      original: { ...base.original, fotoId, destino: { ...base.original.destino, viajeId: ajeno.id } } };
+    const inicialAjeno = serializarSolicitudRespaldo(ajeno, solicitudAjena);
+    const reciboAjeno = serializarReciboRespaldo(ajeno, { ...solicitudAjena, tipo: 'acuse-respaldo',
+      objetoOriginalDurable: true, metadatosDurables: true });
+    const claveAjena = clavePrivadaFotos(ajeno.id, fotoId, reservaId);
+    await db.query('INSERT INTO itinerario.fotos_reservas VALUES ($1,$2,$3,$4,$5)',
+      [ajeno.id, fotoId, reservaId, claveAjena, inicialAjeno]);
+    await db.query('INSERT INTO itinerario.fotos_operaciones VALUES ($1,$2,$3,$4,$5,$6)',
+      [ajeno.id, solicitudAjena.operacionId, fotoId, reservaId, inicialAjeno, reciboAjeno]);
+    f.bucket.objetos.set(claveAjena, new Blob([new Uint8Array([0, 255, 3, 9])]));
+    f.bucket.objetos.set('objeto-opaco-anterior-fixture', new Blob([new Uint8Array([7, 0, 8])]));
+    const antes = await snapshot(f.bucket);
+    for (const tabla of ['viajes', 'sesiones', 'decisiones', 'intentos_sesion', 'fotos_reservas', 'fotos_operaciones'])
+      expect((antes.sql[tabla] as unknown[]).length).toBeGreaterThan(0);
+    expect(antes.objetos.length).toBe(3);
+    expect((antes.sql.fotos_operaciones as { recibo_canonico: unknown }[]).filter((r) => r.recibo_canonico === null)).toHaveLength(1);
+    const entorno = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: { ...presupuestoListado } };
+    f.llamadas.length = 0; f.bucket.eventos.length = 0;
+    const r = await worker.fetch(req('/api/fotos/listado', { headers: { Cookie: editor } }), entorno);
+    expect(r.status).toBe(200); expect(await r.json()).toEqual({ version: 1, tipo: 'listado-respaldos', viajeId: plan.id,
+      solicitudesIniciales: [serializarSolicitudRespaldo(plan, base)], continuacion: null });
+    expect(f.llamadas.filter((q) => q.query.includes('listar_fotos_confirmadas'))).toHaveLength(1);
+    expect(f.llamadas.filter((q) => q.query.includes('leer_sesion'))).toHaveLength(2);
+    expect(fotosSql(f)).toEqual([]); expect(f.bucket.eventos).toEqual([]);
+    expect(await snapshot(f.bucket)).toEqual(antes); // ANTES del ROLLBACK exterior.
+  });
+
+  it('INITIAL confirmable65486 y ACK65536 reales: página exacta bajo P cerrado, sin frame falso', async () => {
+    const f = preparar(); const cookie = await iniciar(f.entorno);
+    const sinNombre = { ...base, original: { ...base.original, nombre: '' } };
+    const faltan = 65486 - new TextEncoder().encode(serializarSolicitudRespaldo(plan, sinNombre)).length;
+    const s = { ...sinNombre, original: { ...sinNombre.original, nombre: 'x'.repeat(faltan) } };
+    const inicial = serializarSolicitudRespaldo(plan, s);
+    expect(new TextEncoder().encode(inicial).length).toBe(65486);
+    expect(new TextEncoder().encode(acuse(s)).length).toBe(65536);
+    const respaldo = await worker.fetch(post(cookie, s).solicitud, f.entorno);
+    expect(respaldo.status).toBe(201); expect(await respaldo.text()).toBe(acuse(s));
+    const antes = await snapshot(f.bucket); f.llamadas.length = 0; f.bucket.eventos.length = 0;
+    const entorno = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: { ...presupuestoListado } };
+    const r = await worker.fetch(req('/api/fotos/listado', { headers: { Cookie: cookie } }), entorno);
+    expect(r.status).toBe(200); const publico = await r.text();
+    expect(publico).toBe('{"version":1,"tipo":"listado-respaldos","viajeId":' + JSON.stringify(plan.id)
+      + ',"solicitudesIniciales":[' + JSON.stringify(inicial) + '],"continuacion":null}');
+    expect(new TextEncoder().encode(publico).length).toBeLessThan(calcularCotasListadoFotos(1, 64).bytesRespuesta);
+    expect(f.llamadas.filter((q) => q.query.includes('listar_fotos_confirmadas'))).toHaveLength(1);
+    expect(f.llamadas.filter((q) => q.query.includes('leer_sesion'))).toHaveLength(2);
+    expect(f.bucket.eventos).toEqual([]); expect(await snapshot(f.bucket)).toEqual(antes);
+  });
+
   it('respalda con 201/acuse exacto y descarga privada de bytes íntegros', async () => {
     const f = preparar(); const cookie = await iniciar(f.entorno); const p = post(cookie);
     const r = await worker.fetch(p.solicitud, f.entorno);
@@ -263,7 +521,7 @@ describe('Fotos Worker real + SDK real + SQL001–005 local; cookie reenviada en
     [`/api/fotos/${base.fotoId}/original`, 'POST', 405, 'GET'], ['/api/fotos/incorrecta/original', 'GET', 400, null],
     ['/api/fotos/%FF/original', 'GET', 400, null], ['/api/fotos/%2F/original', 'GET', 400, null],
     ['/api/fotos', 'GET', 404, null], ['/api/fotos/respaldo/', 'POST', 404, null],
-    ['/api/fotos/a/b/original', 'GET', 404, null], ['/api/fotos/listado', 'GET', 404, null],
+    ['/api/fotos/a/b/original', 'GET', 404, null], ['/api/fotos/listado', 'GET', 503, null],
   ] as const)('ruta/método %s %s conserva %i', async (ruta, metodo, estado, allow) => {
     const f = preparar(); const r = await worker.fetch(req(ruta, { method: metodo }), f.entorno);
     expect(r.headers.get('Allow')).toBe(allow); await errorPrivado(r, estado);
@@ -480,6 +738,14 @@ describe('Fotos Worker real + SDK real + SQL001–005 local; cookie reenviada en
     }
     expect(despues.objetos).toHaveLength(2); expect(despues.objetos).toEqual(expect.arrayContaining(antes.objetos));
     expect(f.bucket.eventos.filter((e) => e === 'put')).toHaveLength(2);
+    // Catálogo conserva también decisiones/historia previas, no sólo una raíz vacía.
+    const entorno = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: { ...presupuestoListado,
+      maxFilas: 8, maxBytesSql: 24 * 1024 ** 2, maxBytesRespuesta: 4 * 1024 ** 2, maxBytesRetenidos: 256 * 1024 ** 2 } };
+    f.llamadas.length = 0; f.bucket.eventos.length = 0;
+    const listado = await worker.fetch(req('/api/fotos/listado', { headers: { Cookie: cookie } }), entorno);
+    expect(listado.status).toBe(200); expect((await listado.json() as PaginaListadoFotos).solicitudesIniciales).toHaveLength(2);
+    expect(await snapshot(f.bucket)).toEqual(despues); expect(f.bucket.eventos).toEqual([]);
+    expect(f.llamadas.filter((q) => q.query.includes('listar_fotos_confirmadas'))).toHaveLength(1);
   });
 
   it('fábricas/importación preparan sin SQL, R2, body, azar ni hashing', async () => {
@@ -556,7 +822,7 @@ describe('Fotos Worker real + SDK real + SQL001–005 local; cookie reenviada en
     const etag = progreso.headers.get('ETag')!;
     const igual = await worker.fetch(req('/api/progreso', { headers: { Cookie: cookie, 'If-None-Match': etag } }), f.entorno);
     expect(igual.status).toBe(304); expect(await igual.text()).toBe('');
-    expect((await worker.fetch(req('/api/fotos/listado'), f.entorno)).status).toBe(404);
+    expect((await worker.fetch(req('/api/fotos/listado'), f.entorno)).status).toBe(503);
     for (let i = 0; i < 9; i++) await iniciar(f.entorno, 'editor-' + i);
     const limite = await worker.fetch(req('/api/sesion', { method: 'POST', headers: { Origin: origen,
       'Content-Type': 'application/json', 'CF-Connecting-IP': '203.0.113.9' }, body: JSON.stringify({ clave, dispositivoId: 'extra' }) }), f.entorno);

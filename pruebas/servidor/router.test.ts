@@ -30,6 +30,31 @@ function privada(respuesta: Response) {
 }
 
 describe('router puro del viaje', () => {
+  it.each(['GET', 'POST', 'HEAD'])('listado %s conserva Request/Response y método del puerto', async (method) => {
+    const p = preparar(); const solicitud = solicitar('/api/fotos/listado', { method,
+      ...(method === 'POST' ? { body: 'cuerpo intacto' } : {}) });
+    const respuesta = new Response(method === 'HEAD' ? null : 'exacto', { status: 405, headers: { Allow: 'GET' } });
+    const listadoFotos = { atender: vi.fn(async function (this: unknown, original: Request) {
+      expect(this).toBe(listadoFotos); expect(original).toBe(solicitud); return respuesta;
+    }) };
+    const router = crearRouterViaje({ ...p.configuracion, listadoFotos }); const capturado = listadoFotos.atender;
+    listadoFotos.atender = vi.fn(async () => new Response('mutado'));
+    expect(await router.atender(solicitud)).toBe(respuesta);
+    expect(capturado).toHaveBeenCalledOnce(); expect(listadoFotos.atender).not.toHaveBeenCalled();
+    expect(solicitud.bodyUsed).toBe(false); expect(p.sesiones.autenticar).not.toHaveBeenCalled();
+    expect(p.assets.fetch).not.toHaveBeenCalled();
+  });
+  it.each(['ausente', 'lanza'])('listado %s da 503 privado sin assets/auth/fallback', async (modo) => {
+    const p = preparar(); const listadoFotos = { atender: vi.fn(async () => { throw new Error('privado'); }) };
+    const router = crearRouterViaje({ ...p.configuracion, ...(modo === 'lanza' ? { listadoFotos } : {}) });
+    const r = await router.atender(solicitar('/api/fotos/listado')); expect(r.status).toBe(503); privada(r);
+    expect(p.sesiones.autenticar).not.toHaveBeenCalled(); expect(p.assets.fetch).not.toHaveBeenCalled();
+  });
+  it('listado accessor se rechaza sin invocarlo', () => {
+    const p = preparar(); const getter = vi.fn(); const listadoFotos = Object.defineProperty({}, 'atender', { get: getter });
+    expect(() => crearRouterViaje({ ...p.configuracion, listadoFotos } as unknown as ConfiguracionRouterViaje)).toThrow();
+    expect(getter).not.toHaveBeenCalled();
+  });
   it.each(['/api/fotos/respaldo', '/api/fotos/ABC%2FDEF/original'])('delega fotos %s sin filtrar método, consumir ni envolver', async (ruta) => {
     const p = preparar(); const solicitud = solicitar(ruta, { method: 'POST', body: 'cuerpo intacto',
       headers: { Origin: 'https://ajeno.test', Cookie: 'cookie-original' } });
@@ -48,7 +73,7 @@ describe('router puro del viaje', () => {
     expect(p.progreso.atender).not.toHaveBeenCalled(); expect(p.proveerRespuestaEntrada).not.toHaveBeenCalled();
   });
 
-  it.each(['/api/fotos', '/api/fotos/listado', '/api/fotos/respaldo/', '/api/fotos/a/b/original'])('foto no reconocida %s no cae en puerto/assets', async (ruta) => {
+  it.each(['/api/fotos', '/api/fotos/listado/', '/api/fotos/%6cistado', '/api/fotos/respaldo/', '/api/fotos/a/b/original'])('foto no reconocida %s no cae en puerto/assets', async (ruta) => {
     const p = preparar(); const fotos = { atender: vi.fn(async () => new Response('no usar')) };
     const r = await crearRouterViaje({ ...p.configuracion, fotos }).atender(solicitar(ruta));
     expect(r.status).toBe(404); privada(r); expect(fotos.atender).not.toHaveBeenCalled();

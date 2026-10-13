@@ -9,6 +9,8 @@ import { crearControladorProgreso } from './api-progreso';
 import { crearRouterViaje, esRutaFotos } from './router';
 import { crearComposicionFotos, type AtencionFotosWorker } from './composicion-fotos';
 import type { PresupuestoFotos } from './multipart-fotos';
+import { prepararListadoFotos, type AtencionListadoFotos } from './api-listado-fotos';
+import type { PresupuestoListadoFotos } from './repositorio-listado-fotos';
 import type { VinculoR2Fotos } from './objetos-r2';
 import { proveerRespuestaEntrada } from './entrada';
 import { FalloHttp, respuestaJson } from './http';
@@ -21,6 +23,7 @@ export interface EntornoWorker {
   FOTOS_ORIGEN?: string;
   FOTOS_PRESUPUESTO?: PresupuestoFotos;
   FOTOS_BUCKET?: VinculoR2Fotos;
+  FOTOS_LISTADO_PRESUPUESTO?: PresupuestoListadoFotos;
 }
 /** Datos propios de configuración confiable, no getters ni JSON de entrada cliente. */
 function prepararFotos(entorno: EntornoWorker, ejecutor: Parameters<typeof crearComposicionFotos>[0]['ejecutor']) {
@@ -32,6 +35,14 @@ function prepararFotos(entorno: EntornoWorker, ejecutor: Parameters<typeof crear
   });
   return crearComposicionFotos({ plan: itinerario, ejecutor,
     origen: valores[0], presupuesto: valores[1], bucket: valores[2] });
+}
+function prepararListado(entorno: EntornoWorker, ejecutor: Parameters<typeof prepararListadoFotos>[0]['ejecutor']) {
+  const valores = ['FOTOS_ORIGEN', 'FOTOS_LISTADO_PRESUPUESTO'].map((nombre) => {
+    const d = Object.getOwnPropertyDescriptor(entorno, nombre);
+    if (!d || !Object.hasOwn(d, 'value')) throw new Error('Listado no disponible.');
+    return d.value;
+  });
+  return prepararListadoFotos({ plan: itinerario, ejecutor, origen: valores[0], presupuesto: valores[1] });
 }
 function ipv4(valor: string): boolean {
   const partes = valor.split('.');
@@ -80,6 +91,14 @@ export default {
       // no deshabilita sesiones, progreso, entrada ni assets; no lee cuerpo ni hace IO.
       let preparacion: ReturnType<typeof crearComposicionFotos> | undefined;
       let fotos: AtencionFotosWorker | undefined;
+      let preparacionListado: ReturnType<typeof prepararListadoFotos> | undefined;
+      let listadoFotos: AtencionListadoFotos | undefined;
+      if (new URL(solicitud.url).pathname === '/api/fotos/listado') {
+        try { preparacionListado = prepararListado(entorno, ejecutor); } catch {
+          listadoFotos = Object.freeze({ atender: async (original: Request) =>
+            errorPrivado(original, 503, 'No se puede atender la solicitud ahora.') });
+        }
+      }
       if (esRutaFotos(new URL(solicitud.url).pathname)) {
         try { preparacion = prepararFotos(entorno, ejecutor); } catch {
           fotos = { atender: async (original) => errorPrivado(original, 503, 'No se puede atender la solicitud ahora.') };
@@ -90,13 +109,14 @@ export default {
       const credenciales = await crearCredenciales({ viajeId, claveCompartida: entorno.CLAVE_COMPARTIDA });
       const sesiones = crearControladorSesiones({ viajeId, credenciales, repositorio });
       if (preparacion) fotos = preparacion.conAutenticacion(sesiones.autenticar.bind(sesiones));
+      if (preparacionListado) listadoFotos = preparacionListado.conAutenticacion(sesiones.autenticar.bind(sesiones));
       const pasarela = crearPasarelaSql({ ejecutor });
       const almacen = crearAlmacenProgreso({ plan: itinerario, pasarela });
       const progreso = crearControladorProgreso({ plan: itinerario, autenticar: sesiones.autenticar, repositorio: almacen });
       // El binding nativo puede tener fetch en el prototipo y requerir su receiver.
       const assets = { fetch: (original: Request) => binding.fetch(original) };
       const router = crearRouterViaje({ sesiones, progreso, assets, proveerRespuestaEntrada,
-        ...(fotos ? { fotos } : {}) });
+        ...(fotos ? { fotos } : {}), ...(listadoFotos ? { listadoFotos } : {}) });
       // Solo login necesita identidad de red; no inferirla de otros campos del cliente.
       let contexto;
       if (solicitud.method === 'POST' && new URL(solicitud.url).pathname === '/api/sesion') {

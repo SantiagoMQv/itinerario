@@ -3,12 +3,14 @@ import type { ControladorProgreso } from './api-progreso';
 import type { ControladorSesiones, ContextoSolicitudSesion } from './sesiones';
 import { FalloHttp, respuestaJson } from './http';
 import type { AtencionFotosWorker } from './composicion-fotos';
+import type { AtencionListadoFotos } from './api-listado-fotos';
 
 export interface ConfiguracionRouterViaje {
   readonly sesiones: ControladorSesiones;
   readonly progreso: ControladorProgreso;
   readonly assets: VinculoAssets;
   readonly fotos?: AtencionFotosWorker;
+  readonly listadoFotos?: AtencionListadoFotos;
   // Puerto obligatorio de la UI real; sin página ficticia ni fallback a ASSETS.
   readonly proveerRespuestaEntrada: (solicitud: Request) => Promise<Response>;
 }
@@ -98,11 +100,14 @@ export function crearRouterViaje(configuracion: ConfiguracionRouterViaje): Route
   let sesiones: ControladorSesiones, progreso: ControladorProgreso, assets: VinculoAssets;
   let proveerRespuestaEntrada: ConfiguracionRouterViaje['proveerRespuestaEntrada'];
   let fotos: AtencionFotosWorker | undefined;
+  let listadoFotos: AtencionListadoFotos | undefined;
   try {
     const nombres = ['sesiones', 'progreso', 'assets', 'proveerRespuestaEntrada'];
     if (Object.hasOwn(configuracion, 'fotos')) nombres.push('fotos');
+    if (Object.hasOwn(configuracion, 'listadoFotos')) nombres.push('listadoFotos');
     const c = capturar(configuracion, nombres);
     if (c.fotos !== undefined) fotos = metodos(c.fotos, ['atender']) as unknown as AtencionFotosWorker;
+    if (c.listadoFotos !== undefined) listadoFotos = metodos(c.listadoFotos, ['atender']) as unknown as AtencionListadoFotos;
     sesiones = metodos(c.sesiones, ['atender', 'autenticar']) as unknown as ControladorSesiones;
     progreso = metodos(c.progreso, ['atender']) as unknown as ControladorProgreso;
     assets = metodos(c.assets, ['fetch']) as unknown as VinculoAssets;
@@ -120,6 +125,9 @@ export function crearRouterViaje(configuracion: ConfiguracionRouterViaje): Route
           return await sesiones.atender(solicitud, contextoSeguro(contexto));
         }
         if (ruta === '/api/progreso') return await progreso.atender(solicitud);
+        if (ruta === '/api/fotos/listado') {
+          return listadoFotos ? await listadoFotos.atender(solicitud) : errorPrivado(solicitud, 503, ERROR_SISTEMA);
+        }
         if (esRutaFotos(ruta)) {
           return fotos ? await fotos.atender(solicitud) : errorPrivado(solicitud, 503, ERROR_SISTEMA);
         }

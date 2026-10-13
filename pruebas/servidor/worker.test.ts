@@ -83,8 +83,10 @@ afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 describe('Worker local: composición real y configuración privada', () => {
   it('HTTP precede también a descriptores y métodos de fotos', async () => {
     const f = preparar(); const getter = vi.fn(() => { throw new Error('No inspeccionar fotos'); });
-    for (const c of ['FOTOS_ORIGEN', 'FOTOS_PRESUPUESTO', 'FOTOS_BUCKET']) Object.defineProperty(f.entorno, c, { get: getter });
+    for (const c of ['ASSETS', 'URL_BASE_DATOS', 'CLAVE_COMPARTIDA', 'FOTOS_ORIGEN', 'FOTOS_PRESUPUESTO',
+      'FOTOS_BUCKET', 'FOTOS_LISTADO_PRESUPUESTO']) Object.defineProperty(f.entorno, c, { get: getter });
     await privada(await worker.fetch(new Request('http://piloto.example/api/fotos/respaldo', { method: 'POST', body: 'intacto' }), f.entorno), 400);
+    await privada(await worker.fetch(new Request('http://piloto.example/api/fotos/listado'), f.entorno), 400);
     expect(getter).not.toHaveBeenCalled(); expect(f.transporte).not.toHaveBeenCalled();
     expect(f.assets.fetch).not.toHaveBeenCalled();
   });
@@ -97,7 +99,7 @@ describe('Worker local: composición real y configuración privada', () => {
     expect((await worker.fetch(solicitud('/entrar'), f.entorno)).status).toBe(200);
     const cookie = await iniciar(f.entorno);
     expect((await worker.fetch(solicitud('/', { headers: { Cookie: cookie } }), f.entorno)).status).toBe(200);
-    await privada(await worker.fetch(solicitud('/api/fotos/listado'), f.entorno), 404);
+    await privada(await worker.fetch(solicitud('/api/fotos/listado'), f.entorno), 503);
     expect(getter).not.toHaveBeenCalled();
   });
 
