@@ -1851,9 +1851,9 @@ export const itinerario: Itinerario = {
           categoria: 'comida',
           ...en(C.yiCafe),
           llegada: { modo: 'taxi', detalle: 'Taxi o DiDi desde Yongkang Road por el túnel de Yan’an Road East (~8 km, 25–35 min)', min: 35 },
-          direccion: 'Pudong Shangri-La, 33 Fucheng Road, torre 紫金楼, 2.ª planta',
+          direccion: 'Pudong Shangri-La, 33 Fucheng Road, Grand Tower (紫金楼), 2.ª planta',
           direccionLocal: '浦东新区富城路33号 浦东香格里拉大酒店 紫金楼2楼',
-          reserva: 'Reservar ya, para dos a las 18:30: +86 21 2828 6888 (centralita del hotel, +86 21 6882 8888) o en shangri-la.com. Preguntar si ese domingo hay cangrejo peludo (大闸蟹) o langosta.',
+          reserva: 'Reservar ya, para dos a las 18:30, en la web de reservas del Shangri-La (Shangri-La Circle: Yi Café → Dinner), o al +86 21 2828 6888 o fbreservation.slpu@shangri-la.com. Pedir que digan qué marisco habrá esa noche (centollo, ostras, cangrejo peludo) y guardar el email de confirmación.',
           notas:
             'El bufé de cena mejor valorado de Shanghái en su precio (Ctrip 4,7): más de diez puestos de cocina en vivo (china, japonesa, india, libanesa con cocinero libanés, del sudeste asiático y occidental), marisco en hielo, sashimi, patas de centollo, cochinillo asado y el pollo a la mantequilla indio, lo más elogiado; soufflés y postres.\n' +
             'Cena de viernes a domingo: 487 ¥ por persona con el 10 % de servicio y los impuestos incluidos, de 17:30 a 21:30. Gratis: té, café y refrescos; vino y cócteles, aparte. Comer ligero a mediodía.\n' +
@@ -2002,7 +2002,7 @@ export const itinerario: Itinerario = {
     { id: 'd57b9016ce42a83f', texto: 'Sábado 24: comprar ya los trenes G7006 (上海站 09:00) y G7017 (南京站 14:57), y reservar el museo en cuanto se abra, hacia el miércoles 21: franja de entrada de 09:00 a 12:00 (se entra a las 11:10). Dudas: 025-8328 2255, de miércoles a domingo de 09:00 a 17:00.' },
     { id: '71ea52c093b6fd84', texto: 'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.' },
     { id: 'b1f8074a6d3c92e5', texto: 'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.' },
-    { id: '095cbe73a24f681d', texto: 'Domingo 25: reservar el bufé del Yi Café (Pudong Shangri-La) para dos a las 18:30, +86 21 2828 6888 (487 ¥ con todo). Comprar la entrada de la Shanghai Tower (180 ¥) por internet.' },
+    { id: '095cbe73a24f681d', texto: 'Domingo 25: reservar el bufé del Yi Café (Pudong Shangri-La) para dos a las 18:30 en la web de reservas del Shangri-La (o al +86 21 2828 6888); 487 ¥ con todo. Comprar la entrada de la Shanghai Tower (180 ¥) por internet.' },
     { id: 'dbb04bf7fb5b181c', texto: 'Jueves 22: llamar al 189 3062 5815 (o que llame el hotel) para saber si el espectáculo nocturno de luces del jardín Kezhi de Zhujiajiao (朱家角光影幻境·课植园, 118 ¥, de 17:00 a 21:00) abre ese día. Si abre, se puede invertir el día: Yuyuan por la mañana y Zhujiajiao por la tarde.' },
     { id: 'ef64a20d831c7b95', texto: 'Sábado noche: mirar la programación y la entrada de Hush/INS para el 24.' },
     { id: 'ec67c889c1582263', texto: 'Jueves 22: reservar mesa en Quanjude para las 19:45 (021-6418 1577, o que llame el hotel).' },

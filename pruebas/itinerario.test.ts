@@ -74,7 +74,7 @@ const TEXTOS_HEREDADOS = [
   'Sábado 24: comprar ya los trenes G7006 (上海站 09:00) y G7017 (南京站 14:57), y reservar el museo en cuanto se abra, hacia el miércoles 21: franja de entrada de 09:00 a 12:00 (se entra a las 11:10). Dudas: 025-8328 2255, de miércoles a domingo de 09:00 a 17:00.',
   'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.',
   'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.',
-  'Domingo 25: reservar el bufé del Yi Café (Pudong Shangri-La) para dos a las 18:30, +86 21 2828 6888 (487 ¥ con todo). Comprar la entrada de la Shanghai Tower (180 ¥) por internet.',
+  'Domingo 25: reservar el bufé del Yi Café (Pudong Shangri-La) para dos a las 18:30 en la web de reservas del Shangri-La (o al +86 21 2828 6888); 487 ¥ con todo. Comprar la entrada de la Shanghai Tower (180 ¥) por internet.',
   'Jueves 22: llamar al 189 3062 5815 (o que llame el hotel) para saber si el espectáculo nocturno de luces del jardín Kezhi de Zhujiajiao (朱家角光影幻境·课植园, 118 ¥, de 17:00 a 21:00) abre ese día. Si abre, se puede invertir el día: Yuyuan por la mañana y Zhujiajiao por la tarde.',
   'Sábado noche: mirar la programación y la entrada de Hush/INS para el 24.',
   'Jueves 22: reservar mesa en Quanjude para las 19:45 (021-6418 1577, o que llame el hotel).',
