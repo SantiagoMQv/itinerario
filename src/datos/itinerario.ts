@@ -208,7 +208,7 @@ export const itinerario: Itinerario = {
           hora: '07:00',
           fin: '08:50',
           notas:
-            'Llegada desde París. Air France y KLM operan en la Terminal 1 (confirmarlo en la tarjeta de embarque).\n' +
+            'Llegada desde París en el MU554 de China Eastern, a la Terminal 1 (confirmarlo en la tarjeta de embarque).\n' +
             'Inmigración, equipaje y traslado al hotel.',
         },
         {
@@ -545,7 +545,7 @@ export const itinerario: Itinerario = {
           notas:
             'Maleta: las de 90分 (NINETYGO) y Mijia son la opción china con mejor calidad/precio (policarbonato, ruedas silenciosas, candado TSA). Precios orientativos: 20″ ~200–500 ¥, 24″ ~300–700 ¥, 28″ ~460 ¥ en adelante.\n' +
             'Para comparar o si no hay existencias: en JD o Taobao son algo más baratas y llegan al hotel en 1–2 días. En los grandes almacenes de Nanjing Road predominan marcas internacionales más caras.\n' +
-            'Antes de elegir el tamaño, revisar la franquicia de equipaje de los cuatro vuelos, sobre todo el Barcelona–Málaga de Vueling (según la tarifa, podría hacer falta añadir la maleta).\n' +
+            'Tamaño: China Eastern deja facturar una maleta de hasta 23 kg y 158 cm sumando los tres lados (alto + ancho + fondo). En el Vueling Barcelona–Málaga del martes 27 la tarifa no incluye maleta: añadirla por internet.\n' +
             'Ropa imprescindible para Disneyland. Las tiendas cierran a las 22:00. Una hora da para poco: venir con la lista de la maleta y la ropa hecha.\n' +
             'Las luces del río Suzhou se apagan hacia las 21:30 entre semana (estimado): mejor ver la orilla antes.',
           subparadas: [
@@ -1922,22 +1922,34 @@ export const itinerario: Itinerario = {
       fecha: '2026-10-26',
       titulo: 'Regreso',
       ciudad: 'Shanghái',
-      notas: 'Salir del hotel a las 07:45–08:00. No dejar compras ni visitas para esta mañana.',
+      notas:
+        'Desayunar a las 07:00 (es cuando abre) y salir hacia las 07:50 en taxi o DiDi. No dejar compras ni visitas para esta mañana. La víspera y a las 07:30, mirar en DiDi o Amap cuánto se tarda.\n' +
+        'En Barcelona (23:05) los billetes son separados: hay que recoger las maletas y volver a facturarlas en Vueling para el VY1542 del martes a las 06:50 (el mostrador abre hacia las 04:50). La tarifa de Vueling no incluye maleta: añadirla antes por internet.',
       paradas: [
         {
           ...HOTEL,
           id: '20c7deab53916f84',
-          hora: '07:15',
+          hora: '07:00',
           fin: '07:50',
-          notas: 'Check-out.',
+          notas: 'Desayuno y check-out. Las baterías externas, en la mochila (no en la maleta facturada).',
         },
         {
           ...PVG,
           id: 'f41b9308a7ce265d',
           hora: '09:05',
           fin: '12:40',
-          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi (según tráfico)', min: 75 },
-          notas: 'Vuelo a las 12:40 hacia Ámsterdam; llegada a Barcelona a las 23:05. Martes 27: Barcelona 06:50 → Málaga 08:35.',
+          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi (~48 km, 190–240 ¥; 55–75 min en hora punta)', min: 75 },
+          notas:
+            'Vuelo MU771 de China Eastern a las 12:40, desde la Terminal 1. Mostradores de China Eastern en las zonas J, K, L o M, abiertos desde las 05:00. La facturación cierra a las 11:40 (mejor mucho antes) y la puerta, a las 12:20; si la puerta está en el satélite S1, sumar 10–15 min de tren interno. Se puede hacer el check-in online desde 48 h antes, pero las maletas se dejan en el mostrador.\n' +
+            'Devolución de impuestos (si hay compras con su código o formulario): ANTES de facturar, con las compras sin usar y a mano, al mostrador de aduanas de la 3.ª planta, junto al control de pasaportes; después de inmigración y del control de seguridad, cobrar en el mostrador cerca de la puerta 19. Llevar pasaporte, facturas (发票) y el código de devolución. Reservar 30–45 min: sin pasar por el mostrador de cobro se pierde.\n' +
+            'Baterías externas: solo en la mochila, 2 como máximo, de 100 Wh o menos, y sin usarlas ni cargarlas en el vuelo. Líquidos de 100 ml como máximo, en una bolsa transparente de 1 L.\n' +
+            'Para comer después del control: Blue Frog (hamburguesas, puerta 21), pho en 乐粉 (puerta 19), Seesaw Coffee (puerta 27).\n' +
+            'Llegada a Ámsterdam a las 17:45 y MU1843 (operado por KLM) a las 20:50; en Barcelona a las 23:05.\n' +
+            'El maglev (300 km/h, 8 min desde Longyang Road, 40 ¥ con billete de avión del día) tarda lo mismo que el taxi contando los transbordos: con maletas grandes y en hora punta no compensa.',
+          enlaces: [
+            enlace('Devolución de impuestos en Pudong', 'https://english.shanghai.gov.cn/en-TaxRefundandDutyFree/20240926/c63374ea0ec74e6992012115038db097.html'),
+            enlace('Equipaje de China Eastern', 'https://www.ceair.com/global/static/Announcement/BaggageService/checkinluggage02/CheckedBaggage002/'),
+          ],
         },
       ],
     },
@@ -1956,10 +1968,11 @@ export const itinerario: Itinerario = {
     {
       titulo: 'Vuelos',
       puntos: [
-        'Ida: lunes 19, Málaga 23:05 → Barcelona 00:40 (martes 20).',
-        'Martes 20: Barcelona 06:10 → París → Shanghái-Pudong, llegada el miércoles 21 a las 07:00.',
-        'Vuelta: lunes 26, Pudong 12:40 → Ámsterdam → Barcelona 23:05.',
-        'Martes 27: Barcelona 06:50 → Málaga 08:35.',
+        'Ida: lunes 19, Vueling VY2118, Málaga 23:05 → Barcelona 00:40 (martes 20).',
+        'Martes 20: China Eastern MU1706 (operado por Air France), Barcelona 06:10 → París CDG 08:05; MU554, París 13:25 → Shanghái-Pudong, llegada el miércoles 21 a las 07:00.',
+        'Vuelta: lunes 26, China Eastern MU771, Pudong T1 12:40 → Ámsterdam 17:45; MU1843 (operado por KLM), Ámsterdam 20:50 → Barcelona 23:05.',
+        'Martes 27: Vueling VY1542, Barcelona 06:50 → Málaga 08:35. Billete aparte: en Barcelona hay que recoger las maletas y volver a facturarlas.',
+        'Equipaje con China Eastern, por persona: objeto personal, maleta de mano de 8 kg (55 × 40 × 20 cm) y una facturada de 23 kg (158 cm sumando los tres lados). Con Vueling, solo el objeto personal: para traer la maleta de China, añadir una facturada en el VY1542.',
       ],
     },
     {
@@ -2001,7 +2014,7 @@ export const itinerario: Itinerario = {
     { id: '38f76ad0e1bc5492', texto: 'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.' },
     { id: 'd57b9016ce42a83f', texto: 'Sábado 24: comprar ya los trenes G7006 (上海站 09:00) y G7017 (南京站 14:57), y reservar el museo en cuanto se abra, hacia el miércoles 21: franja de entrada de 09:00 a 12:00 (se entra a las 11:10). Dudas: 025-8328 2255, de miércoles a domingo de 09:00 a 17:00.' },
     { id: '71ea52c093b6fd84', texto: 'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.' },
-    { id: 'b1f8074a6d3c92e5', texto: 'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.' },
+    { id: 'b1f8074a6d3c92e5', texto: 'Equipaje: añadir por internet una maleta facturada en el Vueling VY1542 (Barcelona–Málaga, martes 27 a las 06:50), que la tarifa no la incluye. Y decidir dónde pasar la noche en Barcelona (llegada a las 23:05 del lunes).' },
     { id: '095cbe73a24f681d', texto: 'Domingo 25: reservar el bufé del Yi Café (Pudong Shangri-La) para dos a las 18:30 en la web de reservas del Shangri-La (o al +86 21 2828 6888); 487 ¥ con todo. Comprar la entrada de la Shanghai Tower (180 ¥) por internet.' },
     { id: 'dbb04bf7fb5b181c', texto: 'Jueves 22: llamar al 189 3062 5815 (o que llame el hotel) para saber si el espectáculo nocturno de luces del jardín Kezhi de Zhujiajiao (朱家角光影幻境·课植园, 118 ¥, de 17:00 a 21:00) abre ese día. Si abre, se puede invertir el día: Yuyuan por la mañana y Zhujiajiao por la tarde.' },
     { id: 'ef64a20d831c7b95', texto: 'Sábado noche: mirar la programación y la entrada de Hush/INS para el 24.' },
