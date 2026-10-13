@@ -303,7 +303,10 @@ export function crearPortabilidadHistorica(opciones: OpcionesHistoria): Portabil
     importar: async (archivo) => {
       const archivado = await archivar(archivo, [], [], true);
       if (archivado.historia !== 'confirmada') return archivado;
-      return reintentar(archivado.trabajoId!);
+      const resultado = await reintentar(archivado.trabajoId!);
+      // El archivo ya está confirmado: un rechazo al releerlo o comprobarlo para restaurar sus fotos no lo deshace.
+      // Se devuelve esa etapa (archivada, sin fotos aún); no prueba resistencia física. Cualquier otro resultado, tal cual.
+      return resultado.tipo === 'rechazado-antes-escribir' ? archivado : resultado;
     },
   };
 }

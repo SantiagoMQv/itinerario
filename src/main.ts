@@ -20,6 +20,7 @@ import {
 import type { DestinoFoto } from './fotos';
 import { crearFotosUi } from './fotos-interfaz';
 import { descargaAnterior, descargarMapas, registrarServiceWorker } from './offline';
+import { componerPortabilidad } from './portabilidad-interfaz';
 import type { Operacion } from './progreso';
 import { capturarLegado, crearProgresoInterfaz, identidadDispositivo, resumenCompartido, uuidAleatorio } from './progreso-interfaz';
 import type { ResultadoAccion, ResultadoDeshacer, ResumenCompartido } from './progreso-interfaz';
@@ -189,6 +190,26 @@ const progreso = crearProgresoInterfaz({
   uuid: uuidAleatorio,
   http: (url, opciones) => fetch(url, opciones),
   alCambiar: () => alCambiarProgreso(),
+});
+
+// ---------- Copia de este móvil (portabilidad local) ----------
+
+// APAGADA en la web publicada: null → ni sección en «Todo», ni texto, ni base de historia, ni lecturas. Solo una
+// composición explícita en el código la activa, con presupuestos finitos de quien compone; no hay flag, entorno ni URL.
+const portabilidadUi = componerPortabilidad(null, {
+  plan: itinerario,
+  // Solo las tres claves anteriores; si no se puede leer el almacenamiento, falla (nunca equivale a «sin marcas»).
+  leerLegado: (campo) => {
+    const almacen = almacenLocal();
+    if (!almacen) throw new Error('No se puede leer el almacenamiento de este móvil');
+    return almacen.getItem(campo);
+  },
+  // El MISMO almacén de fotos de la interfaz (nunca otra conexión) e indexar lo restaurado sin escribir nada.
+  puerto: () => fotosUi.controlador.puerto?.() ?? null,
+  incorporar: (m) => fotosUi.controlador.incorporar?.(m),
+  progresoOcupado: () => progreso.vista.ocupado,
+  nombreDe: nombreFotos,
+  anunciar: (texto) => aviso(texto, 9000),
 });
 const paradaPorId = new Map(modelo.paradas.map((p) => [p.p.id, p]));
 const registroDe = (p: ParadaC) => {
@@ -1278,6 +1299,7 @@ function pintarLista(dia: DiaC) {
     filas.push(filaParada(p, false));
   }
   fotosUi.desmontar();
+  portabilidadUi?.desmontar();
   el.contenido.innerHTML = `
     <h2 class="titulo-lista"><span>Itinerario del día</span><small>${paradas(visitas)} · ${esc(km(dia.km))}</small></h2>
     <ol class="lista">${filas.join('')}</ol>
@@ -1385,6 +1407,7 @@ el.contenido.addEventListener('click', (e) => {
   const objetivo = e.target as HTMLElement;
   // Las fotos van antes: un toque en su bloque nunca pliega la ficha ni cambia la parada.
   if (fotosUi.manejarClic(objetivo)) return;
+  if (portabilidadUi?.manejarClic(objetivo)) return;
   if (objetivo.closest('[data-guardar-mapas]')) return el.offline.click();
   const ancla = objetivo.closest<HTMLAnchorElement>('a[href^="#"]');
   if (ancla) {
@@ -1674,6 +1697,7 @@ function pintarResumen() {
   ultimoCompartido = '';
   const antes = faltanDias() > 0;
   fotosUi.desmontar();
+  portabilidadUi?.desmontar();
   el.contenido.innerHTML = `
     ${bloqueAntes()}
     ${antes ? COMO_FUNCIONA : ''}
@@ -1710,6 +1734,7 @@ function pintarResumen() {
     }
     <section class="seccion compartido" id="compartido">${htmlCompartido()}</section>
     ${fotosUi.respaldoActivo ? '<section class="seccion fotos-viaje" id="fotos-viaje" data-fotos-viaje></section>' : ''}
+    ${portabilidadUi ? '<section class="seccion copia-movil" id="copia-movil" data-copia-movil></section>' : ''}
     ${modelo.secciones
       .map(
         (sec) => `<section class="seccion">
@@ -1724,6 +1749,9 @@ function pintarResumen() {
   // Solo existe con la composición del respaldo (la web publicada no la tiene). Pintar no consulta nada.
   const fotosViaje = el.contenido.querySelector<HTMLElement>('[data-fotos-viaje]');
   if (fotosViaje) fotosUi.montarFotosViaje(fotosViaje);
+  // Solo con la composición de portabilidad (la web publicada no la tiene). Pintar no lee ni abre nada.
+  const copia = el.contenido.querySelector<HTMLElement>('[data-copia-movil]');
+  if (copia) portabilidadUi?.montar(copia);
 }
 
 function contarPendientes() {

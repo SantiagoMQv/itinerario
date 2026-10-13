@@ -2305,6 +2305,74 @@ body.vista-todo .lista {
   color: var(--aviso);
 }
 
+/* «Copia de este móvil» en «Todo» (solo con la composición de portabilidad): preparar y descargar la copia, importar la
+   de otro móvil y consultar las importadas. Misma gramática de cuaderno que «Fotos del viaje»: filas con filo, sin tarjetas
+   ni modal; nada se pinta como éxito garantizado. */
+.copia-movil {
+  font-variant-numeric: tabular-nums;
+}
+.copia-movil h4 {
+  margin: 16px 0 4px;
+}
+.estado-copia,
+.estado-historia {
+  max-width: 34em;
+  margin: 0 0 8px;
+  font-size: 14.5px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+/* La pregunta antes de importar, en su sitio: nota de borde discontinuo (como lo que aún no ha pasado). */
+.confirmar-copia {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: 36em;
+  margin: 0 0 10px;
+  padding: 10px 12px;
+  border: 1.5px dashed var(--borde-fuerte);
+  border-radius: 8px;
+}
+.confirmar-copia-texto {
+  flex: 1 1 100%;
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.confirmar-copia[hidden],
+.acciones-copia:empty,
+.acciones-historia:empty {
+  display: none;
+}
+/* Igual que en «Fotos del viaje»: cada fila empieza en la columna de su línea de estado. */
+.copia-movil .filas-fotos-viaje,
+.copia-movil .copia-fotos {
+  margin: 0 0 8px;
+  padding-left: 0;
+  list-style: none;
+}
+.copia-movil .filas-fotos-viaje li + li {
+  margin-top: 0;
+}
+/* Lo consultado de una copia importada: bajo su fila, a todo su ancho. */
+.copia-detalle {
+  display: flex;
+  flex: 1 1 100%;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.copia-detalle p {
+  max-width: 34em;
+  margin: 0;
+  line-height: 1.4;
+}
+.copia-detalle .copia-fotos {
+  margin: 0;
+}
+
 /* Visor: pantalla completa de papel, como la tarjeta del taxista; se cierra con ✕, Escape o volver. */
 #visor-foto {
   position: fixed;
