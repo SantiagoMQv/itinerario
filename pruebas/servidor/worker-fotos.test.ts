@@ -1,5 +1,13 @@
+/// <reference lib="dom" />
+/// <reference lib="dom.iterable" />
+// Integración mixta navegador/Node: tipos DOM sólo en el proyecto de pruebas, no en el servidor productivo.
 import { readFile } from 'node:fs/promises';
 import { PGlite } from '@electric-sql/pglite';
+import { IDBFactory } from 'fake-indexeddb';
+import { crearClienteListadoFotos } from '../../src/fotos-listado';
+import { abrirFotosLocal } from '../../src/fotos-local';
+import { abrirRespaldoFotosLocal } from '../../src/fotos-respaldo-local';
+import { abrirProgresoLocal } from '../../src/progreso-local';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import worker, { type EntornoWorker } from '../../servidor/worker';
 import { itinerario as plan } from '../../src/datos/itinerario';
@@ -185,6 +193,51 @@ afterEach(async () => { await db.exec('ROLLBACK'); vi.useRealTimers(); vi.unstub
 afterAll(async () => { await db?.close(); });
 
 describe('Fotos Worker real + SDK real + SQL001–006 local; cookie reenviada en Node', () => {
+  it('Cliente manual descubre INITIAL confirmado del otro editor sin MUTAR SQL,R2 ni estado local', async () => {
+    const f = preparar(); const uno = await iniciar(f.entorno, 'uno'); const dos = await iniciar(f.entorno, 'dos');
+    expect((await worker.fetch(post(uno).solicitud, f.entorno)).status).toBe(201);
+    const fabrica = new IDBFactory();
+    const fotos = await abrirFotosLocal(plan, { fabrica });
+    const ledger = await abrirRespaldoFotosLocal(plan, fotos, { fabrica });
+    const progreso = await abrirProgresoLocal(plan, { fabrica, dispositivoId: 'local' });
+    const fotoId = 'CBCDEF12-1234-4123-8123-123456789ABD';
+    const captura = { metadatos: { ...base.original, fotoId, mimeDeclarado: 'image/png',
+      miniatura: { tipo: 'pendiente' as const } }, original: new Blob([new Uint8Array([1, 2, 3])], { type: 'image/png' }) };
+    await fotos.guardarOriginal(captura);
+    const referencia = await ledger.preparar(captura, 'CBCDEF12-1234-4123-8123-123456789ABC');
+    expect(referencia.fase).toBe('preparado');
+    await ledger.marcarEnviada({ fotoId: referencia.fotoId, operacionId: referencia.operacionId,
+      original: referencia.original });
+    await progreso.registrar({ id: 'intencion-listado', dispositivoId: 'local', tipo: 'parada',
+      paradaId: plan.dias[0].paradas[0].id, marca: 'hecha', revision: 0, horaReal: -0 });
+    const localAntes = { fotos: await fotos.listar(), ledger: await ledger.listar(), progreso: await progreso.leer(),
+      bytes: [...new Uint8Array(await (await fotos.leerOriginal(fotoId))!.arrayBuffer())] };
+    const antes = await snapshot(f.bucket);
+    const entorno = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: { ...presupuestoListado } };
+    let llamadas = 0;
+    const c = crearClienteListadoFotos({ plan, origen, presupuesto: { maxFilas: 1, maxBytesPagina: 404231,
+      maxBytesChunk: 4194304, maxBytesBackingChunk: 4194304, maxLecturas: 65536, maxBytesPlan: 4194304,
+      maxBytesRetenidos: 512 * 1024 ** 2, plazoMs: 10000 }, http: { async fetch(entrada, opciones) {
+      llamadas++; const r = new Request(entrada, opciones); r.headers.set('Cookie', dos);
+      const salida = await worker.fetch(r, entorno);
+      expect(salida.headers.get('Set-Cookie')).toBeNull(); return salida;
+    } } });
+    f.llamadas.length = 0; f.bucket.eventos.length = 0;
+    try {
+      expect(llamadas).toBe(0);
+      const resultado = await c.listar(null);
+      expect(resultado).toEqual({ tipo: 'pagina', pagina: { version: 1, tipo: 'listado-respaldos', viajeId: plan.id,
+        solicitudesIniciales: [serializarSolicitudRespaldo(plan, base)], continuacion: null } });
+      expect(llamadas).toBe(1);
+      expect(f.llamadas.filter((q) => q.query.includes('listar_fotos_confirmadas'))).toHaveLength(1);
+      expect(f.llamadas.filter((q) => q.query.includes('leer_sesion'))).toHaveLength(2);
+      expect(f.llamadas).toHaveLength(3); expect(f.bucket.eventos).toEqual([]);
+      expect(await snapshot(f.bucket)).toEqual(antes);
+      expect({ fotos: await fotos.listar(), ledger: await ledger.listar(), progreso: await progreso.leer(),
+        bytes: [...new Uint8Array(await (await fotos.leerOriginal(fotoId))!.arrayBuffer())] }).toEqual(localAntes);
+      expect(await fotos.leerMetadatos(base.fotoId)).toBeNull();
+    } finally { c.cerrar(); progreso.cerrar(); ledger.cerrar(); fotos.cerrar(); }
+  });
   it('lista INITIAL exacto tras login HMAC y respaldo 201 sin cambiar SQL ni R2', async () => {
     const f = preparar(); const cookie = await iniciar(f.entorno);
     expect((await worker.fetch(post(cookie).solicitud, f.entorno)).status).toBe(201);
