@@ -90,6 +90,140 @@ async function cargar(page: Page) {
   });
 }
 
+async function prepararAsociacionNativa(page: Page, duplicar = false) {
+  const transferencia = await page.evaluate(async (duplicar) => {
+    const c = window.fixturePortable;
+    const ids = [c.metadata.fotoId, '22345678-1234-4123-8123-123456789abc'];
+    // Estos CRC tienen diez dígitos: cambiar contenido no cambia la longitud del manifiesto.
+    const archivos = await Promise.all(['a', 'b'].map((texto, i) => c.portable.exportarArchivoPortable(c.plan, {
+      viajeId: c.plan.id, fotos: { presente: true, tablas: {
+        metadatos: [{ clave: ids[i], valor: { ...c.metadata, fotoId: ids[i], bytesOriginal: 1 } }],
+        originales: [{ clave: ids[i], valor: new Blob([texto], { type: 'image/heic' }) }], miniaturas: [],
+      } }, progreso: { presente: false, tablas: {} }, respaldos: { presente: false, tablas: {} },
+      legado: { marcas: null, 'marcas-hora': null, 'pendientes-hechos': null },
+    }, c.limites)));
+    const precondiciones = await Promise.all(archivos.map(async (a) => {
+      // La inspección productiva comprueba canonicidad, raíz, manifiesto y todos los CRC.
+      const v = await c.portable.inspeccionarArchivoPortable(c.plan, a.archivo, c.limites);
+      const m = v.manifiesto.captura.fotos.tablas.metadatos[0].valor as typeof c.metadata;
+      return { formato: v.manifiesto.formato, viaje: v.manifiesto.captura.viajeId,
+        progreso: v.manifiesto.captura.progreso, respaldos: v.manifiesto.captura.respaldos,
+        segmentos: v.manifiesto.segmentos, original: [...new Uint8Array(await v.leerSegmento(0).arrayBuffer())],
+        fotoId: m.fotoId, nombre: m.nombre, signoIncorporada: Object.is(m.incorporada, -0),
+        signoModificacion: Object.is(m.ultimaModificacion, -0), bytes: a.archivo.size };
+    }));
+    const historico = (trabajoId: string) => ({ trabajoId, archivo: archivos[1].archivo,
+      observaciones: [{ tipo: 'observadas' as const, transaccion: 'confirmada' as const,
+        fotos: [{ fotoId: ids[1], tipo: 'nueva' as const, derivacion: 'igual' as const }] }],
+      procedencias: [{ viajeId: c.plan.id, trabajoId }] });
+    const historia = [historico('32345678-1234-4123-8123-123456789abc')];
+    if (duplicar) historia.push(historico('42345678-1234-4123-8123-123456789abc'));
+    const presupuesto = { maxArchivos: 10, maxBytesConjunto: 80000000, maxBytesInventario: 1000000,
+      maxRegistrosConjunto: 10000, maxObservaciones: 1000, maxProcedencias: 1000 };
+    const conjunto = await c.portable.crearConjuntoRecuperacion(c.plan, archivos[0].archivo, historia, c.limites, presupuesto);
+    const valido = await c.portable.inspeccionarConjuntoRecuperacion(c.plan, conjunto, c.limites, presupuesto);
+    return { precondiciones, ids, viaje: c.plan.id, presupuesto,
+      referencias: valido.archivos.map((a) => a.referencia),
+      mismoBlob: !duplicar || conjunto.archivos[1].archivo === conjunto.archivos[2].archivo,
+      inventario: [...new Uint8Array(await conjunto.inventario.arrayBuffer())],
+      originales: await Promise.all(archivos.map(async (a) => [...new Uint8Array(await a.archivo.arrayBuffer())])),
+      asociaciones: conjunto.archivos.map((a) => ({ referencia: a.referencia, indice: a.referencia === 'actual' ? 0 : 1 })) };
+  }, duplicar);
+  expect(transferencia.ids[0]).not.toBe(transferencia.ids[1]);
+  expect(transferencia.ids[0].length).toBe(transferencia.ids[1].length);
+  expect(transferencia.precondiciones[0].bytes).toBe(transferencia.precondiciones[1].bytes);
+  for (const [i, p] of transferencia.precondiciones.entries()) {
+    expect(p).toMatchObject({ formato: 1, viaje: transferencia.viaje, fotoId: transferencia.ids[i],
+      nombre: '\0 e\u0301 ', signoIncorporada: true, signoModificacion: true,
+      progreso: { presente: false, tablas: {} }, respaldos: { presente: false, tablas: {} }, original: [i === 0 ? 97 : 98] });
+    expect(p.segmentos).toHaveLength(1);
+    expect(p.segmentos[0]).toMatchObject({ tabla: 'originales', clave: transferencia.ids[i],
+      offset: 0, bytes: 1, crc32: i === 0 ? 3904355907 : 1908338681 });
+  }
+  expect(transferencia.referencias).toEqual(duplicar
+    ? ['actual', 'historico-00000000', 'historico-00000001'] : ['actual', 'historico-00000000']);
+  expect(transferencia.mismoBlob).toBe(true);
+  return transferencia;
+}
+
+async function observarAsociacionNativa(page: Page, transferencia: Awaited<ReturnType<typeof prepararAsociacionNativa>>, intercambiar: boolean) {
+  return page.evaluate(async ({ transferencia, intercambiar }) => {
+    const c = window.fixturePortable;
+    const originales = transferencia.originales.map((bytes) => new Blob([new Uint8Array(bytes)]));
+    // La transferencia conserva todos los bytes; un fallo del fixture sale sin convertirse en rechazo.
+    for (const archivo of originales) await c.portable.inspeccionarArchivoPortable(c.plan, archivo, c.limites);
+    const inventario = new Blob([new Uint8Array(transferencia.inventario)]);
+    const archivos = transferencia.asociaciones.map((a) => ({ referencia: a.referencia,
+      archivo: originales[intercambiar ? 1 - a.indice : a.indice] }));
+    if (!intercambiar) archivos.reverse();
+    const opciones = { plan: c.plan, limites: c.limites, limitesHistoria: c.limitesHistoria };
+    const abrir = IDBFactory.prototype.open; let aperturas = 0;
+    IDBFactory.prototype.open = function (...args: Parameters<typeof abrir>) {
+      aperturas++; return abrir.apply(this, args);
+    };
+    let resultado;
+    try { resultado = await c.composicion.crearImportadorRecuperacionLocal(opciones).importarConjunto(
+      { inventario, archivos }, transferencia.presupuesto); }
+    finally { IDBFactory.prototype.open = abrir; }
+    const bases = await indexedDB.databases();
+    const fotos = await c.fotos.capturarFotosLocal(c.plan, c.limites);
+    const historia = await c.historia.crearPortabilidadHistorica(opciones).listar();
+    const original = fotos.tablas.originales?.find((a) => a.clave === transferencia.ids[0])?.valor as Blob | undefined;
+    const historica = fotos.tablas.originales?.find((a) => a.clave === transferencia.ids[1]);
+    return { resultado, aperturas, bases, fotoPresente: fotos.presente,
+      tablas: Object.fromEntries(Object.entries(fotos.tablas).map(([tabla, filas]) => [tabla, filas.map((f) => f.clave)])),
+      actual: original ? [...new Uint8Array(await original.arrayBuffer())] : null, historicaPresente: !!historica,
+      guardados: await Promise.all(historia.map(async (h) => [...new Uint8Array(await h.archivo.arrayBuffer())])),
+      procedencias: historia.map((h) => h.procedencias),
+      referencias: archivos.map((a) => a.referencia),
+      mismoBlob: archivos.length === 3 && archivos[0].archivo === archivos[1].archivo };
+  }, { transferencia, intercambiar });
+}
+
+test('rechaza el intercambio de archivos válidos antes de abrir el destino', async ({ page, browser }) => {
+  const transferencia = await prepararAsociacionNativa(page);
+  const contexto = await browser.newContext(); const destino = await contexto.newPage();
+  await destino.route('**/*', (r) => {
+    if (new URL(r.request().url()).origin === origen) return r.continue();
+    solicitudesExternas++; return r.abort();
+  });
+  try {
+    await destino.goto(origen); await cargar(destino);
+    const r = await observarAsociacionNativa(destino, transferencia, true);
+    // Primer aserto RED: apertura real del destino con archivos individualmente válidos.
+    expect(r.aperturas).toBe(0);
+    expect(r.resultado).toEqual({ tipo: 'rechazado-antes-escribir', trabajos: [], actual: null });
+    expect(r.bases).toEqual([]); expect(r.fotoPresente).toBe(false); expect(r.tablas).toEqual({});
+    expect(r.actual).toBeNull(); expect(r.historicaPresente).toBe(false); expect(r.guardados).toEqual([]);
+  } finally { await contexto.close(); }
+});
+
+test('acepta parejas reordenadas y conserva el mismo histórico bajo referencias distintas', async ({ page, browser }) => {
+  const transferencia = await prepararAsociacionNativa(page, true);
+  const contexto = await browser.newContext(); const destino = await contexto.newPage();
+  await destino.route('**/*', (r) => {
+    if (new URL(r.request().url()).origin === origen) return r.continue();
+    solicitudesExternas++; return r.abort();
+  });
+  try {
+    await destino.goto(origen); await cargar(destino);
+    const r = await observarAsociacionNativa(destino, transferencia, false);
+    expect(r.referencias).toEqual(['historico-00000001', 'historico-00000000', 'actual']);
+    expect(r.mismoBlob).toBe(true);
+    expect(r.resultado).toMatchObject({ tipo: 'historia-confirmada', actual: { fotos: { tipo: 'observadas' } } });
+    expect(r.resultado.trabajos).toHaveLength(3); expect(r.guardados).toHaveLength(3);
+    for (const [i, original] of transferencia.originales.entries()) {
+      expect(r.guardados.filter((b) => b.length === original.length && b.every((v, j) => v === original[j])))
+        .toHaveLength(i === 0 ? 1 : 2);
+    }
+    expect(r.actual).toEqual([97]); expect(r.historicaPresente).toBe(false);
+    expect(r.tablas).toEqual({ metadatos: [transferencia.ids[0]], originales: [transferencia.ids[0]], miniaturas: [] });
+    for (const trabajoId of ['32345678-1234-4123-8123-123456789abc', '42345678-1234-4123-8123-123456789abc']) {
+      expect(r.procedencias.filter((ps) => ps.some((p) => p.trabajoId === trabajoId && p.viajeId === transferencia.viaje))).toHaveLength(1);
+    }
+  } finally { await contexto.close(); }
+});
+
 test('M1: catálogo inválido se rechaza en siete fronteras sin aperturas, legacy ni lecturas binarias; control válido ausente', async ({ page }) => {
   const r = await page.evaluate(async () => {
     const c = window.fixturePortable; const antes = await indexedDB.databases();
@@ -605,7 +739,7 @@ test('conjunto nativo corrupto último histórico/extras/límites y archivo trun
         let archivos = [...conjunto.archivos]; const limites = { ...presupuesto }; let inventario = conjunto.inventario;
         if (caso === 'ultimo-crc') { const a = archivos[1]; archivos[1] = { ...a, archivo: new Blob([a.archivo.slice(0, -1), new Uint8Array([255])]) }; }
         if (caso === 'inventario-extra' || caso === 'version') {
-          const m = JSON.parse(await conjunto.inventario.text()); if (caso === 'version') m.formato = 2; else m.extra = true;
+          const m = JSON.parse(await conjunto.inventario.text()); if (caso === 'version') m.formato = 3; else m.extra = true;
           inventario = new Blob([c.portable.codificarJsonFiel(m, c.limites)]);
         }
         if (caso === 'no-canonico') inventario = new Blob([' ', conjunto.inventario]);

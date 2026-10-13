@@ -1,4 +1,5 @@
 import type { Itinerario } from './tipos';
+import { algoritmoHuellaPortable, calcularHuellaPortable, type VinculoPortable } from './huella-portable';
 import { crearProgreso } from './progreso';
 import { tamanoBlob, tipoBlob, type MetadatosFoto, type FotoBorrada } from './fotos';
 import type { RegistroLocal } from './progreso-local';
@@ -476,15 +477,18 @@ export interface LimitesConjunto {
   readonly maxRegistrosConjunto: number; readonly maxObservaciones: number; readonly maxProcedencias: number;
 }
 export interface EntradaInventario {
+  readonly vinculo: VinculoPortable;
   readonly referencia: string; readonly tipo: 'actual' | 'historico'; readonly trabajoOrigen: string | null;
   readonly observaciones: readonly ObservacionHistorica[]; readonly procedencias: readonly ProcedenciaHistorica[];
 }
 export interface InventarioRecuperacion {
-  readonly formato: 1; readonly alcance: 'fuentes-durables-declaradas'; readonly viajeId: string;
+  readonly formato: 2; readonly alcance: 'fuentes-durables-declaradas'; readonly viajeId: string;
   readonly actual: 'actual'; readonly fuentes: readonly ['fotos', 'progreso', 'respaldos', 'legado', 'historia'];
   readonly archivos: readonly EntradaInventario[];
 }
-/** Conjunto plano: inventario UTF8 y archivos ITINPORTv1 originales, sin ZIP ni envelope recursivo. */
+/** Conjunto plano: inventario v2 y archivos ITINPORTv1 originales, sin ZIP ni envelope recursivo.
+ * El vínculo sólo detecta contenido distinto con inventario intacto: no es firma, autoría,
+ * ACK, objeto remoto, lease ni testigo del ganador de una reserva. No adopta autoridad. */
 export interface ConjuntoRecuperacion {
   readonly inventario: Blob; readonly archivos: readonly { readonly referencia: string; readonly archivo: Blob }[];
 }
@@ -531,14 +535,19 @@ export async function inspeccionarConjuntoRecuperacion(planEntrada: Itinerario, 
   const limitesInventario = { ...limites, maxBytesMetadatos: presupuesto.maxBytesInventario };
   if (codificarJsonFiel(desconocido, limitesInventario) !== texto) fallo('inventario no canónico');
   exigirCampos(desconocido, ['formato', 'alcance', 'viajeId', 'actual', 'fuentes', 'archivos']);
-  if (desconocido.formato !== 1 || desconocido.alcance !== 'fuentes-durables-declaradas'
+  if (desconocido.formato === 1) fallo('inventario v1 sin vínculo; recuperar los archivos individuales');
+  if (desconocido.formato !== 2 || desconocido.alcance !== 'fuentes-durables-declaradas'
     || desconocido.viajeId !== plan.id || desconocido.actual !== 'actual'
     || JSON.stringify(desconocido.fuentes) !== JSON.stringify(fuentesConjunto)
     || !Array.isArray(desconocido.archivos) || desconocido.archivos.length !== archivos.length) fallo('inventario incompatible');
   const inventario = desconocido as unknown as InventarioRecuperacion;
   const declaradas = new Set<string>(); let observaciones = 0; let procedencias = 0; let actuales = 0;
   for (const a of inventario.archivos) {
-    exigirCampos(a, ['referencia', 'tipo', 'trabajoOrigen', 'observaciones', 'procedencias']);
+    exigirCampos(a, ['referencia', 'tipo', 'trabajoOrigen', 'observaciones', 'procedencias', 'vinculo']);
+    exigirCampos(a.vinculo, ['algoritmo', 'bytes', 'huella']);
+    if (a.vinculo.algoritmo !== algoritmoHuellaPortable || !Number.isSafeInteger(a.vinculo.bytes)
+      || a.vinculo.bytes < 0 || typeof a.vinculo.huella !== 'string' || !/^[0-9a-f]{64}$/.test(a.vinculo.huella)
+      || a.vinculo.bytes !== tamanoBlob(archivos.find((f) => f.referencia === a.referencia)?.archivo)) fallo('vínculo inválido');
     if (!referenciaConjunto(a.referencia) || declaradas.has(a.referencia) || !refs.has(a.referencia)) fallo('inventario no exacto');
     declaradas.add(a.referencia);
     if (a.referencia === 'actual') {
@@ -556,6 +565,9 @@ export async function inspeccionarConjuntoRecuperacion(planEntrada: Itinerario, 
     || procedencias > presupuesto.maxProcedencias) fallo('inventario incompleto/excesivo');
   const salida: ConjuntoInspeccionado['archivos'][number][] = []; let registros = 0;
   for (const a of archivos) {
+    const vinculo = inventario.archivos.find((f) => f.referencia === a.referencia)!.vinculo;
+    const calculado = await calcularHuellaPortable(a.archivo, limites.maxBytesArchivo);
+    if (calculado.huella !== vinculo.huella) fallo('huella del archivo incompatible con inventario');
     const inspeccion = await inspeccionarArchivoPortable(plan, a.archivo, limites);
     for (const base of [inspeccion.manifiesto.captura.fotos, inspeccion.manifiesto.captura.progreso, inspeccion.manifiesto.captura.respaldos]) {
       for (const lista of Object.values(base.tablas)) registros = suma(registros, lista.length);
@@ -576,6 +588,7 @@ export async function crearConjuntoRecuperacion(planEntrada: Itinerario, actual:
   if (!Array.isArray(historiaEntrada) || suma(historiaEntrada.length, 1) > presupuesto.maxArchivos
     || historiaEntrada.length > 99999999) fallo('maxArchivos excedido');
   let total = tamanoBlob(actual); let obs = 0; let procedencias = 0;
+  if (total > limites.maxBytesArchivo) fallo('archivo actual excesivo');
   for (const h of historiaEntrada) {
     exigirCampos(h, ['trabajoId', 'archivo', 'observaciones', 'procedencias']);
     if (typeof h.trabajoId !== 'string' || !h.trabajoId.length || h.trabajoId.length > 512
@@ -588,17 +601,40 @@ export async function crearConjuntoRecuperacion(planEntrada: Itinerario, actual:
     total = suma(total, bytes); obs = suma(obs, h.observaciones.length); procedencias = suma(procedencias, h.procedencias.length);
   }
   if (total > presupuesto.maxBytesConjunto || obs > presupuesto.maxObservaciones || procedencias > presupuesto.maxProcedencias) fallo('presupuesto agregado excedido');
-  const historia = structuredClone(historiaEntrada);
-  const entradas: EntradaInventario[] = [{ referencia: 'actual', tipo: 'actual', trabajoOrigen: null, observaciones: [], procedencias: [] }];
+  // Conserva los Blob originales por referencia; copia sólo metadata fiel antes de await.
+  const historia = historiaEntrada.map((h) => ({ archivo: h.archivo,
+    ...JSON.parse(codificarJsonFiel({ trabajoId: h.trabajoId, observaciones: h.observaciones,
+      procedencias: h.procedencias }, { ...limites, maxBytesMetadatos: presupuesto.maxBytesInventario })) as
+      Pick<typeof h, 'trabajoId' | 'observaciones' | 'procedencias'> }));
+  const provisional = (archivo: Blob): VinculoPortable => ({ algoritmo: algoritmoHuellaPortable,
+    bytes: tamanoBlob(archivo), huella: '0'.repeat(64) });
+  const entradas: EntradaInventario[] = [{ referencia: 'actual', tipo: 'actual', trabajoOrigen: null,
+    observaciones: [], procedencias: [], vinculo: provisional(actual) }];
   const archivos = [{ referencia: 'actual', archivo: actual }];
   for (const [i, h] of historia.entries()) {
     const referencia = `historico-${String(i).padStart(8, '0')}`;
-    entradas.push({ referencia, tipo: 'historico', trabajoOrigen: h.trabajoId, observaciones: h.observaciones, procedencias: h.procedencias });
+    entradas.push({ referencia, tipo: 'historico', trabajoOrigen: h.trabajoId, observaciones: h.observaciones,
+      procedencias: h.procedencias, vinculo: provisional(h.archivo) });
     archivos.push({ referencia, archivo: h.archivo });
   }
-  const inventario: InventarioRecuperacion = { formato: 1, alcance: 'fuentes-durables-declaradas', viajeId: plan.id,
+  const inventario: InventarioRecuperacion = { formato: 2, alcance: 'fuentes-durables-declaradas', viajeId: plan.id,
     actual: 'actual', fuentes: fuentesConjunto, archivos: entradas };
-  const texto = codificarJsonFiel(inventario, { ...limites, maxBytesMetadatos: presupuesto.maxBytesInventario });
+  const limitesInventario = { ...limites, maxBytesMetadatos: presupuesto.maxBytesInventario };
+  // Los 64 dígitos provisionales tienen el mismo coste UTF8 que la huella definitiva.
+  const previo = codificarJsonFiel(inventario, limitesInventario);
+  if (suma(total, codificador.encode(previo).length) > presupuesto.maxBytesConjunto) fallo('maxBytesConjunto excedido');
+  let registros = 0;
+  for (const a of archivos) {
+    const inspeccion = await inspeccionarArchivoPortable(plan, a.archivo, limites);
+    for (const base of [inspeccion.manifiesto.captura.fotos, inspeccion.manifiesto.captura.progreso, inspeccion.manifiesto.captura.respaldos]) {
+      for (const lista of Object.values(base.tablas)) registros = suma(registros, lista.length);
+    }
+    if (registros > presupuesto.maxRegistrosConjunto) fallo('maxRegistrosConjunto excedido');
+  }
+  for (const [i, a] of archivos.entries()) {
+    entradas[i] = { ...entradas[i], vinculo: await calcularHuellaPortable(a.archivo, limites.maxBytesArchivo) };
+  }
+  const texto = codificarJsonFiel(inventario, limitesInventario);
   const conjunto = { inventario: new Blob([texto], { type: 'application/json' }), archivos };
   await inspeccionarConjuntoRecuperacion(plan, conjunto, limites, presupuesto);
   return conjunto;

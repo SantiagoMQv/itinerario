@@ -2,7 +2,7 @@ import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
 import { abrirFotosLocal, capturarFotosLocal } from '../src/fotos-local';
 import { abrirProgresoLocal, capturarProgresoLocal } from '../src/progreso-local';
 import { abrirRespaldoFotosLocal, capturarRespaldoFotosLocal } from '../src/fotos-respaldo-local';
-import { inspeccionarArchivoPortable, exportarArchivoPortable, inspeccionarConjuntoRecuperacion, codificarJsonFiel } from '../src/portabilidad';
+import { inspeccionarArchivoPortable, exportarArchivoPortable, inspeccionarConjuntoRecuperacion, crearConjuntoRecuperacion, codificarJsonFiel } from '../src/portabilidad';
 import { crearPortabilidadHistorica } from '../src/portabilidad-historico';
 import { aplicarOperacion, crearProgreso } from '../src/progreso';
 import { describe, expect, it, vi } from 'vitest';
@@ -60,7 +60,95 @@ function planConCatalogoInvalido(caso: typeof casosCatalogoInvalido[number]) {
 const limitesConjunto = { maxArchivos: 20, maxBytesConjunto: 40000000, maxBytesInventario: 100000,
   maxRegistrosConjunto: 1000, maxObservaciones: 1000, maxProcedencias: 1000 };
 const presupuestoHistoria = { maxImportaciones: 20, maxObservaciones: 1000, maxProcedencias: 1000, maxBytesHistoria: 40000000 };
+async function prepararAsociacionConjunto() {
+  // CRC-32 de «a» y «b»: ambos tienen diez dígitos decimales en el manifiesto.
+  const originales = [new Blob(['a'], { type: 'image/heic' }), new Blob(['b'], { type: 'image/heic' })];
+  const ids = [fotoId, borradaId];
+  const archivos = await Promise.all(originales.map((original, i) => exportarArchivoPortable(itinerario, {
+    viajeId: itinerario.id,
+    fotos: { presente: true, tablas: {
+      metadatos: [{ clave: ids[i], valor: { ...metadata(1), fotoId: ids[i] } }],
+      originales: [{ clave: ids[i], valor: original }], miniaturas: [],
+    } },
+    progreso: { presente: false, tablas: {} }, respaldos: { presente: false, tablas: {} },
+    legado: { marcas: null, 'marcas-hora': null, 'pendientes-hechos': null },
+  }, limites)));
+  // El inspector real comprueba cabecera, JSON canónico, raíz y todos los CRC/segmentos.
+  for (const [i, archivo] of archivos.entries()) {
+    const inspeccion = await inspeccionarArchivoPortable(itinerario, archivo.archivo, limites);
+    expect(inspeccion.manifiesto.formato).toBe(1);
+    expect(inspeccion.manifiesto.captura.viajeId).toBe(itinerario.id);
+    expect(inspeccion.manifiesto.captura.progreso).toEqual({ presente: false, tablas: {} });
+    expect(inspeccion.manifiesto.captura.respaldos).toEqual({ presente: false, tablas: {} });
+    expect(inspeccion.manifiesto.segmentos).toHaveLength(1);
+    expect(inspeccion.manifiesto.segmentos[0]).toMatchObject({ tabla: 'originales', clave: ids[i],
+      offset: 0, bytes: 1, crc32: i === 0 ? 3904355907 : 1908338681 });
+    expect([...new Uint8Array(await inspeccion.leerSegmento(0).arrayBuffer())]).toEqual([i === 0 ? 97 : 98]);
+    const metadatos = inspeccion.manifiesto.captura.fotos.tablas.metadatos[0].valor as ReturnType<typeof metadata>;
+    expect(metadatos.fotoId).toBe(ids[i]); expect(metadatos.nombre).toBe('\0 e\u0301 ');
+    expect(Object.is(metadatos.incorporada, -0)).toBe(true);
+    expect(Object.is(metadatos.ultimaModificacion, -0)).toBe(true);
+  }
+  expect(ids[0]).not.toBe(ids[1]); expect(ids[0].length).toBe(ids[1].length);
+  expect(archivos[0].archivo.size).toBe(archivos[1].archivo.size);
+  const historico = (trabajoId: string) => ({ trabajoId, archivo: archivos[1].archivo,
+    observaciones: [{ tipo: 'observadas' as const, transaccion: 'confirmada' as const,
+      fotos: [{ fotoId: ids[1], tipo: 'nueva' as const, derivacion: 'igual' as const }] }],
+    procedencias: [{ viajeId: itinerario.id, trabajoId }] });
+  return { archivos, historico };
+}
+
 describe('exportación con historia separada', () => {
+  it('rechaza el intercambio de archivos válidos antes de abrir el destino', async () => {
+    const { archivos, historico } = await prepararAsociacionConjunto();
+    const conjunto = await crearConjuntoRecuperacion(itinerario, archivos[0].archivo,
+      [historico(operacionId)], limites, limitesConjunto);
+    const valido = await inspeccionarConjuntoRecuperacion(itinerario, conjunto, limites, limitesConjunto);
+    expect(valido.archivos.map((a) => a.referencia)).toEqual(['actual', 'historico-00000000']);
+    const intercambiado = { inventario: conjunto.inventario, archivos: conjunto.archivos.map((a, i) =>
+      ({ referencia: a.referencia, archivo: conjunto.archivos[1 - i].archivo })) };
+    expect(intercambiado.inventario).toBe(conjunto.inventario);
+    expect(intercambiado.archivos[0].archivo).toBe(conjunto.archivos[1].archivo);
+    expect(intercambiado.archivos[1].archivo).toBe(conjunto.archivos[0].archivo);
+    const destino = new IDBFactory(); const aperturas = vi.spyOn(destino, 'open');
+    const opciones = { plan: itinerario, limites, limitesHistoria: presupuestoHistoria, fabrica: destino };
+    try {
+      const resultado = await crearImportadorRecuperacionLocal(opciones).importarConjunto(intercambiado, limitesConjunto);
+      // Primer aserto RED: IO real indebido, no una excepción artificial del puerto.
+      expect(aperturas).not.toHaveBeenCalled();
+      expect(resultado).toEqual({ tipo: 'rechazado-antes-escribir', trabajos: [], actual: null });
+      expect(await destino.databases()).toEqual([]);
+      expect(await capturarFotosLocal(itinerario, limites, { fabrica: destino })).toEqual({ presente: false, tablas: {} });
+      expect(await crearPortabilidadHistorica(opciones).listar()).toEqual([]);
+    } finally { aperturas.mockRestore(); }
+  });
+  it('acepta parejas reordenadas y conserva el mismo histórico bajo referencias distintas', async () => {
+    const { archivos, historico } = await prepararAsociacionConjunto();
+    const conjunto = await crearConjuntoRecuperacion(itinerario, archivos[0].archivo,
+      [historico(operacionId), historico('42345678-1234-4123-8123-123456789abc')], limites, limitesConjunto);
+    const reordenado = { inventario: conjunto.inventario, archivos: [...conjunto.archivos].reverse() };
+    expect(conjunto.archivos[1].archivo).toBe(conjunto.archivos[2].archivo);
+    const inspeccion = await inspeccionarConjuntoRecuperacion(itinerario, reordenado, limites, limitesConjunto);
+    expect(inspeccion.archivos.map((a) => a.referencia)).toEqual(['historico-00000001', 'historico-00000000', 'actual']);
+    const destino = new IDBFactory(); const opciones = { plan: itinerario, limites,
+      limitesHistoria: presupuestoHistoria, fabrica: destino };
+    const resultado = await crearImportadorRecuperacionLocal(opciones).importarConjunto(reordenado, limitesConjunto);
+    expect(resultado).toMatchObject({ tipo: 'historia-confirmada', actual: { fotos: { tipo: 'observadas' } } });
+    expect(resultado.trabajos).toHaveLength(3);
+    const historia = await crearPortabilidadHistorica(opciones).listar(); expect(historia).toHaveLength(3);
+    const bytesA = [...new Uint8Array(await archivos[0].archivo.arrayBuffer())];
+    const bytesB = [...new Uint8Array(await archivos[1].archivo.arrayBuffer())];
+    const guardados = await Promise.all(historia.map(async (h) => [...new Uint8Array(await h.archivo.arrayBuffer())]));
+    expect(guardados.filter((b) => b.length === bytesB.length && b.every((v, i) => v === bytesB[i]))).toHaveLength(2);
+    expect(guardados.filter((b) => b.length === bytesA.length && b.every((v, i) => v === bytesA[i]))).toHaveLength(1);
+    const fotos = await abrirFotosLocal(itinerario, { fabrica: destino });
+    try {
+      expect(await (await fotos.leerOriginal(fotoId))!.text()).toBe('a');
+      expect(await fotos.leerOriginal(borradaId)).toBeNull();
+    } finally { fotos.cerrar(); }
+    expect(historia.filter((h) => h.procedencias.some((p) => p.trabajoId === operacionId))).toHaveLength(1);
+    expect(historia.filter((h) => h.procedencias.some((p) => p.trabajoId === '42345678-1234-4123-8123-123456789abc'))).toHaveLength(1);
+  });
   it.each([-1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])('presupuesto conjunto inseguro %s se rechaza sin aperturas', async (n) => {
     const fabrica = new IDBFactory(); const abrir = vi.spyOn(fabrica, 'open');
     await expect(crearExportadorLocal({ plan: itinerario, limites, fabrica, leerLegado: () => null })
@@ -108,7 +196,7 @@ describe('exportación con historia separada', () => {
     if (caso === 'ultimo-crc') archivos[1] = { ...archivos[1], archivo: new Blob([archivos[1].archivo.slice(0, -1), new Uint8Array([255])]) };
     if (caso === 'inventario-no-canonico') inventario = new Blob([' ', c.inventario]);
     if (caso === 'inventario-extra' || caso === 'version') {
-      const m = JSON.parse(await c.inventario.text()); if (caso === 'version') m.formato = 2; else m.extra = true;
+      const m = JSON.parse(await c.inventario.text()); if (caso === 'version') m.formato = 3; else m.extra = true;
       inventario = new Blob([codificarJsonFiel(m, limites)]);
     }
     if (caso === 'limite-bytes') presupuesto.maxBytesConjunto = 1;

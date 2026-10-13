@@ -3,7 +3,7 @@ import { Buffer } from 'node:buffer';
 import { crearProgreso } from '../src/progreso';
 import { itinerario } from '../src/datos/itinerario';
 import { codificarJsonFiel, exportarArchivoPortable, inspeccionarArchivoPortable, crearConjuntoRecuperacion,
-  type CapturaPortable, type LimitesPortables } from '../src/portabilidad';
+  inspeccionarConjuntoRecuperacion, type CapturaPortable, type LimitesPortables } from '../src/portabilidad';
 // Comparación completa nativa de bytes: evita la aserción estructural de cada índice.
 function comprobarBytesIguales(actual: Uint8Array, esperados: Uint8Array): void {
   expect(actual.byteLength).toBe(esperados.byteLength);
@@ -281,5 +281,72 @@ describe('archivo portable completo, no autenticación ni importador', () => {
     await expect(exportarArchivoPortable(itinerario, { ...c, progreso: { presente: true,
       tablas: { viajes: lista as unknown as import('../src/portabilidad').RegistroPortable[] } } }, limites)).rejects.toThrow();
     expect(getter).not.toHaveBeenCalled();
+  });
+});
+
+const presupuestoConjunto = { maxArchivos: 10, maxBytesConjunto: 40000000, maxBytesInventario: 100000,
+  maxRegistrosConjunto: 1000, maxObservaciones: 1000, maxProcedencias: 1000 };
+describe('inventario v2 con vínculo obligatorio del Blob completo', () => {
+  it.each(['v1', 'ausente', 'algoritmo', 'bytes', 'huella', 'mayusculas', 'extra'] as const)
+  ('rechaza vínculo %s antes de leer archivos', async (caso) => {
+    const archivo = (await exportarArchivoPortable(itinerario, captura(), limites)).archivo;
+    const conjunto = await crearConjuntoRecuperacion(itinerario, archivo, [], limites, presupuestoConjunto);
+    const m = JSON.parse(await conjunto.inventario.text()); expect(m.formato).toBe(2);
+    if (caso === 'v1') { m.formato = 1; delete m.archivos[0].vinculo; }
+    if (caso === 'ausente') delete m.archivos[0].vinculo;
+    if (caso === 'algoritmo') m.archivos[0].vinculo.algoritmo = 'sha256';
+    if (caso === 'bytes') m.archivos[0].vinculo.bytes++;
+    if (caso === 'huella') m.archivos[0].vinculo.huella = '0';
+    if (caso === 'mayusculas') m.archivos[0].vinculo.huella = 'A'.repeat(64);
+    if (caso === 'extra') m.archivos[0].vinculo.extra = true;
+    const inventario = new Blob([codificarJsonFiel(m, limites)]);
+    const leer = vi.spyOn(Blob.prototype, 'arrayBuffer'); const digest = vi.spyOn(crypto.subtle, 'digest');
+    try {
+      await expect(inspeccionarConjuntoRecuperacion(itinerario, { inventario, archivos: conjunto.archivos },
+        limites, presupuestoConjunto)).rejects.toThrow(caso === 'v1' ? 'inventario v1 sin vínculo' : undefined);
+      expect(leer).toHaveBeenCalledTimes(1); expect(leer.mock.instances[0]).toBe(inventario);
+      expect(digest).not.toHaveBeenCalled();
+    } finally { leer.mockRestore(); digest.mockRestore(); }
+    // Recuperación individual antigua sigue disponible, sin migración.
+    expect((await inspeccionarArchivoPortable(itinerario, archivo, limites)).manifiesto.formato).toBe(1);
+  });
+  it('digest de forma válida pero distinto rechaza contenido', async () => {
+    const archivo = (await exportarArchivoPortable(itinerario, captura(), limites)).archivo;
+    const conjunto = await crearConjuntoRecuperacion(itinerario, archivo, [], limites, presupuestoConjunto);
+    const m = JSON.parse(await conjunto.inventario.text());
+    m.archivos[0].vinculo.huella = '0'.repeat(64);
+    await expect(inspeccionarConjuntoRecuperacion(itinerario, { archivos: conjunto.archivos,
+      inventario: new Blob([codificarJsonFiel(m, limites)]) }, limites, presupuestoConjunto)).rejects.toThrow('huella');
+  });
+  it.each(['inventario', 'total', 'archivo', 'observaciones', 'archivos'] as const)
+  ('constructor verifica presupuesto %s antes de leer/resumir', async (caso) => {
+    const archivo = (await exportarArchivoPortable(itinerario, captura(), limites)).archivo;
+    const presupuesto = { ...presupuestoConjunto }; const individuales = { ...limites };
+    const historia = [{ trabajoId: 'origen', archivo,
+      observaciones: [{ tipo: 'sin-fotos' as const, transaccion: 'no-intentada' as const, fotos: [] }], procedencias: [] }];
+    if (caso === 'inventario') presupuesto.maxBytesInventario = 1;
+    if (caso === 'total') presupuesto.maxBytesConjunto = archivo.size * 2;
+    if (caso === 'archivo') individuales.maxBytesArchivo = archivo.size - 1;
+    if (caso === 'observaciones') presupuesto.maxObservaciones = 0;
+    if (caso === 'archivos') presupuesto.maxArchivos = 1;
+    const leer = vi.spyOn(Blob.prototype, 'arrayBuffer'); const digest = vi.spyOn(crypto.subtle, 'digest');
+    try {
+      await expect(crearConjuntoRecuperacion(itinerario, archivo, historia, individuales, presupuesto)).rejects.toThrow();
+      expect(leer).not.toHaveBeenCalled(); expect(digest).not.toHaveBeenCalled();
+    } finally { leer.mockRestore(); digest.mockRestore(); }
+  });
+  it('fija metadata, plan, límites y originales antes de await sin clonar los Blob', async () => {
+    const archivo = (await exportarArchivoPortable(itinerario, captura(), limites)).archivo;
+    const plan = structuredClone(itinerario); const presupuesto = { ...presupuestoConjunto };
+    const individuales = { ...limites };
+    const historia = [{ trabajoId: ' RAW\0 e\u0301 ', archivo, observaciones: [], procedencias: [] }];
+    const pendiente = crearConjuntoRecuperacion(plan, archivo, historia, individuales, presupuesto);
+    historia[0].trabajoId = 'mutado'; historia[0].archivo = new Blob(['incompatible']);
+    Object.assign(plan, { id: '' }); presupuesto.maxBytesConjunto = 0; individuales.maxBytesArchivo = 0;
+    const conjunto = await pendiente;
+    expect(conjunto.archivos[0].archivo).toBe(archivo); expect(conjunto.archivos[1].archivo).toBe(archivo);
+    const inspeccion = await inspeccionarConjuntoRecuperacion(itinerario, conjunto, limites, presupuestoConjunto);
+    expect(inspeccion.inventario.archivos[1].trabajoOrigen).toBe(' RAW\0 e\u0301 ');
+    expect(inspeccion.inventario.archivos[0].vinculo).toEqual(inspeccion.inventario.archivos[1].vinculo);
   });
 });
