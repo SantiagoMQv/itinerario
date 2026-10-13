@@ -56,11 +56,11 @@ const CLAVES_HEREDADAS = [
   '2026-10-24|23:45|Hush (INS Land)',
   '2026-10-24|26:30|Hotel Aqua Suhe NO.1',
   '2026-10-25|11:45|Museo de Historia Natural de Shanghái',
-  '2026-10-25|14:20|Comida en el n.º 98 de Wukang Road',
-  '2026-10-25|15:25|Wukang Road y Wukang Mansion',
-  '2026-10-25|16:05|13DEMARZO Café',
-  '2026-10-25|17:05|CUBIC3: -86°C Dirty',
-  '2026-10-25|17:35|Hinichijou (Bear Paw Café)',
+  '2026-10-25|14:15|Comida ligera en Dongxin',
+  '2026-10-25|15:10|13DEMARZO Café y Anfu Road',
+  '2026-10-25|16:05|Wukang Road y Wukang Mansion',
+  '2026-10-25|16:50|Hinichijou (Bear Paw Café)',
+  '2026-10-25|17:15|CUBIC3: -86°C Dirty',
   '2026-10-25|18:40|Lujiazui de noche',
   '2026-10-25|19:25|Torre Perla Oriental',
   '2026-10-25|21:40|Hotel Aqua Suhe NO.1',
@@ -80,19 +80,19 @@ const TEXTOS_HEREDADOS = [
 ];
 
 describe('identidades persistentes', () => {
-  test('las 170 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
+  test('las 176 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
     const subs = paradas.flatMap(({ p }) => p.subparadas ?? []);
     const pendientes = itinerario.pendientes ?? [];
     expect(paradas).toHaveLength(44);
-    expect(subs).toHaveLength(116);
+    expect(subs).toHaveLength(122);
     expect(pendientes).toHaveLength(9);
     const ids = [itinerario.id, ...paradas.map(({ p }) => p.id), ...subs.map((s) => s.id), ...pendientes.map((p) => p.id)];
     for (const id of ids) expect(id).toMatch(/^[a-f0-9]{16}$/);
-    expect(new Set(ids).size).toBe(170);
+    expect(new Set(ids).size).toBe(176);
     // Cada identidad está escrita en los datos, no calculada a partir del contenido ni del orden.
     const fuente = readFileSync(new URL('../src/datos/itinerario.ts', import.meta.url), 'utf8');
     const literales = [...fuente.matchAll(/\bid: '([a-f0-9]{16})'/g)].map((m) => m[1]);
-    expect(literales).toHaveLength(170);
+    expect(literales).toHaveLength(176);
     expect(literales.sort()).toEqual([...ids].sort());
     expectTypeOf<Pick<Itinerario, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
     expectTypeOf<Pick<Parada, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
