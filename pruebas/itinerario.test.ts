@@ -61,38 +61,39 @@ const CLAVES_HEREDADAS = [
   '2026-10-25|16:05|Wukang Road y Wukang Mansion',
   '2026-10-25|16:50|Hinichijou (Bear Paw Café)',
   '2026-10-25|17:15|CUBIC3: -86°C Dirty',
-  '2026-10-25|18:40|Lujiazui de noche',
-  '2026-10-25|19:25|Torre Perla Oriental',
-  '2026-10-25|21:40|Hotel Aqua Suhe NO.1',
+  '2026-10-25|18:30|Bufé de cena en Yi Café (Pudong Shangri-La)',
+  '2026-10-25|20:35|Pasarela de Lujiazui de noche',
+  '2026-10-25|21:00|Shanghai Tower: mirador de la planta 118',
+  '2026-10-25|22:15|Hotel Aqua Suhe NO.1',
   '2026-10-26|07:15|Hotel Aqua Suhe NO.1',
   '2026-10-26|09:05|Aeropuerto de Pudong (PVG), T1',
 ];
 const TEXTOS_HEREDADOS = [
-  'Museo de Historia Natural (domingo 25): reservar la entrada (no venden en taquilla).',
+  'Museo de Historia Natural (domingo 25): las entradas salen el domingo 18 a las 09:00 de China (las 03:00 en España), con el pasaporte, en el miniprograma «上海科技馆自然博物馆天文馆门票». No hay taquilla y los fines de semana se agotan.',
   'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.',
   'Sábado 24: comprar ya los trenes G7006 (上海站 09:00) y G7017 (南京站 14:57), y reservar el museo en cuanto se abra, hacia el miércoles 21: franja de entrada de 09:00 a 12:00 (se entra a las 11:10). Dudas: 025-8328 2255, de miércoles a domingo de 09:00 a 17:00.',
   'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.',
   'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.',
-  'Domingo noche: decidir cena giratoria en la Perla o solo vistas; reservar solo tras ver el precio final.',
+  'Domingo 25: reservar el bufé del Yi Café (Pudong Shangri-La) para dos a las 18:30, +86 21 2828 6888 (487 ¥ con todo). Comprar la entrada de la Shanghai Tower (180 ¥) por internet.',
   'Jueves 22: llamar al 189 3062 5815 (o que llame el hotel) para saber si el espectáculo nocturno de luces del jardín Kezhi de Zhujiajiao (朱家角光影幻境·课植园, 118 ¥, de 17:00 a 21:00) abre ese día. Si abre, se puede invertir el día: Yuyuan por la mañana y Zhujiajiao por la tarde.',
   'Sábado noche: mirar la programación y la entrada de Hush/INS para el 24.',
   'Jueves 22: reservar mesa en Quanjude para las 19:45 (021-6418 1577, o que llame el hotel).',
 ];
 
 describe('identidades persistentes', () => {
-  test('las 176 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
+  test('las 178 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
     const subs = paradas.flatMap(({ p }) => p.subparadas ?? []);
     const pendientes = itinerario.pendientes ?? [];
-    expect(paradas).toHaveLength(44);
-    expect(subs).toHaveLength(122);
+    expect(paradas).toHaveLength(45);
+    expect(subs).toHaveLength(123);
     expect(pendientes).toHaveLength(9);
     const ids = [itinerario.id, ...paradas.map(({ p }) => p.id), ...subs.map((s) => s.id), ...pendientes.map((p) => p.id)];
     for (const id of ids) expect(id).toMatch(/^[a-f0-9]{16}$/);
-    expect(new Set(ids).size).toBe(176);
+    expect(new Set(ids).size).toBe(178);
     // Cada identidad está escrita en los datos, no calculada a partir del contenido ni del orden.
     const fuente = readFileSync(new URL('../src/datos/itinerario.ts', import.meta.url), 'utf8');
     const literales = [...fuente.matchAll(/\bid: '([a-f0-9]{16})'/g)].map((m) => m[1]);
-    expect(literales).toHaveLength(176);
+    expect(literales).toHaveLength(178);
     expect(literales.sort()).toEqual([...ids].sort());
     expectTypeOf<Pick<Itinerario, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
     expectTypeOf<Pick<Parada, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
@@ -137,7 +138,7 @@ describe('identidades persistentes', () => {
     }
     expect(cambiado.paradas[0].id).toBe(0);
     expect(cambiado.paradas[0].p.id).toBe(modelo.paradas.at(-1)!.p.id);
-    expect(modelo.paradas.at(-1)!.id).toBe(43);
+    expect(modelo.paradas.at(-1)!.id).toBe(44);
     // Con tres sitios hay al menos dos del mismo grupo (seguros u opcionales): invertirlos cambia su índice.
     const conSubs = cambiado.paradas.find((p) => p.subs.length > 2)!;
     const original = modelo.paradas.find((p) => p.p.id === conSubs.p.id)!;
