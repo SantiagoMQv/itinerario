@@ -1,0 +1,61 @@
+/*
+ * Montaje privado cuya configuración no vale (src/privada.ts): una página del mismo cuaderno que solo informa.
+ * Todo va bajo .configuracion-invalida, la clase que privada.ts pone en <html> SOLO en ese caso: la app privada que
+ * arranca y la web publicada no cambian. Papel, tinta, tipografía y foco son los tokens de estilos.css.
+ */
+
+/* La app fija la página a la pantalla; esta se lee entera y se desplaza si hace falta (móvil en horizontal). */
+html.configuracion-invalida,
+.configuracion-invalida body {
+  height: auto;
+  min-height: 100%;
+  overflow: auto;
+}
+
+.configuracion-invalida main {
+  min-height: 100dvh;
+  padding: calc(48px + var(--arriba)) calc(24px + var(--der)) calc(48px + var(--abajo)) calc(24px + var(--izq));
+}
+
+/* Una columna de lectura de 480 px como mucho, centrada en pantallas anchas. */
+.configuracion-invalida .columna {
+  max-width: 480px;
+  margin-inline: auto;
+  line-height: 1.02;
+  text-wrap: balance;
+}
+
+/* El título va en línea: su contorno de foco se ciñe a las letras (también partido en dos líneas), no a la columna. */
+.configuracion-invalida h1 {
+  display: inline;
+  font-size: 30px;
+  font-weight: 800;
+  font-stretch: 75%;
+}
+
+.configuracion-invalida h1 + p {
+  margin-top: 20px;
+}
+
+/* El título recibe el foco al aparecer: el contorno de foco de la app (2,5 px a 2 px), siempre visible. */
+.configuracion-invalida h1:focus {
+  outline: 2.5px solid var(--tono);
+  outline-offset: 2px;
+}
+
+.configuracion-invalida p {
+  margin-block: 0 12px;
+  font-size: 16px;
+  line-height: 1.45;
+  text-wrap: pretty;
+}
+
+.configuracion-invalida .motivo {
+  font-weight: 650;
+}
+
+.configuracion-invalida .nota {
+  margin-top: 24px;
+  color: var(--tinta-suave);
+  font-size: 15px;
+}

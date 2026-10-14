@@ -4,9 +4,11 @@
 // en un mkdtemp propio (itinerario-build-privado-*) que afterAll borra entero. Nada de esto es un perfil, origen,
 // presupuesto ni carpeta operativa, y construir aquí no autoriza servir ni desplegar nada. M1 usa el comando npm
 // exacto; los casos que rechazan llaman al lanzador de Node (la misma implementación, sin volver a pasar tsc) y las
-// rutas dentro del repositorio se prueban con la función pura, que rechaza sin crear nada en él.
+// rutas dentro del repositorio se prueban con la función pura, que rechaza sin crear nada en él. Los casos C construyen
+// EN MEMORIA, con el plugin y la configuración reales, perfiles sintéticos que la receta en disco rechazaría: no
+// autorizan ningún montaje real con un perfil que no vale.
 // No prueba Safari, móviles reales ni proveedores.
-import { test, expect } from '@playwright/test';
+import { test, expect, type BrowserContext, type Page } from '@playwright/test';
 import { createServer, type Server } from 'node:https';
 import { execFileSync, spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -15,8 +17,9 @@ import { mkdir, mkdtemp, readFile, readdir, realpath, rm, symlink, writeFile } f
 import { tmpdir } from 'node:os';
 import { extname, join, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { build, mergeConfig, type Rollup } from 'vite';
 import type { DatosPerfilPiloto } from '../src/perfil-piloto';
-import { reservarSalida } from '../vite.config.privado';
+import { configPrivada, reservarSalida } from '../vite.config.privado';
 
 const REPO = realpathSync(fileURLToPath(new URL('..', import.meta.url)));
 const USO = 'Uso: npm run build:privado -- <perfil.json> <salida-nueva>';
@@ -32,6 +35,12 @@ const INTRO_COPIA = 'Guarda en un archivo las fotos, las marcas y el registro de
 const TIPOS: Record<string, string> = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.svg': 'image/svg+xml', '.png': 'image/png', '.woff2': 'font/woff2',
   '.woff': 'font/woff', '.webmanifest': 'application/manifest+json' };
+// Página de configuración no válida: su título y el motivo que da para cada error conocido de la preparación.
+const TITULO = 'No se puede abrir el itinerario privado';
+const MOTIVOS = { perfil: 'el perfil no tiene la forma o los límites que espera la app.',
+  origen: 'el perfil es para otra dirección web, no para la de esta página.',
+  plan: 'los límites del perfil no admiten el plan de este itinerario.' };
+const ANCLA = '<a id="saltar" href="#ahora">Ir a «ahora»</a>';
 
 /** Presupuestos SINTÉTICOS (los del test de la entrada) con el origen del fixture: no son política desplegada. */
 function perfilDe(origen: string) {
@@ -79,6 +88,33 @@ async function llevaMarca(carpeta: string): Promise<boolean> {
   }
   return false;
 }
+/** Lo que se ve de la página de error: tema, fondo y contraste WCAG del texto y del contorno de foco, y desbordes. */
+const medir = (page: Page) => page.evaluate(() => {
+  const canales = (c: string) => {
+    const n = (c.match(/[\d.]+/g) ?? []).slice(0, 3).map(Number);
+    return c.startsWith('color(') ? n.map((v) => v * 255) : n;
+  };
+  const luz = (c: string) => canales(c).map((v) => (v / 255 <= 0.03928 ? v / 255 / 12.92 : ((v / 255 + 0.055) / 1.055) ** 2.4))
+    .reduce((s, v, i) => s + v * [0.2126, 0.7152, 0.0722][i], 0);
+  const contraste = (a: string, b: string) => {
+    const [x, y] = [luz(a), luz(b)].sort((p, q) => q - p);
+    return (x + 0.05) / (y + 0.05);
+  };
+  const fondo = getComputedStyle(document.querySelector('main')!).backgroundColor;
+  const titulo = document.querySelector('h1')!;
+  // Holgura entre la caja del título (la que rodea el contorno de foco) y sus letras, a cada lado.
+  const letras = document.createRange();
+  letras.selectNodeContents(titulo);
+  const lineas = [...letras.getClientRects()];
+  const caja = titulo.getBoundingClientRect();
+  return { tema: document.documentElement.dataset.tema, fondo,
+    textos: [...document.querySelectorAll('main h1, main p')].map((e) => contraste(getComputedStyle(e).color, fondo)),
+    contorno: getComputedStyle(titulo).outlineStyle, foco: contraste(getComputedStyle(titulo).outlineColor, fondo),
+    separacion: getComputedStyle(titulo).outlineOffset,
+    holgura: Math.max(caja.right - Math.max(...lineas.map((r) => r.right)), Math.min(...lineas.map((r) => r.left)) - caja.left),
+    desborde: document.documentElement.scrollWidth > innerWidth || [...document.querySelectorAll('main, main *')]
+      .some((e) => e.scrollWidth > e.clientWidth || e.getBoundingClientRect().right > innerWidth) };
+});
 
 test.describe('montaje privado local', () => {
   test.use({ ignoreHTTPSErrors: true });
@@ -89,6 +125,8 @@ test.describe('montaje privado local', () => {
   let salida = '';
   let distAntes: Record<string, string> = {};
   let construccion: Ejecucion;
+  /** Montaje en memoria de un caso C; null: se sirve la salida de la receta en disco (M1–M5). */
+  let montajeMemoria: Map<string, string | Uint8Array> | null = null;
 
   test.beforeAll(async () => {
     // Sólo este proceso crea, usa y borra esta raíz temporal y todo lo que hay dentro.
@@ -103,6 +141,11 @@ test.describe('montaje privado local', () => {
       const archivo = resolve(salida, '.' + (ruta === '/' ? '/index.html' : ruta));
       res.setHeader('Cache-Control', 'no-store');
       if (!archivo.startsWith(salida + sep)) { res.statusCode = 404; res.end(); return; }
+      if (montajeMemoria) {
+        const cuerpo = montajeMemoria.get(archivo.slice(salida.length + 1));
+        if (cuerpo === undefined) { res.statusCode = 404; res.end(); return; }
+        res.setHeader('Content-Type', TIPOS[extname(archivo)] ?? 'application/octet-stream'); res.end(cuerpo); return;
+      }
       readFile(archivo).then((cuerpo) => {
         res.setHeader('Content-Type', TIPOS[extname(archivo)] ?? 'application/octet-stream'); res.end(cuerpo);
       }, () => { res.statusCode = 404; res.end(); });
@@ -128,6 +171,32 @@ test.describe('montaje privado local', () => {
       if (temporal) await rm(temporal, { recursive: true, force: true });
     }
   });
+  test.beforeEach(() => { montajeMemoria = null; });
+
+  /** Montaje EN MEMORIA con el plugin y la configuración reales (configPrivada) y un perfil sintético cualquiera, para
+   * llevar a la página perfiles que la receta en disco rechazaría antes de construir. No escribe nada. */
+  async function montarEnMemoria(datos: unknown) {
+    const resultado = await build(mergeConfig(configPrivada(datos, join(temporal, 'no-se-escribe')),
+      { configFile: false, root: REPO, logLevel: 'silent', build: { write: false } }));
+    const salidaVite = (Array.isArray(resultado) ? resultado[0] : resultado) as Rollup.RollupOutput;
+    montajeMemoria = new Map(salidaVite.output.map((a) => [a.fileName, a.type === 'chunk' ? a.code : a.source]));
+  }
+  /** Como en M1: registro de /api y de errores de página, cortes de red y la fecha antes del viaje. No navega. */
+  async function vigilar(page: Page, context: BrowserContext) {
+    const api: string[] = [];
+    const errores: string[] = [];
+    context.on('request', (r) => {
+      const url = new URL(r.url());
+      if (url.pathname.startsWith('/api/')) api.push(`${r.method()} ${url.pathname}`);
+    });
+    page.on('pageerror', (e) => { errores.push(e.message); });
+    await context.route('**/*', (r) => {
+      const url = new URL(r.request().url());
+      return url.origin !== origen || url.pathname === '/api/progreso' ? r.abort() : r.continue();
+    });
+    await page.clock.setFixedTime(new Date(HORA));
+    return { api, errores };
+  }
 
   test('M1 · la receta npm construye el perfil sintético en una salida nueva y el montaje arranca la app privada',
     async ({ page, context }) => {
@@ -229,4 +298,78 @@ test.describe('montaje privado local', () => {
     expect(await huellasDist()).toEqual(distAntes);
     expect(await llevaMarca(join(REPO, 'dist'))).toBe(false);
   });
+
+  for (const caso of [
+    { nombre: 'C1 · un perfil vacío', datos: () => ({}), motivo: MOTIVOS.perfil },
+    { nombre: 'C2 · un perfil de otro origen', datos: () => ({ ...perfilDe(origen), origen: 'https://otro.example' }),
+      motivo: MOTIVOS.origen },
+    { nombre: 'C3 · un perfil cuyo plan real no cabe en maxBytesPlan', motivo: MOTIVOS.plan, datos: () => {
+      const d = perfilDe(origen);
+      return { ...d, listadoCliente: { ...d.listadoCliente, maxBytesPlan: 4096 } };
+    } },
+  ]) {
+    test(`${caso.nombre}: la página lo explica con el foco en el título, sin arrancar ni abrir nada personal`,
+      async ({ page, context }) => {
+        await montarEnMemoria(caso.datos());
+        const { api, errores } = await vigilar(page, context);
+        await page.goto(origen + '/');
+        await expect(page.getByRole('heading', { level: 1, name: TITULO })).toBeFocused();
+        await expect(page.getByRole('main')).toContainText(`Motivo: ${caso.motivo}`);
+        // Solo informa: sin botones, enlaces ni lienzo, nada guardado ni pedido, y el fallo de la preparación no es
+        // un error de página.
+        expect(await page.locator('button, a, canvas').count()).toBe(0);
+        expect(await page.evaluate(async () => [localStorage.length, (await indexedDB.databases()).length])).toEqual([0, 0]);
+        expect(api).toEqual([]);
+        expect(errores).toEqual([]);
+      });
+  }
+
+  test('C4 · si la app falla con un perfil válido, es un error de la app y no se presenta como configuración',
+    async ({ page, context }) => {
+      // El montaje de M1 (perfil válido) sin el ancla #saltar SOLO en el HTML que recibe esta prueba: main falla después
+      // de empezar (mapa, identidad), como en A4, que ya prueba que ese arranque queda consumido.
+      const html = await readFile(join(salida, 'index.html'), 'utf8');
+      expect(html).toContain(ANCLA);
+      const { api, errores } = await vigilar(page, context);
+      await context.route(origen + '/', (r) => r.fulfill({ contentType: 'text/html; charset=utf-8', body: html.replace(ANCLA, '') }));
+      await page.goto(origen + '/');
+      await expect.poll(() => errores.length).toBe(1);
+      expect(errores[0]).toContain('addEventListener');
+      await expect(page.getByRole('heading', { level: 1 })).toHaveCount(0);
+      await expect(page.locator('#mapa canvas')).toHaveCount(1);
+      expect(api).toEqual([]);
+    });
+
+  test('C5 · la página de configuración no válida en móvil, horizontal y escritorio, de día y de noche',
+    async ({ page, context }, testInfo) => {
+      await montarEnMemoria({});
+      const { api, errores } = await vigilar(page, context);
+      for (const [ancho, alto] of [[390, 844], [360, 640], [844, 390], [1440, 900]] as const) {
+        for (const tema of ['claro', 'oscuro'] as const) {
+          const caso = `${ancho}x${alto} ${tema}`;
+          await page.setViewportSize({ width: ancho, height: alto });
+          await page.emulateMedia({ colorScheme: tema === 'oscuro' ? 'dark' : 'light' });
+          await page.goto(origen + '/');
+          await expect(page.getByRole('heading', { level: 1, name: TITULO }), caso).toBeFocused();
+          await page.evaluate(async () => { await document.fonts.ready; });
+          // Tema del sistema (sin preferencia guardada), texto y foco con contraste suficiente y nada desbordado.
+          const m = await medir(page);
+          expect(m.tema, caso).toBe(tema);
+          expect(m.fondo, caso).toBe(tema === 'oscuro' ? 'rgb(18, 24, 32)' : 'rgb(255, 255, 255)');
+          for (const c of m.textos) expect(c, caso).toBeGreaterThanOrEqual(4.5);
+          expect(m.contorno, caso).toBe('solid');
+          // La separación del contorno de foco de la app (2 px), no otra propia.
+          expect(m.separacion, caso).toBe('2px');
+          // El contorno se ciñe a las letras del título (también partido en dos líneas), no a la columna.
+          expect(m.holgura, caso).toBeLessThanOrEqual(1);
+          expect(m.foco, caso).toBeGreaterThanOrEqual(3);
+          expect(m.desborde, caso).toBe(false);
+          const ruta = testInfo.outputPath(`configuracion-invalida-${ancho}x${alto}-${tema}.png`);
+          await page.screenshot({ path: ruta, fullPage: true });
+          console.log(`CAPTURA ${ruta}`);
+        }
+      }
+      expect(api).toEqual([]);
+      expect(errores).toEqual([]);
+    });
 });
