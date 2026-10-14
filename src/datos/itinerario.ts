@@ -17,6 +17,8 @@ const C = {
   nanjingEste: [31.2386, 121.4785],
   joyCity: [31.2457033, 121.4675727],
   uniqloJoyCity: [31.244707, 121.467646],
+  // Watsons junto a Joy City, en Qufu Road (OpenStreetMap).
+  watsonsJoyCity: [31.2446439, 121.4673719],
   noria: [31.2461038, 121.4675959],
   disney: [31.1462523, 121.6562825],
   estacionShanghai: [31.2504165, 121.4505223],
@@ -426,7 +428,7 @@ export const itinerario: Itinerario = {
               local: '名创优品 MINISO LAND',
               ...en(C.minisoLand),
               direccionLocal: '上海市黄浦区南京东路步行街 名创优品全球壹号店',
-              notas: 'La tienda Miniso que más vende del mundo: tres plantas de licencias (Disney, Sanrio, Harry Potter, anime) y un pasillo de cajas sorpresa.',
+              notas: 'La tienda Miniso que más vende del mundo: tres plantas de licencias (Disney, Sanrio, Harry Potter, anime) y un pasillo de cajas sorpresa. Suele tener bombas y sales de baño baratas (泡澡球, 浴盐) para el jacuzzi del hotel.',
             },
             {
               id: '402af8c613b9ed75',
@@ -555,6 +557,15 @@ export const itinerario: Itinerario = {
               local: '优衣库',
               ...en(C.uniqloJoyCity),
               notas: 'La ropa normal que más compensa: un 20–35 % más barata que en España, mismo artículo (webs oficiales, octubre de 2026). Camiseta AIRism 79 ¥ (9,60 €; en España 14,90 €), sudadera 199 ¥ (24 €; 34,90 €), vaqueros 299 ¥ (36 €; 49,90 €), polar forrado 299 ¥ (36 €; 49,90 €), plumas Ultra Light Down 499 ¥ (61 €; 79,90 €). Las ofertas de la semana bajan algo más.',
+            },
+            {
+              id: '730d95fb49eada58',
+              nombre: 'Watsons: cosas para el jacuzzi',
+              local: '屈臣氏',
+              opcional: true,
+              ...en(C.watsonsJoyCity),
+              direccionLocal: '静安区曲阜路（静安大悦城旁）',
+              notas: 'Droguería junto a la entrada de Joy City por Qufu Road. Suele tener sales y pastillas de baño japonesas (入浴剂, como Bub de Kao o Bathclin) y bombas de baño (泡澡球). Para preguntar: «有泡澡球或者浴盐吗？» (¿tenéis bombas o sales de baño?). Si la bañera del hotel tiene chorros, mejor sales o pastillas sin aceites, con los chorros apagados; nada de espuma de baño, aceites ni bombas con purpurina o pétalos, que hacen espuma y atascan los chorros.',
             },
             {
               id: '90d58e2a731fb6c4',
