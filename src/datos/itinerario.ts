@@ -565,7 +565,7 @@ export const itinerario: Itinerario = {
               opcional: true,
               ...en(C.watsonsJoyCity),
               direccionLocal: '静安区曲阜路（静安大悦城旁）',
-              notas: 'Droguería junto a la entrada de Joy City por Qufu Road. Suele tener sales y pastillas de baño japonesas (入浴剂, como Bub de Kao o Bathclin) y bombas de baño (泡澡球). Para preguntar: «有泡澡球或者浴盐吗？» (¿tenéis bombas o sales de baño?). Si la bañera del hotel tiene chorros, mejor sales o pastillas sin aceites, con los chorros apagados; nada de espuma de baño, aceites ni bombas con purpurina o pétalos, que hacen espuma y atascan los chorros.',
+              notas: 'Droguería junto a la entrada de Joy City por Qufu Road. Suele tener sales y pastillas de baño japonesas (入浴剂, como Bub de Kao o Bathclin) y bombas de baño (泡澡球). Para preguntar: «有泡澡球或者浴盐吗？» (¿tenéis bombas o sales de baño?). La bañera de la habitación es de hidromasaje, con chorros: sales o pastillas sin aceites, o bombas sencillas, siempre con los chorros apagados (los chorros, mejor con agua sola). Nada de espuma de baño con hidromasaje (desborda) ni aceites, purpurina o pétalos (se quedan en los conductos). Buscar «低泡» (poca espuma) o «按摩浴缸可用» (apto para hidromasaje).',
             },
             {
               id: '90d58e2a731fb6c4',
