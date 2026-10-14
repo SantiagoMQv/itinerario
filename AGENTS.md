@@ -15,6 +15,7 @@ Todo en español: la interfaz, los comentarios, los nombres del código (`parada
 | `src/modelo.ts` | Convierte el plan en horas absolutas, tramos y avisos de incoherencias. |
 | `src/main.ts` | Interfaz, como fábrica `arrancarItinerario(composición)` (importarla no arranca nada): panel (hoja de tres alturas en móvil), «ahora», lista, fichas, marcas, tarjeta del taxi. |
 | `src/publica.ts` | Entrada de la web publicada: arranca la interfaz con respaldo y portabilidad a `null` (apagados). |
+| `src/entrada-piloto.ts` | Entrada del piloto privado, todavía sin usar (ningún HTML la carga): `arrancarPiloto(perfil, origen)` valida perfil, origen y plan real antes de llamar a `arrancarItinerario`. No activa nada en la web publicada. |
 | `src/mapa.ts` | Mapa (MapLibre + OpenFreeMap), marcadores, cámara. |
 | `src/offline.ts` | Service worker y descarga de mapas para usar sin conexión. |
 | `src/estilos.css` | Estilos. Tokens de color en `:root`; la noche, con `:root[data-tema='oscuro']`. |
