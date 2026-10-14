@@ -16,6 +16,8 @@ Todo en español: la interfaz, los comentarios, los nombres del código (`parada
 | `src/main.ts` | Interfaz, como fábrica `arrancarItinerario(composición)` (importarla no arranca nada): panel (hoja de tres alturas en móvil), «ahora», lista, fichas, marcas, tarjeta del taxi. |
 | `src/publica.ts` | Entrada de la web publicada: arranca la interfaz con respaldo y portabilidad a `null` (apagados). |
 | `src/entrada-piloto.ts` | Entrada del piloto privado, todavía sin usar (ningún HTML la carga): `arrancarPiloto(perfil, origen)` valida perfil, origen y plan real antes de llamar a `arrancarItinerario`. No activa nada en la web publicada. |
+| `src/preparar-piloto.ts` | Comprobación previa del piloto (perfil, origen exacto, plan real) sin la app: la usan la entrada del piloto y el montaje privado. |
+| `src/privada.ts`, `vite.config.privado.ts`, `scripts/build-privado.mjs` | Montaje privado LOCAL con perfil explícito (`npm run build:privado`): perfil y salida nueva fuera del repositorio; nunca toca `dist/` ni la web publicada. |
 | `src/mapa.ts` | Mapa (MapLibre + OpenFreeMap), marcadores, cámara. |
 | `src/offline.ts` | Service worker y descarga de mapas para usar sin conexión. |
 | `src/estilos.css` | Estilos. Tokens de color en `:root`; la noche, con `:root[data-tema='oscuro']`. |
@@ -49,6 +51,7 @@ npm test                      # pruebas del plan (Vitest)
 npx playwright install chromium   # solo la primera vez
 npm run test:e2e              # compila y prueba la web en un móvil simulado
 npm run verify                # todo lo anterior: pasarlo antes de integrar en main
+npm run build:privado -- <perfil.json> <salida-nueva>   # montaje privado local (perfil explícito, salida nueva fuera del repo)
 ```
 
 ## Ramas y publicación

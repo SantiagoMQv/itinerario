@@ -9,6 +9,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
+    "build:privado": "tsc --noEmit && tsc --noEmit -p tsconfig.pruebas.json && node scripts/build-privado.mjs",
     "preview": "vite preview",
     "check": "tsc --noEmit && tsc --noEmit -p tsconfig.pruebas.json && npm run check:servidor",
     "check:servidor": "tsc --noEmit -p tsconfig.servidor.json && tsc --noEmit -p tsconfig.pruebas-servidor.json",
