@@ -33,8 +33,14 @@ export interface ComposicionItinerario {
   readonly portabilidad: ComposicionPortabilidad | null;
 }
 
+/** Una sola vez por página, aunque el primer arranque fallara a medias: nunca se reinicia ni se reintenta solo. */
+let arrancada = false;
+
 /** Arranca la app sobre el documento de index.html: importar este módulo no inicializa nada. */
 export function arrancarItinerario(composicion: ComposicionItinerario): void {
+// Se consume antes de leer la composición: un getter que volviera a arrancar ya choca con la guarda.
+if (arrancada) throw new Error('La app ya se arrancó en esta página.');
+arrancada = true;
 // Las dos composiciones se leen una sola vez, antes de inicializar nada.
 const { respaldo, portabilidad } = composicion;
 
