@@ -11,8 +11,8 @@ import { construirModelo, trayectosApretados } from '../src/modelo';
 const modelo = construirModelo(itinerario);
 const paradas = itinerario.dias.flatMap((d) => d.paradas.map((p) => ({ d, p, quien: `${d.fecha} ${p.hora} «${p.nombre}»` })));
 
-// Shanghái y Nankín, con margen. Unas coordenadas con lat y lng cambiadas caen fuera.
-const CAJA = { lat: [30.6, 32.4], lng: [118.4, 122.1] };
+// Shanghái y Hangzhou, con margen. Unas coordenadas con lat y lng cambiadas caen fuera.
+const CAJA = { lat: [29.9, 31.8], lng: [119.7, 122.1] };
 const dentro = (lat: number, lng: number) => lat >= CAJA.lat[0] && lat <= CAJA.lat[1] && lng >= CAJA.lng[0] && lng <= CAJA.lng[1];
 // Una subparada es un sitio dentro de la parada o a un paseo de ella.
 const SUB_MAX_KM = 2;
@@ -42,13 +42,16 @@ const CLAVES_HEREDADAS = [
   '2026-10-22|22:00|Hotel Aqua Suhe NO.1',
   '2026-10-23|09:45|Shanghai Disneyland',
   '2026-10-23|22:50|Hotel Aqua Suhe NO.1',
-  '2026-10-24|08:30|Estación de Shanghái',
-  '2026-10-24|10:44|Estación de Nankín',
-  '2026-10-24|11:10|Museo Paleontológico de Nankín',
-  '2026-10-24|14:25|Estación de Nankín',
-  '2026-10-24|16:40|Estación de Shanghái',
-  '2026-10-24|16:55|Hotel Aqua Suhe NO.1',
-  '2026-10-24|17:30|Parque Guilin al anochecer',
+  '2026-10-24|07:35|Estación de Shanghái Sur',
+  '2026-10-24|08:49|Estación de Hangzhou Este',
+  '2026-10-24|10:00|Lingyin y Feilai Feng',
+  '2026-10-24|12:25|Comida y té en Meijiawu',
+  '2026-10-24|14:10|Dique Su',
+  '2026-10-24|14:45|Isla de los Tres Estanques',
+  '2026-10-24|15:30|Embarcadero de Hubin',
+  '2026-10-24|15:55|Estación de Hangzhou Este',
+  '2026-10-24|17:40|Estación de Shanghái Sur',
+  '2026-10-24|18:00|Parque Guilin al anochecer',
   '2026-10-24|18:55|Pagoda de Longhua iluminada',
   '2026-10-24|19:15|Cena en Longhua Hui',
   '2026-10-24|21:05|Hotel Aqua Suhe NO.1',
@@ -71,7 +74,7 @@ const CLAVES_HEREDADAS = [
 const TEXTOS_HEREDADOS = [
   'Museo de Historia Natural (domingo 25): las entradas salen el domingo 18 a las 09:00 de China (las 03:00 en España), con el pasaporte, en el miniprograma «上海科技馆自然博物馆天文馆门票». No hay taquilla y los fines de semana se agotan.',
   'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.',
-  'Sábado 24: comprar ya los trenes G7006 (上海站 09:00) y G7017 (南京站 14:57), y reservar el museo en cuanto se abra, hacia el miércoles 21: franja de entrada de 09:00 a 12:00 (se entra a las 11:10). Dudas: 025-8328 2255, de miércoles a domingo de 09:00 a 17:00.',
+  'Sábado 24, Hangzhou: reservar Lingyin el sábado 17 a las 02:00 hora española (08:00 en China), en cuanto se abre: miniprograma «杭州灵隐飞来峰» en Alipay o WeChat, con los dos pasaportes, turno de mañana. Comprar los trenes G1631 (上海南站 07:45) y G1384 (杭州东站 16:34). Si ya estaban comprados los de Nankín, devolverlos: gratis hasta el viernes 16 a las 03:00 hora española; después, un 5 %.',
   'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.',
   'Equipaje: añadir por internet una maleta facturada en el Vueling VY1542 (Barcelona–Málaga, martes 27 a las 06:50), que la tarifa no la incluye. Y decidir dónde pasar la noche en Barcelona (llegada a las 23:05 del lunes).',
   'Domingo 25: reservar el bufé del Yi Café (Pudong Shangri-La) para dos a las 18:30 en la web de reservas del Shangri-La (o al +86 21 2828 6888); 487 ¥ con todo. Comprar la entrada de la Shanghai Tower (180 ¥) por internet.',
@@ -81,19 +84,19 @@ const TEXTOS_HEREDADOS = [
 ];
 
 describe('identidades persistentes', () => {
-  test('las 179 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
+  test('las 186 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
     const subs = paradas.flatMap(({ p }) => p.subparadas ?? []);
     const pendientes = itinerario.pendientes ?? [];
-    expect(paradas).toHaveLength(45);
-    expect(subs).toHaveLength(124);
+    expect(paradas).toHaveLength(48);
+    expect(subs).toHaveLength(128);
     expect(pendientes).toHaveLength(9);
     const ids = [itinerario.id, ...paradas.map(({ p }) => p.id), ...subs.map((s) => s.id), ...pendientes.map((p) => p.id)];
     for (const id of ids) expect(id).toMatch(/^[a-f0-9]{16}$/);
-    expect(new Set(ids).size).toBe(179);
+    expect(new Set(ids).size).toBe(186);
     // Cada identidad está escrita en los datos, no calculada a partir del contenido ni del orden.
     const fuente = readFileSync(new URL('../src/datos/itinerario.ts', import.meta.url), 'utf8');
     const literales = [...fuente.matchAll(/\bid: '([a-f0-9]{16})'/g)].map((m) => m[1]);
-    expect(literales).toHaveLength(179);
+    expect(literales).toHaveLength(186);
     expect(literales.sort()).toEqual([...ids].sort());
     expectTypeOf<Pick<Itinerario, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
     expectTypeOf<Pick<Parada, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
@@ -138,7 +141,7 @@ describe('identidades persistentes', () => {
     }
     expect(cambiado.paradas[0].id).toBe(0);
     expect(cambiado.paradas[0].p.id).toBe(modelo.paradas.at(-1)!.p.id);
-    expect(modelo.paradas.at(-1)!.id).toBe(44);
+    expect(modelo.paradas.at(-1)!.id).toBe(47);
     // Con tres sitios hay al menos dos del mismo grupo (seguros u opcionales): invertirlos cambia su índice.
     const conSubs = cambiado.paradas.find((p) => p.subs.length > 2)!;
     const original = modelo.paradas.find((p) => p.p.id === conSubs.p.id)!;

@@ -14,7 +14,7 @@ Una persona que organiza y lleva el viaje (el dueño del repositorio) es el usua
 
 Herramienta personal para gestionar el itinerario de un viaje: ver el plan de cada día sobre un mapa real, entender las distancias entre lugares y reproducir la ruta hora a hora con una línea de tiempo. Durante el viaje responde de un vistazo a qué toca ahora y después, cómo llegar y cuánto hay, cómo pedirle al taxista que te lleve, y cuánto cuesta y qué queda por confirmar.
 
-El primer viaje es Shanghái con excursión a Nankín (21–26 de octubre de 2026), pero la app debe poder reutilizarse para viajes futuros: nada del producto puede depender de Shanghái.
+El primer viaje es Shanghái con excursión a Hangzhou (21–26 de octubre de 2026), pero la app debe poder reutilizarse para viajes futuros: nada del producto puede depender de Shanghái.
 
 Éxito: en la calle, con una mano y poca atención, saber adónde ir y cómo, sin conexión a internet y sin tener que preguntar a nadie.
 

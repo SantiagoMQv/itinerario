@@ -1,6 +1,6 @@
 # Itinerario del viaje
 
-Web para móvil que sirve para revisar el itinerario de un viaje a Shanghái (con excursión a Nankín) sobre un mapa, con una línea de tiempo que va dibujando la ruta hora a hora.
+Web para móvil que sirve para revisar el itinerario de un viaje a Shanghái (con excursión a Hangzhou) sobre un mapa, con una línea de tiempo que va dibujando la ruta hora a hora.
 
 ## Qué hace
 

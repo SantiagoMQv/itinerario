@@ -1,6 +1,6 @@
 # Guía para agentes
 
-Web para móvil (PWA estática) con el itinerario de un viaje a Shanghái y Nankín del 21 al 26 de octubre de 2026. Se publica en GitHub Pages desde `main`: <https://santiagomqv.github.io/itinerario/>. Se usa sobre todo en el móvil, en directo durante el viaje.
+Web para móvil (PWA estática) con el itinerario de un viaje a Shanghái (con excursión a Hangzhou) del 21 al 26 de octubre de 2026. Se publica en GitHub Pages desde `main`: <https://santiagomqv.github.io/itinerario/>. Se usa sobre todo en el móvil, en directo durante el viaje.
 
 ## Idioma
 

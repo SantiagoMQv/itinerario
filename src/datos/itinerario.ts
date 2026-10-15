@@ -21,10 +21,6 @@ const C = {
   watsonsJoyCity: [31.2446439, 121.4673719],
   noria: [31.2461038, 121.4675959],
   disney: [31.1462523, 121.6562825],
-  estacionShanghai: [31.2504165, 121.4505223],
-  estacionNankin: [32.0890655, 118.7913961],
-  museo: [32.0616702, 118.7901099],
-  jiming: [32.0629615, 118.7899275],
   txHuaihai: [31.2225113, 121.4642123],
   // Día 2 (OpenStreetMap). Bazar de Yuyuan: 豫园商城 (vía 62072391). Old Street: tramo medio de
   // 方浜中路, aproximado. Songmont no está en OSM: aproximada por la numeración de Huaihai.
@@ -60,9 +56,21 @@ const C = {
   chenghuangZjj: [31.110541, 121.04925],
   correosQing: [31.109075, 121.04914],
   tongtianhe: [31.110013, 121.050045],
-  // Día 4 (OpenStreetMap). Parque Guilin: centro del parque.
-  taicheng: [32.0637819, 118.7902212],
-  xuanwuEstacion: [32.0877564, 118.7868344],
+  // Día 4 (OpenStreetMap). Estaciones: el edificio. Lingyin: la entrada principal (nodo de 2019; el
+  // control de pasaportes puede estar unos metros más allá). Meijiawu: la parada del autobús, casi
+  // enfrente del restaurante. Embarcadero de 花港: no está en OSM, aproximado por el parque.
+  estacionShanghaiSur: [31.15512, 121.42483],
+  estacionHangzhouEste: [30.2935486, 120.2082034],
+  lingyin: [30.2429491, 120.1005869],
+  temploLingyin: [30.2427953, 120.0967987],
+  meijiawu: [30.2076183, 120.0837293],
+  terrazasMeijiawu: [30.2047605, 120.0819797],
+  diqueSu: [30.2329551, 120.1386832],
+  huagang: [30.2322634, 120.1342768],
+  santan: [30.2412182, 120.1402635],
+  fotoBillete: [30.2400516, 120.1401848],
+  hubin: [30.2545411, 120.1574853],
+  // Parque Guilin: centro del parque.
   guilin: [31.1670939, 121.4132808],
   pagodaLonghua: [31.1756179, 121.4473455],
   // Día 5 (OpenStreetMap). Parque de esculturas de Jing'an: centro del parque.
@@ -191,7 +199,7 @@ const enlace = (texto: string, url: string) => ({ texto, url });
 
 export const itinerario: Itinerario = {
   id: 'd64bf870a2c193e5',
-  titulo: 'Shanghái y Nankín',
+  titulo: 'Shanghái y Hangzhou',
   subtitulo: '21–26 de octubre de 2026 · 2 personas',
   // Cambio aproximado de julio de 2026; solo sirve para dar una idea en euros.
   yuanesPorEuro: 7.7,
@@ -1406,139 +1414,235 @@ export const itinerario: Itinerario = {
     },
     {
       fecha: '2026-10-24',
-      titulo: 'Nankín, parque Guilin y noche de salida',
-      ciudad: 'Nankín',
+      titulo: 'Hangzhou, parque Guilin y noche de salida',
+      ciudad: 'Hangzhou',
       notas:
-        'Levantarnos a las 7:45 y desayunar rápido en el hotel (abre a las 7:00): el tren sale a las 9:00. La excursión es para el Museo Paleontológico, no para encadenar monumentos.\n' +
-        'Billetes: comprarlos ya en la app 12306 (en inglés, con el pasaporte) o en Trip.com. Ida en el G7006 (上海站 09:00 → 南京站 10:44) y vuelta en el G7017 (南京站 14:57 → 上海站 16:40), 166 ¥ en 2.ª clase. Algunos trenes del sábado ya están agotados.\n' +
-        'Por la tarde, ya en Shanghái: el parque Guilin al anochecer, la pagoda de Longhua iluminada y cena allí; después, cócteles en Speak Low y, si apetece, Hush.\n' +
-        'Fuera del plan en Nankín: Niushoushan, Mausoleo Ming Xiaoling, Palacio Presidencial y los demás museos.',
+        'Excursión de un día a Hangzhou: budas tallados en la roca en Lingyin, comida con té Longjing en una aldea de té y el lago del Oeste en barco. Es lo que no tenemos en ningún otro día del viaje.\n' +
+        'Levantarnos a las 6:30 y salir a las 7:00: el desayuno del hotel abre a las 7:00, así que pedirlo para llevar la noche antes o comprar algo en la estación y desayunar en el tren.\n' +
+        'Billetes: en 12306 (en inglés, con el pasaporte) o en Trip.com. Ida en el G1631 (上海南站 07:45 → 杭州东站 08:49) y vuelta en el G1384 (杭州东站 16:34 → 上海南站 17:40), 77 ¥ cada uno en 2.ª clase.\n' +
+        'Lingyin solo con reserva, que se abre el sábado 17 a las 02:00 hora española.\n' +
+        'Por la tarde, ya en Shanghái: el parque Guilin iluminado, la pagoda de Longhua y cena allí; después, cócteles en Speak Low y, si apetece, Hush.\n' +
+        'Fuera del plan en Hangzhou: la pagoda Leifeng, el pueblo de Longjing, el paseo del arroyo 九溪十八涧 y la calle Hefang.',
       paradas: [
         {
-          id: 'f379b024eac5168d',
-          hora: '08:30',
-          fin: '09:00',
-          nombre: 'Estación de Shanghái',
-          local: '上海站',
+          id: 'e5f24a900e3f99b1',
+          hora: '07:35',
+          fin: '07:45',
+          nombre: 'Estación de Shanghái Sur',
+          local: '上海南站',
           categoria: 'transporte',
-          ...en(C.estacionShanghai),
-          llegada: { modo: 'a_pie', detalle: 'Unos 600 m por Hengfeng Rd y Moling Rd hasta la plaza sur', min: 10 },
+          ...en(C.estacionShanghaiSur),
+          llegada: { modo: 'metro', detalle: 'Línea 1 de Hanzhong Road a Shanghai South Railway Station (11 paradas, sin transbordo)', min: 35 },
+          direccionLocal: '上海市徐汇区沪闵路9001号',
           notas:
-            'Tren G7006 a las 09:00 (llega a 南京站 a las 10:44). Llegar 30 min antes: los sábados hay cola en el control de seguridad. No hay billete de papel: el billete va con el pasaporte; en los tornos, usar el paso manual (人工通道) con el mismo pasaporte con el que se compró.',
-          gastos: [{ concepto: 'tren de ida (G7006), 2.ª clase', min: 166 }],
-          enlaces: [
-            enlace('Información ferroviaria', 'https://english.beijing.gov.cn/travellinginbeijing/transportation/railway/202607/t20260720_4772390.html'),
-          ],
+            'Tren G1631 a las 07:45 (llega a 杭州东 a las 08:49). No hay billete de papel: se entra con el pasaporte con el que se compró, por el paso manual (人工通道) si los tornos no lo leen. Llegar con margen: los sábados hay cola en el control de seguridad.\n' +
+            'Si se escapa, el G255 sale de esta misma estación a las 09:07 (llega a las 09:53): cambiar el billete en 12306.',
+          gastos: [{ concepto: 'tren de ida (G1631), 2.ª clase', min: 77 }],
+          enlaces: [enlace('Horarios y billetes (12306)', 'https://www.12306.cn/en/index.html')],
         },
         {
-          id: 'b102e9c64a8d753f',
-          hora: '10:44',
-          fin: '10:50',
-          nombre: 'Estación de Nankín',
-          local: '南京站',
+          id: '97b87c047e38f301',
+          hora: '08:49',
+          fin: '08:55',
+          nombre: 'Estación de Hangzhou Este',
+          local: '杭州东站',
           categoria: 'transporte',
-          ...en(C.estacionNankin),
-          llegada: { modo: 'tren', detalle: 'G7006 (09:00 → 10:44)', min: 104 },
+          ...en(C.estacionHangzhouEste),
+          llegada: { modo: 'tren', detalle: 'G1631 (07:45 → 08:49)', min: 64 },
+          notas: 'Seguir las señales del metro (地铁), línea 1. En Hangzhou, metro y autobús se pagan con el código de transporte de Alipay (乘车码): activarlo antes, en Shanghái.',
         },
         {
-          id: '8fa17c35de2064b9',
-          hora: '11:10',
-          fin: '13:50',
-          nombre: 'Museo Paleontológico de Nankín',
-          corto: 'el museo',
-          local: '南京古生物博物馆',
-          categoria: 'museo',
-          ...en(C.museo),
-          llegada: { modo: 'metro', detalle: 'Línea 3, 2 paradas hasta Jiming Temple (鸡鸣寺); salida 5 y 200 m a pie', min: 20 },
-          direccion: '39 Beijing East Road',
-          direccionLocal: '北京东路39号',
+          id: 'a42b37ab706683e8',
+          hora: '10:00',
+          fin: '12:00',
+          nombre: 'Lingyin y Feilai Feng',
+          corto: 'Lingyin',
+          local: '灵隐飞来峰',
+          categoria: 'cultura',
+          ...en(C.lingyin),
+          llegada: {
+            modo: 'metro',
+            detalle: 'Línea 1 hasta West Lake Cultural Square (3 paradas), línea 3 hasta Huanglong Sports Center (4 paradas) y el autobús lanzadera 黄龙体育中心西至灵隐专线 (5 ¥, 15–20 min)',
+            min: 65,
+          },
+          direccionLocal: '杭州市西湖区灵隐路法云弄1号',
           notas:
-            'Gratis. De miércoles a domingo, de 09:00 a 17:00 (última entrada a las 16:00). Reabrió en abril de 2026 tras una reforma.\n' +
-            'Reserva nominal obligatoria en el WeChat «南京古生物博物馆» (参观服务 → 门票预约), con un código por persona. Las franjas (de 09:00 a 12:00 y de 12:00 a 16:00) son horas para ENTRAR, no de visita: llegando a las 11:10, la de 09:00 a 12:00; la web oficial las llama «预约入馆时段» (horas de entrada) y no dice nada de salir al acabar la franja. Se abre unos 3 días de apertura antes (para el sábado, hacia el miércoles 21): reservar en cuanto se abra, que los sábados se llena. Si no deja con pasaporte, llamar al 025-8328 2255.\n' +
-            'Lo imprescindible: la sala de fósiles de nivel mundial, con la biota de Chengjiang (Cámbrico) y la de Jehol, con Sinosauropteryx, el primer dinosaurio con plumas; los dinosaurios, el origen de las aves y las grandes extinciones; y la exposición nueva (desde el 29 de septiembre) del bosque pérmico de Wuhai sepultado por ceniza volcánica, la «Pompeya de las plantas».\n' +
-            'Hay poco inglés en las salas: llevar un traductor con cámara. Para comer, la cafetería del museo; salir hacia las 14:00 para el tren.',
+            'El templo budista más famoso del sur de China, al pie de un monte de caliza con más de 300 budas tallados en la roca entre los siglos X y XIV. Gratis desde diciembre de 2025, también el templo.\n' +
+            'SIN RESERVA NO SE ENTRA: reserva nominal con el pasaporte en el miniprograma «杭州灵隐飞来峰» (en Alipay o WeChat), turno de mañana (se entra de 07:30 a 13:00). Para el sábado 24 se abre el sábado 17 a las 08:00 de China (02:00 en España) y se agota. Hay que llevar el pasaporte original. Si falla, lista de espera en el mismo miniprograma hasta las 20:00 del viernes, o teléfono 0571-8796 9691.\n' +
+            'Orden: primero las esculturas del arroyo (a la entrada) y después el templo, de la puerta hacia arriba. No hacer caso a quien ofrezca entrar sin reserva por caminos de monte.\n' +
+            'Los fines de semana de otoño, de 08:00 a 17:00, los taxis y DiDi no pueden llegar hasta aquí: dejan en el aparcamiento de 西溪路608号, con lanzadera de 2 ¥.',
           gastos: [{ concepto: 'entrada', min: 0 }],
           subparadas: [
             {
-              id: '78223c8dc8388b1a',
-              nombre: 'Cafetería del museo',
-              local: '科学咖啡厅',
-              notas: 'Dentro del museo, de 10:00 a 18:00: la comida del día, rápida, entre salas.',
+              id: 'b07561d988f62b72',
+              nombre: 'Esculturas de Feilai Feng y el Buda risueño',
+              local: '飞来峰造像',
+              notas: 'A lo largo del arroyo 冷泉溪, nada más entrar. Lo mejor: el Buda risueño (布袋弥勒) de época Song, el relieve más grande del monte, rodeado de 18 luohan. Y las cuevas 青林洞, 玉乳洞 y 龙泓洞, con figuras dentro. Unos 45 min.',
             },
             {
-              id: 'a3c15b210880cb24',
-              nombre: 'Templo Jiming',
-              local: '鸡鸣寺',
-              opcional: true,
-              ...en(C.jiming),
-              direccionLocal: '鸡鸣寺路1号',
-              notas: 'Templo budista junto al museo, con vistas al lago. De 07:30 a 17:00, unos 10 ¥; dentro sirven fideos vegetarianos (素面). Solo si sobra un rato antes del tren.',
+              id: '3939f6636458a4a2',
+              nombre: 'Templo Lingyin',
+              local: '灵隐寺',
+              ...en(C.temploLingyin),
+              notas: 'Al otro lado del arroyo. Eje central: 天王殿, el Gran Salón 大雄宝殿 (con un enorme Buda dorado de madera de alcanfor), 药师殿 y 华严殿. En la puerta regalan tres varillas de incienso.',
             },
             {
-              id: '8484aaa3f5e4a9b8',
-              nombre: 'Muralla Ming de Taicheng',
-              local: '台城',
+              id: '8d37955c8c1ca350',
+              nombre: 'Sala de los 500 luohan',
+              local: '五百罗汉堂',
+              notas: 'Dentro del templo: 500 luohan de bronce de 1,7 m en fila y, en el centro, un pabellón de bronce de 12 m dedicado a las cuatro montañas sagradas del budismo chino.',
+            },
+            {
+              id: '2b0e88aa779254ff',
+              nombre: 'Fideos vegetarianos del templo',
+              local: '十方苑素面',
               opcional: true,
-              ...en(C.taicheng),
-              direccionLocal: '鸡鸣寺路 解放门',
-              notas: 'Tramo de la muralla Ming de Nankín junto al templo, con el lago Xuanwu a los pies. De 08:30 a 17:00, 30 ¥. La subida está en la puerta Jiefang (解放门).',
+              notas: 'En el comedor del templo, subiendo unos escalones a la derecha de la antigua taquilla: unos 20 ¥, y repetir es gratis. Mejor un cuenco para dos, que la comida es en Meijiawu. Suele haber cola.',
             },
           ],
-          enlaces: [enlace('Guía oficial del museo', 'https://www.nmp.ac.cn/bwggk/cgzn/')],
+          enlaces: [
+            enlace('Reserva y normas (web del templo)', 'https://en.lingyinsi.org/detail_15105.html'),
+            enlace('Tráfico en otoño (杭州网)', 'https://hznews.hangzhou.com.cn/chengshi/content/2026-09/06/content_9299984.htm'),
+          ],
         },
         {
-          id: 'ca85e71b0639df24',
-          hora: '14:25',
-          fin: '14:57',
-          nombre: 'Estación de Nankín',
-          local: '南京站',
-          categoria: 'transporte',
-          ...en(C.estacionNankin),
-          llegada: { modo: 'metro', detalle: 'Línea 3, 2 paradas de Jiming Temple a la estación de Nankín', min: 20 },
-          notas: 'Tren G7017 a las 14:57 (llega a 上海站 a las 16:40). Llegar 30 min antes y pasar por el paso manual con el pasaporte.',
+          id: 'f534d343a4cc6844',
+          hora: '12:25',
+          fin: '13:30',
+          nombre: 'Comida y té en Meijiawu',
+          corto: 'Meijiawu',
+          local: '梅家坞',
+          categoria: 'comida',
+          ...en(C.meijiawu),
+          llegada: { modo: 'bus', detalle: 'Autobús 103, 121 o 1314 desde la parada 灵隐东 (梅灵北路, 300 m al sur de la terminal), 6 paradas hasta 梅家坞', min: 25 },
+          direccionLocal: '杭州市西湖区梅灵南路 梅家坞',
+          notas:
+            'Aldea de té Longjing en un valle, con unas 160 casas de comidas entre las terrazas.\n' +
+            'Qué pedir: 龙井虾仁 (gambas salteadas con té Longjing, el plato de Hangzhou), 东坡肉 (panceta estofada, una porción por persona), 茶香排骨 (costillas al té), 黄鱼年糕 (pastel de arroz con corvina) y pescado de río al vapor (钱江白条). Si hay hambre, un 本鸡煲 (cazuela de pollo de corral). El famoso 西湖醋鱼 (pescado al vinagre) tiene mala fama entre los propios locales: mejor no.\n' +
+            'El té: un vaso de Longjing (龙井) para cada uno, que lo rellenan. Preguntar el precio antes: «一杯多少钱?».\n' +
+            'Si se compra té, que sea poco y con la etiqueta oficial de 西湖龙井 con código QR. Ojo con la unidad: 1 斤 son 500 g y 1 两, 50 g. Un 雨前 auténtico ronda los 120–200 ¥ el 两; muy por debajo, desconfiar. No seguir a nadie que ofrezca llevarte a «su» casa de té.',
+          gastos: [{ concepto: 'comida (estimado)', min: 100, max: 150 }, { concepto: 'vaso de té Longjing', min: 30, max: 60 }],
           subparadas: [
             {
-              id: '62959527022178c9',
-              nombre: 'Paseo del lago Xuanwu',
-              local: '玄武湖',
+              id: '9c216f3882222c61',
+              nombre: 'Xiangfu Ming Tea House',
+              local: '香芙茗茶楼(梅家坞总店)',
+              notas: 'El mejor valorado de la aldea en Dianping (4,8; unos 100 ¥ por persona), casi enfrente de la parada del autobús. Recomiendan 黄鱼年糕, 神仙鸡煲 (cazuela de pollo), 茶香排骨 y 梅干菜蒸鳗鱼 (anguila con verdura encurtida).',
+            },
+            {
+              id: 'b7981100620d79db',
+              nombre: 'Chunjuan Tea House',
+              local: '春娟茶楼',
               opcional: true,
-              ...en(C.xuanwuEstacion),
-              notas: 'El paseo del lago empieza justo al sur de la estación: 15 minutos si sobra tiempo antes del tren. Gratis.',
+              direccionLocal: '杭州市西湖区梅家坞195号',
+              notas: 'Alternativa si el otro está lleno: casa de comidas de una vecina del pueblo, frente al aparcamiento, de 09:00 a 21:00. Unos 90 ¥ por persona en reseñas antiguas (sin confirmar en 2026).',
+            },
+            {
+              id: 'ec4e1b73d0362e8a',
+              nombre: 'Paseo entre las terrazas de té',
+              local: '梅家坞茶园',
+              opcional: true,
+              ...en(C.terrazasMeijiawu),
+              notas: 'Diez minutos de paseo entre las plantaciones, a los dos lados de la carretera, antes de volver a la parada.',
             },
           ],
-          gastos: [{ concepto: 'tren de vuelta (G7017), 2.ª clase', min: 166 }],
         },
         {
-          id: '7d30ba49c2e8651f',
-          hora: '16:40',
-          nombre: 'Estación de Shanghái',
-          local: '上海站',
+          id: '2d9aaa2a9440c780',
+          hora: '14:10',
+          fin: '14:30',
+          nombre: 'Dique Su',
+          corto: 'el dique Su',
+          local: '苏堤',
+          categoria: 'naturaleza',
+          ...en(C.diqueSu),
+          llegada: { modo: 'bus', detalle: 'Autobús 1314 en dirección 一公园, desde la parada de enfrente; bajar en 苏堤南口 (unas 10 paradas)', min: 40 },
+          notas:
+            'El dique de 2,8 km y seis puentes que cruza el lago del Oeste, con sauces a los lados. Subir al primer puente (映波桥) y bajar por la orilla hasta el embarcadero de 花港观鱼, unos 10 min a pie.\n' +
+            'Si hay mucha cola en el barco o vamos tarde: seguir en el 1314 hasta el final (一公园, en Hubin) y hacer allí la ida y vuelta a la isla, o pasear por la orilla hacia el puente roto (断桥) y coger el metro en Longxiangqiao.',
+          subparadas: [
+            {
+              id: '9f02ca046fb842b1',
+              nombre: 'Embarcadero de Huagang',
+              local: '花港观鱼码头',
+              ...en(C.huagang),
+              notas: 'Barco «上岛游» a la isla de los Tres Estanques: 55 ¥, con la entrada de la isla. Sale cada 15–30 min, de 08:00 a 17:00. El punto del mapa es el parque; el embarcadero está en su orilla.',
+            },
+          ],
+        },
+        {
+          id: '8492f8dc8775d156',
+          hora: '14:45',
+          fin: '15:10',
+          nombre: 'Isla de los Tres Estanques',
+          corto: 'la isla',
+          local: '三潭印月',
+          categoria: 'naturaleza',
+          ...en(C.santan),
+          llegada: { modo: 'ferry', detalle: 'Barco 上岛游 desde Huagang; atraca en el lado oeste de la isla', min: 15 },
+          notas:
+            'Isla con estanques dentro del lago y, delante, las tres pequeñas torres de piedra que salen en el billete de 1 yuan. Recorrer el eje central hasta el pabellón del sur para la foto.\n' +
+            'Para la vuelta, coger el barco del embarcadero ESTE de la isla, el que va a Hubin (湖滨), no el que vuelve a Huagang.',
+          gastos: [{ concepto: 'barco con la entrada de la isla', min: 55 }],
+          subparadas: [
+            {
+              id: 'a763f0aaea022284',
+              nombre: 'Foto del billete de 1 yuan',
+              local: '我心相印亭',
+              ...en(C.fotoBillete),
+              notas: 'Desde el lado este de este pabellón, en el extremo sur de la isla, se ven las torres como en el billete (en el billete hay tres; de verdad se ven dos). En Hangzhou no dan billetes de 1 yuan, solo monedas: llevar uno de Shanghái.',
+            },
+          ],
+        },
+        {
+          id: 'a19573a7468a6087',
+          hora: '15:30',
+          fin: '15:35',
+          nombre: 'Embarcadero de Hubin',
+          local: '二公园码头',
           categoria: 'transporte',
-          ...en(C.estacionShanghai),
-          llegada: { modo: 'tren', detalle: 'G7017 (14:57 → 16:40)', min: 103 },
+          ...en(C.hubin),
+          llegada: { modo: 'ferry', detalle: 'Barco de la isla a Hubin (湖滨)', min: 20 },
+          direccionLocal: '杭州市上城区湖滨路 二公园码头',
+          notas: 'Desde aquí, 340 m a pie por Hubin Road hasta el metro Longxiangqiao (龙翔桥), línea 1.',
         },
         {
-          ...HOTEL,
-          id: 'ed261f7c904ab835',
-          hora: '16:55',
-          fin: '17:05',
-          llegada: { modo: 'a_pie', min: 10 },
-          notas: 'Dejar las cosas de Nankín y salir hacia el parque Guilin por el metro Hanzhong Road (línea 12).',
+          id: '5cf5e83071b8394d',
+          hora: '15:55',
+          fin: '16:34',
+          nombre: 'Estación de Hangzhou Este',
+          local: '杭州东站',
+          categoria: 'transporte',
+          ...en(C.estacionHangzhouEste),
+          llegada: { modo: 'metro', detalle: 'A pie hasta Longxiangqiao y línea 1 en dirección 萧山国际机场 hasta Railway East Station (火车东站), 6 paradas', min: 20 },
+          notas: 'Tren G1384 a las 16:34 (llega a 上海南站 a las 17:40). El embarque cierra unos minutos antes de la salida: estar en el andén con margen. Para picar algo, hay tiendas en la estación.',
+          gastos: [{ concepto: 'tren de vuelta (G1384), 2.ª clase', min: 77 }],
+        },
+        {
+          id: '19b12ba1c8914e31',
+          hora: '17:40',
+          fin: '17:45',
+          nombre: 'Estación de Shanghái Sur',
+          local: '上海南站',
+          categoria: 'transporte',
+          ...en(C.estacionShanghaiSur),
+          llegada: { modo: 'tren', detalle: 'G1384 (16:34 → 17:40)', min: 66 },
+          notas: 'Sin pasar por el hotel: del tren, a la línea 15 del metro.',
         },
         {
           id: '319ed0320062a6d2',
-          hora: '17:30',
+          hora: '18:00',
           fin: '18:40',
           nombre: 'Parque Guilin al anochecer',
           corto: 'el parque Guilin',
           local: '桂林公园',
           categoria: 'naturaleza',
           ...en(C.guilin),
-          llegada: { modo: 'metro', detalle: 'Línea 12 de Hanzhong Road a Guilin Park (9 paradas), salida 5; la entrada está unos 250 m al sur', min: 25 },
+          llegada: { modo: 'metro', detalle: 'Línea 15, una parada de Shanghai South Railway Station a Guilin Park; la entrada del parque está unos 250 m al sur de la estación', min: 15 },
           direccionLocal: '徐汇区桂林路128号',
           notas:
             'Jardín chino de 1929 del gánster Huang Jinrong, jefe de la Banda Verde del Shanghái de los años 30: muro con forma de dragón, barco de piedra (般若舫) y pabellones, con más de mil osmantos (el 24 la floración ya habrá pasado). Reabrió el 24 de julio de 2026 tras un año de obras.\n' +
-            'Gratis, de 05:00 a 21:00 (última entrada a las 20:30). Anochece hacia las 17:40: farolas cálidas perfilan los aleros y el salón 四教厅 se ilumina.',
+            'Gratis, de 05:00 a 21:00 (última entrada a las 20:30). Se llega ya de noche (anochece hacia las 17:40): farolas cálidas perfilan los aleros y el salón 四教厅 se ilumina. Si venimos muy cansados, se puede ir directo a cenar.',
           gastos: [{ concepto: 'entrada', min: 0 }],
           subparadas: [
             {
@@ -1583,13 +1687,6 @@ export const itinerario: Itinerario = {
               nombre: 'Tao Xiaoguan: cocina de Shanghái',
               local: '淘小馆',
               notas: 'Cocina shanghainesa: 红烧肉 (cerdo estofado) y 松鼠鲈鱼 (lubina «ardilla», frita en salsa agridulce). Local B2-N53. Precio sin confirmar.',
-            },
-            {
-              id: '0e90126756386780',
-              nombre: 'Gui Man Long: cocina de Hangzhou',
-              local: '桂满陇',
-              opcional: true,
-              notas: 'Alternativa: cocina de Hangzhou en un local con aire de pueblo de agua, planta B2 norte. Unos 100 ¥ por persona o algo más.',
             },
             {
               id: '9ae3f223b5b91684',
@@ -1648,7 +1745,7 @@ export const itinerario: Itinerario = {
           direccionLocal: '雁荡路109号',
           notas:
             'Si apetece hip-hop/R&B. Es sábado, la noche con más ambiente: comprobar la sesión y el precio de la entrada antes de comprar pases.\n' +
-            'Si llegamos cansados de Nankín, el bar ya cumple el plan nocturno y la discoteca se puede omitir. Hora de salida orientativa; al día siguiente nos levantamos sobre las 11:00.\n' +
+            'Si llegamos cansados de Hangzhou, el bar ya cumple el plan nocturno y la discoteca se puede omitir. Hora de salida orientativa; al día siguiente nos levantamos sobre las 11:00.\n' +
             'INS Land está en el lado norte del parque Fuxing; el punto del mapa es aproximado.',
           gastos: [{ concepto: 'entrada de fin de semana (por confirmar)', min: 198, max: 288 }],
           enlaces: [enlace('Hush', 'https://www.smartshanghai.com/venue/28730/smshwxmpqr.jpeg?share=true28730')],
@@ -1666,7 +1763,7 @@ export const itinerario: Itinerario = {
       titulo: 'Historia Natural, Wukang/Anfu, cafés y bufé en Lujiazui',
       ciudad: 'Shanghái',
       notas:
-        'Después de Nankín y la noche de salida, levantarnos sobre las 11:00.\n' +
+        'Después de Hangzhou y la noche de salida, levantarnos sobre las 11:00.\n' +
         'Museo de Historia Natural, comida ligera (la cena es un bufé), Anfu Road y Wukang Road con sus cafés curiosos, y Lujiazui de noche.',
       paradas: [
         {
@@ -1969,10 +2066,10 @@ export const itinerario: Itinerario = {
     {
       titulo: 'Lo que queremos priorizar',
       puntos: [
-        'Disfrutar Shanghái sin madrugar: levantarnos a las 10:00 como muy pronto. Excepciones: Zhujiajiao (07:30), Disneyland (08:00) y el vuelo de vuelta.',
+        'Disfrutar Shanghái sin madrugar: levantarnos a las 10:00 como muy pronto. Excepciones: Zhujiajiao (07:30), Disneyland (08:00), Hangzhou (06:30) y el vuelo de vuelta.',
         'Comprar una maleta y ropa allí; descubrir marcas chinas originales con buena relación calidad-precio.',
         'Probar comidas y bebidas curiosas.',
-        'Disneyland, el Museo Paleontológico de Nankín y una noche de buenos cócteles y baile.',
+        'Disneyland, un día en Hangzhou y una noche de buenos cócteles y baile.',
         'No meter todos los sitios de la lista por obligación.',
       ],
     },
@@ -2011,7 +2108,7 @@ export const itinerario: Itinerario = {
     {
       titulo: 'Fuera del plan por ahora',
       puntos: [
-        'Nankín: Niushoushan, Mausoleo Ming Xiaoling, Palacio Presidencial y los demás museos.',
+        'Nankín y su Museo Paleontológico: se cambió por Hangzhou (3 h 30 de tren, ida y vuelta, por un museo, y el domingo ya hay dinosaurios en el de Historia Natural).',
         'Shanghái: Museo de Arte Contemporáneo, China Art Museum, Templo del Buda de Jade y varios centros comerciales.',
         'Masaje en Kangyou Four Seasons (222 Jinyuan Road): era el plan para el miércoles si no había habitación temprano.',
         'Templo Longhua por dentro y sus fideos budistas 罗汉面 (15 ¥ en 龙华素斋): solo de día (el templo, de 07:00 a 16:30, gratis; el comedor, hasta las 15:00). El sábado 24 se ve la pagoda iluminada por fuera; para entrar, una mañana (línea 12 hasta Longhua).',
@@ -2023,7 +2120,7 @@ export const itinerario: Itinerario = {
   pendientes: [
     { id: 'c849d1a6f7302be5', texto: 'Museo de Historia Natural (domingo 25): las entradas salen el domingo 18 a las 09:00 de China (las 03:00 en España), con el pasaporte, en el miniprograma «上海科技馆自然博物馆天文馆门票». No hay taquilla y los fines de semana se agotan.' },
     { id: '38f76ad0e1bc5492', texto: 'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.' },
-    { id: 'd57b9016ce42a83f', texto: 'Sábado 24: comprar ya los trenes G7006 (上海站 09:00) y G7017 (南京站 14:57), y reservar el museo en cuanto se abra, hacia el miércoles 21: franja de entrada de 09:00 a 12:00 (se entra a las 11:10). Dudas: 025-8328 2255, de miércoles a domingo de 09:00 a 17:00.' },
+    { id: '12a4a2178f65dcac', texto: 'Sábado 24, Hangzhou: reservar Lingyin el sábado 17 a las 02:00 hora española (08:00 en China), en cuanto se abre: miniprograma «杭州灵隐飞来峰» en Alipay o WeChat, con los dos pasaportes, turno de mañana. Comprar los trenes G1631 (上海南站 07:45) y G1384 (杭州东站 16:34). Si ya estaban comprados los de Nankín, devolverlos: gratis hasta el viernes 16 a las 03:00 hora española; después, un 5 %.' },
     { id: '71ea52c093b6fd84', texto: 'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.' },
     { id: 'b1f8074a6d3c92e5', texto: 'Equipaje: añadir por internet una maleta facturada en el Vueling VY1542 (Barcelona–Málaga, martes 27 a las 06:50), que la tarifa no la incluye. Y decidir dónde pasar la noche en Barcelona (llegada a las 23:05 del lunes).' },
     { id: '095cbe73a24f681d', texto: 'Domingo 25: reservar el bufé del Yi Café (Pudong Shangri-La) para dos a las 18:30 en la web de reservas del Shangri-La (o al +86 21 2828 6888); 487 ¥ con todo. Comprar la entrada de la Shanghai Tower (180 ¥) por internet.' },
