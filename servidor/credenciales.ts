@@ -12,7 +12,8 @@ export interface ConfiguracionCredenciales {
 type Criptografia = Pick<typeof globalThis.crypto, 'subtle' | 'getRandomValues'>;
 
 // Antes del despliegue: generar 32 bytes CSPRNG en base64url fuera del repositorio.
-// El límite de bytes NO demuestra entropía: no usar frases humanas débiles.
+// Esa generación es una recomendación, no el mínimo aceptado de 10 caracteres Unicode.
+// Ni la longitud ni el límite de bytes demuestran entropía: no usar frases humanas débiles.
 // La configuración futura viene del entorno privado del servidor, nunca de VITE_ ni de la app.
 function bytesTexto(entrada: unknown, minimo: number, maximo: number): Uint8Array<ArrayBuffer> | null {
   if (typeof entrada !== 'string' || entrada.length > maximo) return null;
@@ -26,6 +27,13 @@ function bytesTexto(entrada: unknown, minimo: number, maximo: number): Uint8Arra
   }
   const bytes = codificador.encode(entrada);
   return bytes.length >= minimo && bytes.length <= maximo ? bytes : null;
+}
+
+function bytesClave(entrada: unknown): Uint8Array<ArrayBuffer> | null {
+  if (typeof entrada !== 'string') return null;
+  const bytes = bytesTexto(entrada, 1, 256);
+  // Tras rechazar Unicode mal formado, el iterador cuenta valores escalares, no unidades UTF-16.
+  return bytes && [...entrada].length >= 10 ? bytes : null;
 }
 
 function base64url(bytes: Uint8Array): string {
@@ -67,7 +75,7 @@ function tokenCookie(cabecera: string | null): string | null {
 // Esperar la fábrica antes de servir solicitudes; no hay inicialización en segundo plano.
 export async function crearCredenciales(configuracion: ConfiguracionCredenciales, cripto: Criptografia = globalThis.crypto) {
   const viajeId = configuracion?.viajeId;
-  const claveBytes = bytesTexto(configuracion?.claveCompartida, 32, 256);
+  const claveBytes = bytesClave(configuracion?.claveCompartida);
   if (!bytesTexto(viajeId, 1, 128) || !claveBytes) throw new Error(ERROR_CONFIGURACION);
 
   // JSON codifica cada campo sin ambigüedad; versión, propósito y viaje son obligatorios.
@@ -91,7 +99,7 @@ export async function crearCredenciales(configuracion: ConfiguracionCredenciales
 
     return Object.freeze({
       async verificarClave(entrada: unknown): Promise<boolean> {
-        const candidata = bytesTexto(entrada, 32, 256);
+        const candidata = bytesClave(entrada);
         if (!candidata) return false;
         try {
           const claveCandidata = await importarClave(candidata, ['verify']);

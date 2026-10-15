@@ -82,6 +82,26 @@ describe('credenciales privadas con WebCrypto de Node', () => {
     expect(await descompuesta.verificarClave(exacta)).toBe(false);
   });
 
+  it.each(['x', '🔐'])('rechaza nueve caracteres %s en configuración aunque superen 32 bytes', async (caracter) => {
+    await expect(crearCredenciales({ ...configuracion, claveCompartida: caracter.repeat(9) }))
+      .rejects.toThrow(errorConfiguracion);
+  });
+
+  it.each(['x', '🔐'])('rechaza nueve caracteres %s candidatos antes de derivar la clave', async (caracter) => {
+    const credenciales = await crearCredenciales(configuracion, fallarEn('digest', 1));
+    expect(await credenciales.verificarClave(caracter.repeat(9))).toBe(false);
+  });
+
+  it.each(['x', '🔐'])('acepta diez caracteres %s exactos en configuración y acceso', async (caracter) => {
+    const clave = caracter.repeat(10);
+    const credenciales = await crearCredenciales({ ...configuracion, claveCompartida: clave });
+    expect(await credenciales.verificarClave(clave)).toBe(true);
+    expect(await credenciales.verificarClave(caracter.repeat(9))).toBe(false);
+    expect(await credenciales.verificarClave(`${caracter.repeat(9)}y`)).toBe(false);
+    expect(await credenciales.verificarClave(` ${clave}`)).toBe(false);
+    expect(await credenciales.verificarClave(`${clave} `)).toBe(false);
+  });
+
   const variantesNulas = [32, 62, 63, 64, 65, 254].flatMap((longitud) =>
     [1, 2].map((ceros) => ({ longitud, ceros })));
 
@@ -117,13 +137,13 @@ describe('credenciales privadas con WebCrypto de Node', () => {
   });
 
   it.each([null, undefined, [], [claveFicticia], {}, new String(claveFicticia), 42, true,
-    '', 'x'.repeat(257), '🔐'.repeat(65), `${claveFicticia}\ud800`, `${claveFicticia}\udc00`,
+    '', '🔐'.repeat(8), 'x'.repeat(257), '🔐'.repeat(65), `${claveFicticia}\ud800`, `${claveFicticia}\udc00`,
   ])('rechaza entradas públicas inválidas sin coerción: %s', async (entrada) => {
     const credenciales = await crearCredenciales(configuracion);
     expect(await credenciales.verificarClave(entrada)).toBe(false);
   });
 
-  it.each([null, undefined, [], new String(claveFicticia), '', 'x'.repeat(31), 'x'.repeat(257),
+  it.each([null, undefined, [], new String(claveFicticia), '', '🔐'.repeat(8), 'x'.repeat(257),
     '🔐'.repeat(65), `${claveFicticia}\ud800`, `${claveFicticia}\udc00`])
   ('rechaza configuración de clave inválida sin divulgarla: %s', async (clave) => {
     const fallo = await crearCredenciales({ ...configuracion, claveCompartida: clave as unknown as string }).catch((error: unknown) => error);
@@ -132,7 +152,7 @@ describe('credenciales privadas con WebCrypto de Node', () => {
   });
 
   it('acota bytes UTF-8 de clave e identificador y conserva los extremos', async () => {
-    for (const clave of ['x'.repeat(32), '🔐'.repeat(8), 'x'.repeat(256), '🔐'.repeat(64)]) {
+    for (const clave of ['x'.repeat(31), 'x'.repeat(32), 'x'.repeat(256), '🔐'.repeat(64)]) {
       const credenciales = await crearCredenciales({ ...configuracion, claveCompartida: clave });
       expect(await credenciales.verificarClave(clave)).toBe(true);
     }
@@ -253,7 +273,7 @@ describe('credenciales privadas con WebCrypto de Node', () => {
 
   it('propaga fallo seguro al derivar la candidata y rechaza entradas inválidas antes del hash', async () => {
     const credenciales = await crearCredenciales(configuracion, fallarEn('digest', 1));
-    expect(await credenciales.verificarClave('x'.repeat(31))).toBe(false);
+    expect(await credenciales.verificarClave('x'.repeat(9))).toBe(false);
     expect(await credenciales.verificarClave('x'.repeat(257))).toBe(false);
     expect(await credenciales.verificarClave(`${claveFicticia}\ud800`)).toBe(false);
     await expect(credenciales.verificarClave(claveFicticia)).rejects.toThrow(errorSistema);

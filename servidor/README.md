@@ -28,6 +28,16 @@ permanecen en el Request original. Los assets requieren sesión vigente comproba
 | `FOTOS_BUCKET?` | Vínculo estructural privado con `get`/`put`, incluidos métodos prototípicos ligados a su receiver. No recurso provisionado. |
 | `FOTOS_LISTADO_PRESUPUESTO?` | Seis campos propios de datos del catálogo (tabla siguiente), sin defaults. Sólo se inspecciona en `/api/fotos/listado`. |
 
+La clave configurada y la candidata de acceso deben tener **al menos 10 caracteres
+Unicode (valores escalares/puntos de código)** y como máximo 256 bytes UTF-8. No se
+cuentan bytes ni unidades UTF-16 para el mínimo; se rechaza Unicode mal formado y se
+conserva el texto exacto, sin recortar espacios ni normalizarlo. Nueve caracteres
+siguen siendo inválidos, aunque su codificación supere 32 bytes.
+
+Se recomienda generar **32 bytes aleatorios con CSPRNG y codificarlos en base64url**
+fuera del repositorio. Es una recomendación de generación, no el mínimo de aceptación;
+la longitud por sí sola no garantiza entropía ni seguridad de una contraseña humana.
+
 ### Activación aislada de fotos por solicitud
 
 Los tres campos opcionales deben estar presentes y válidos para atender únicamente
