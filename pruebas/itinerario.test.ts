@@ -74,7 +74,7 @@ const CLAVES_HEREDADAS = [
 const TEXTOS_HEREDADOS = [
   'Museo de Historia Natural (domingo 25): las entradas salen el domingo 18 a las 09:00 de China (las 03:00 en España), con el pasaporte, en el miniprograma «上海科技馆自然博物馆天文馆门票». No hay taquilla y los fines de semana se agotan.',
   'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.',
-  'Sábado 24, Hangzhou: reservar Lingyin el sábado 17 a las 02:00 hora española (08:00 en China), en cuanto se abre: miniprograma «杭州灵隐飞来峰» en Alipay o WeChat, con los dos pasaportes, turno de mañana. Comprar los trenes G1631 (上海南站 07:45) y G1384 (杭州东站 16:34). Si ya estaban comprados los de Nankín, devolverlos: gratis hasta el viernes 16 a las 03:00 hora española; después, un 5 %.',
+  'Sábado 24, Hangzhou: reservar Lingyin el sábado 17 a las 02:00 hora española (08:00 en China), en cuanto se abre: miniprograma «杭州灵隐飞来峰» en WeChat (o Alipay), con los dos pasaportes, turno de mañana. Comprar los trenes G1631 (上海南站 07:45) y G1384 (杭州东站 16:34). Si ya estaban comprados los de Nankín, devolverlos: gratis hasta el viernes 16 a las 03:00 hora española; después, un 5 %.',
   'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.',
   'Equipaje: añadir por internet una maleta facturada en el Vueling VY1542 (Barcelona–Málaga, martes 27 a las 06:50), que la tarifa no la incluye. Y decidir dónde pasar la noche en Barcelona (llegada a las 23:05 del lunes).',
   'Domingo 25: reservar el bufé del Yi Café (Pudong Shangri-La) para dos a las 18:30 en la web de reservas del Shangri-La (o al +86 21 2828 6888); 487 ¥ con todo. Comprar la entrada de la Shanghai Tower (180 ¥) por internet.',

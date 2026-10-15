@@ -1449,7 +1449,7 @@ export const itinerario: Itinerario = {
           categoria: 'transporte',
           ...en(C.estacionHangzhouEste),
           llegada: { modo: 'tren', detalle: 'G1631 (07:45 → 08:49)', min: 64 },
-          notas: 'Seguir las señales del metro (地铁), línea 1. En Hangzhou, metro y autobús se pagan con el código de transporte de Alipay (乘车码): activarlo antes, en Shanghái.',
+          notas: 'Seguir las señales del metro (地铁), línea 1. En Hangzhou, metro y autobús se pagan con el código de transporte de WeChat (miniprograma «乘车码», con la tarjeta extranjera ya vinculada a WeChat Pay): activarlo antes, en Shanghái. Si no funciona: billete sencillo en las máquinas del metro (se paga escaneando con WeChat o en efectivo) y, en el autobús, monedas o billetes pequeños, que no dan cambio.',
         },
         {
           id: 'a42b37ab706683e8',
@@ -1468,7 +1468,7 @@ export const itinerario: Itinerario = {
           direccionLocal: '杭州市西湖区灵隐路法云弄1号',
           notas:
             'El templo budista más famoso del sur de China, al pie de un monte de caliza con más de 300 budas tallados en la roca entre los siglos X y XIV. Gratis desde diciembre de 2025, también el templo.\n' +
-            'SIN RESERVA NO SE ENTRA: reserva nominal con el pasaporte en el miniprograma «杭州灵隐飞来峰» (en Alipay o WeChat), turno de mañana (se entra de 07:30 a 13:00). Para el sábado 24 se abre el sábado 17 a las 08:00 de China (02:00 en España) y se agota. Hay que llevar el pasaporte original. Si falla, lista de espera en el mismo miniprograma hasta las 20:00 del viernes, o teléfono 0571-8796 9691.\n' +
+            'SIN RESERVA NO SE ENTRA: reserva nominal con el pasaporte en el miniprograma «杭州灵隐飞来峰» (en WeChat o en Alipay), turno de mañana (se entra de 07:30 a 13:00). Para el sábado 24 se abre el sábado 17 a las 08:00 de China (02:00 en España) y se agota. Hay que llevar el pasaporte original. Si falla, lista de espera en el mismo miniprograma hasta las 20:00 del viernes, o teléfono 0571-8796 9691.\n' +
             'Orden: primero las esculturas del arroyo (a la entrada) y después el templo, de la puerta hacia arriba. No hacer caso a quien ofrezca entrar sin reserva por caminos de monte.\n' +
             'Los fines de semana de otoño, de 08:00 a 17:00, los taxis y DiDi no pueden llegar hasta aquí: dejan en el aparcamiento de 西溪路608号, con lanzadera de 2 ¥.',
           gastos: [{ concepto: 'entrada', min: 0 }],
@@ -2098,10 +2098,13 @@ export const itinerario: Itinerario = {
         'Alipay y WeChat Pay con tarjeta extranjera: sin comisión hasta 200 ¥; por encima, un 3 % sobre el total. Para compras grandes, mejor pagar con la tarjeta (Visa o Mastercard) en el datáfono de la tienda, si la aceptan.',
         'Devolución de impuestos para turistas: comprando 200 ¥ o más en una misma tienda y el mismo día, con el pasaporte, en las tiendas adheridas (preguntar antes de pagar). Se recupera más o menos un 9 % (un 11 % menos la comisión).',
         'Las tiendas con el cartel «即买即退» lo devuelven en el momento, dejando la tarjeta preautorizada. Al salir, el lunes 26 en Pudong, enseñar las compras y los papeles en la aduana antes de facturar.',
+        'Metro y autobús: en el metro de Shanghái basta con tocar el torno con la Visa o Mastercard sin contacto (en toda la red desde junio de 2025). En Shanghái y en Hangzhou sirve también el código de transporte de WeChat (miniprograma «乘车码»), con la tarjeta extranjera vinculada. Llevar algo de efectivo en billetes pequeños por si acaso.',
         'Ropa normal más barata que en España: Uniqlo (un 20–35 % menos, mismo artículo) y marcas chinas de básicos como Semir o HLA (vaqueros por 17–32 €). Zara, H&M y ONLY cuestan igual o más que en España.',
       ],
       enlaces: [
         enlace('Devolución de impuestos (Shanghái)', 'https://english.shanghai.gov.cn/en-InFocus/20250429/19697c0873294f9fbc9e8e6a158e5bbc.html'),
+        enlace('Tarjetas extranjeras en el metro de Shanghái (abril de 2026)', 'https://www.thepaper.cn/newsDetail_forward_33069474'),
+        enlace('Código de transporte de WeChat para extranjeros', 'https://m.mpaypass.com.cn/news/202404/25140547.html'),
         enlace('Comisión de Alipay y WeChat con tarjeta extranjera', 'https://help.mp.net/en/articles/15048347-wechat-pay-alipay-international-card-fees-3-on-transactions-over-200'),
       ],
     },
@@ -2120,7 +2123,7 @@ export const itinerario: Itinerario = {
   pendientes: [
     { id: 'c849d1a6f7302be5', texto: 'Museo de Historia Natural (domingo 25): las entradas salen el domingo 18 a las 09:00 de China (las 03:00 en España), con el pasaporte, en el miniprograma «上海科技馆自然博物馆天文馆门票». No hay taquilla y los fines de semana se agotan.' },
     { id: '38f76ad0e1bc5492', texto: 'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.' },
-    { id: '12a4a2178f65dcac', texto: 'Sábado 24, Hangzhou: reservar Lingyin el sábado 17 a las 02:00 hora española (08:00 en China), en cuanto se abre: miniprograma «杭州灵隐飞来峰» en Alipay o WeChat, con los dos pasaportes, turno de mañana. Comprar los trenes G1631 (上海南站 07:45) y G1384 (杭州东站 16:34). Si ya estaban comprados los de Nankín, devolverlos: gratis hasta el viernes 16 a las 03:00 hora española; después, un 5 %.' },
+    { id: '12a4a2178f65dcac', texto: 'Sábado 24, Hangzhou: reservar Lingyin el sábado 17 a las 02:00 hora española (08:00 en China), en cuanto se abre: miniprograma «杭州灵隐飞来峰» en WeChat (o Alipay), con los dos pasaportes, turno de mañana. Comprar los trenes G1631 (上海南站 07:45) y G1384 (杭州东站 16:34). Si ya estaban comprados los de Nankín, devolverlos: gratis hasta el viernes 16 a las 03:00 hora española; después, un 5 %.' },
     { id: '71ea52c093b6fd84', texto: 'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.' },
     { id: 'b1f8074a6d3c92e5', texto: 'Equipaje: añadir por internet una maleta facturada en el Vueling VY1542 (Barcelona–Málaga, martes 27 a las 06:50), que la tarifa no la incluye. Y decidir dónde pasar la noche en Barcelona (llegada a las 23:05 del lunes).' },
     { id: '095cbe73a24f681d', texto: 'Domingo 25: reservar el bufé del Yi Café (Pudong Shangri-La) para dos a las 18:30 en la web de reservas del Shangri-La (o al +86 21 2828 6888); 487 ¥ con todo. Comprar la entrada de la Shanghai Tower (180 ¥) por internet.' },
