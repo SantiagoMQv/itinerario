@@ -13,7 +13,7 @@ const prohibido = () => { throw new Error('IO prohibido en preflight'); };
 describe('perfil operativo inicial del piloto', () => {
   it('fija todos los valores operativos sin heredarlos de fixtures ni del entorno', () => {
     expect(crearPerfilOperativoPiloto()).toEqual({
-      origen: 'https://itinerario-piloto.tumanag3r.workers.dev', maxBytesCuerpoProveedor: 16777216,
+      origen: 'https://itinerario-piloto.peyleth.workers.dev', maxBytesCuerpoProveedor: 16777216,
       respaldoServidor: { maxBytesOriginal: 8388608, maxBytesEntrada: 9437184, maxBytesChunk: 4194304,
         maxBytesCabeceras: 16384, maxBytesRetenidos: 67108864, maxBloquesOriginal: 128, bytesBloque: 65536, plazoMs: 120000 },
       listadoServidor: { maxFilas: 1, maxOperacionesPorFoto: 8, maxBytesSql: 5242880,
@@ -39,7 +39,9 @@ describe('perfil operativo inicial del piloto', () => {
     const datos = crearPerfilOperativoPiloto();
     const perfil = crearPerfilPiloto(datos);
     expect(perfil.respaldo.maxBytesOriginal).toBe(8388608);
-    expect(prepararPiloto(datos, perfil.origen)).toEqual({ respaldo: perfil.respaldo, portabilidad: perfil.portabilidad });
+    expect(perfil.origen).toBe('https://itinerario-piloto.peyleth.workers.dev');
+    expect(prepararPiloto(datos, 'https://itinerario-piloto.peyleth.workers.dev'))
+      .toEqual({ respaldo: perfil.respaldo, portabilidad: perfil.portabilidad });
     expect(() => admitirOriginalFotos(8388608, perfil.respaldoServidor)).not.toThrow();
     expect(bytesRetenidosFotos(8388608, perfil.respaldoServidor)).toBe(21758464);
     expect(admitirMarcoObjetoFotos(8388608, 'x'.repeat(65536), perfil.respaldoServidor))

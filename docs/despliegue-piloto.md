@@ -18,7 +18,7 @@ El padre debe existir y ser canónico, sin enlaces. La salida no puede existir n
 | `wrangler.privado.json` | Cuenta explícita, Worker `itinerario-piloto`, R2 `itinerario-piloto-fotos` y vars JSON estructuradas. |
 | `web/` | **Todavía no existe**; la reservará el build privado. Solo esta carpeta va a ASSETS. |
 
-El origen único es `https://itinerario-piloto.tumanag3r.workers.dev`. La entrada de servidor es la ruta absoluta de `servidor/worker.ts`, no un placeholder. Se conserva `compatibility_date: 2026-10-11`; la configuración pública actual no tiene compatibility flags. No se carga esa configuración, `.env`, `.dev.vars` ni credenciales durante la generación.
+El origen único es `https://itinerario-piloto.peyleth.workers.dev`. La entrada de servidor es la ruta absoluta de `servidor/worker.ts`, no un placeholder. Se conserva `compatibility_date: 2026-10-11`; la configuración pública actual no tiene compatibility flags. No se carga esa configuración, `.env`, `.dev.vars` ni credenciales durante la generación.
 
 ## Límites iniciales y alcance
 
@@ -54,7 +54,7 @@ Wrangler es el instalado localmente, fijado a **4.151.0**. `bundle/` debe ser un
 
 Inspeccionar el resultado real: identificar el módulo de entrada emitido (y sus módulos auxiliares si los hubiera), comprobar perfil/web/config, cuenta, origen y bindings, y registrar hashes y ruta absoluta. **No se supone el nombre del bundle.** `BUNDLE_VERIFICADO` debe ser la entrada efectiva comprobada, no el TypeScript fuente ni una conjetura.
 
-Antes de publicar, el humano carga directamente `CLAVE_COMPARTIDA` y `URL_BASE_DATOS` **solo de la base nueva** mediante el canal seguro aprobado. Nunca se pasan como argumentos, vars, plantillas, logs ni contenido de estos archivos. No usar cuentas implícitas ni inferir permisos de OAuth o de una prueba sintética.
+Antes de publicar, el humano carga directamente `CLAVE_COMPARTIDA` y `URL_BASE_DATOS` **solo de la base dedicada de Neon ya existente** mediante el canal seguro aprobado. «Base nueva» se refiere a esa base dedicada, no a crear otra: la corrección de cuenta a PEYLETH conserva sus tablas y datos y **no requiere ni autoriza repetir el bootstrap**. Nunca se pasan como argumentos, vars, plantillas, logs ni contenido de estos archivos. No usar cuentas implícitas ni inferir permisos de OAuth o de una prueba sintética.
 
 Solo tras esa verificación y autorización de despliegue:
 

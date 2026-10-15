@@ -14,7 +14,7 @@ import { prepararListadoFotos } from '../servidor/api-listado-fotos';
  * Devuelve datos semánticos aptos para el build privado, no un PerfilPiloto serializado. */
 export function crearPerfilOperativoPiloto(): DatosPerfilPiloto {
   const datos = {
-    origen: 'https://itinerario-piloto.tumanag3r.workers.dev', maxBytesCuerpoProveedor: 16777216,
+    origen: 'https://itinerario-piloto.peyleth.workers.dev', maxBytesCuerpoProveedor: 16777216,
     respaldoServidor: { maxBytesOriginal: 8388608, maxBytesEntrada: 9437184, maxBytesChunk: 4194304,
       maxBytesCabeceras: 16384, maxBytesRetenidos: 67108864, maxBloquesOriginal: 128,
       bytesBloque: 65536, plazoMs: 120000 },
