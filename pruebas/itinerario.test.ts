@@ -29,8 +29,8 @@ const CLAVES_HEREDADAS = [
   '2026-10-21|17:20|Nanjing Road: tramo hacia el Bund',
   '2026-10-21|18:30|The Bund al encenderse las luces',
   '2026-10-21|19:40|Parque Guilin de noche',
-  '2026-10-21|20:35|Cena en Longhua Hui',
-  '2026-10-21|22:15|Hotel Aqua Suhe NO.1',
+  '2026-10-21|20:40|Cena shanghainesa en Xiao Ping',
+  '2026-10-21|22:20|Hotel Aqua Suhe NO.1',
   '2026-10-22|08:50|Estación de Shanghái Sur',
   '2026-10-22|09:53|Estación de Hangzhou Este',
   '2026-10-22|10:45|Lingyin y Feilai Feng',
@@ -57,11 +57,11 @@ const CLAVES_HEREDADAS = [
   '2026-10-24|24:00|Hush (INS Land)',
   '2026-10-24|26:30|Hotel Aqua Suhe NO.1',
   '2026-10-25|11:45|Museo de Historia Natural de Shanghái',
-  '2026-10-25|14:15|Comida ligera en Dongxin',
-  '2026-10-25|15:10|13DEMARZO Café y Anfu Road',
-  '2026-10-25|16:05|Wukang Road y Wukang Mansion',
-  '2026-10-25|16:50|Hinichijou (Bear Paw Café)',
-  '2026-10-25|17:15|CUBIC3: -86°C Dirty',
+  '2026-10-25|14:15|Templo y pagoda de Longhua, con fideos',
+  '2026-10-25|15:35|13DEMARZO Café y Anfu Road',
+  '2026-10-25|16:25|Wukang Road y Wukang Mansion',
+  '2026-10-25|17:05|Hinichijou (Bear Paw Café)',
+  '2026-10-25|17:20|CUBIC3: -86°C Dirty',
   '2026-10-25|18:30|Bufé de cena en Yi Café (Pudong Shangri-La)',
   '2026-10-25|20:35|Pasarela de Lujiazui de noche',
   '2026-10-25|21:00|Shanghai Tower: mirador de la planta 118',
@@ -81,19 +81,19 @@ const TEXTOS_HEREDADOS = [
 ];
 
 describe('identidades persistentes', () => {
-  test('las 173 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
+  test('las 172 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
     const subs = paradas.flatMap(({ p }) => p.subparadas ?? []);
     const pendientes = itinerario.pendientes ?? [];
     expect(paradas).toHaveLength(46);
-    expect(subs).toHaveLength(118);
+    expect(subs).toHaveLength(117);
     expect(pendientes).toHaveLength(8);
     const ids = [itinerario.id, ...paradas.map(({ p }) => p.id), ...subs.map((s) => s.id), ...pendientes.map((p) => p.id)];
     for (const id of ids) expect(id).toMatch(/^[a-f0-9]{16}$/);
-    expect(new Set(ids).size).toBe(173);
+    expect(new Set(ids).size).toBe(172);
     // Cada identidad está escrita en los datos, no calculada a partir del contenido ni del orden.
     const fuente = readFileSync(new URL('../src/datos/itinerario.ts', import.meta.url), 'utf8');
     const literales = [...fuente.matchAll(/\bid: '([a-f0-9]{16})'/g)].map((m) => m[1]);
-    expect(literales).toHaveLength(173);
+    expect(literales).toHaveLength(172);
     expect(literales.sort()).toEqual([...ids].sort());
     expectTypeOf<Pick<Itinerario, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
     expectTypeOf<Pick<Parada, 'id'>>().toEqualTypeOf<{ readonly id: string }>();

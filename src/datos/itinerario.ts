@@ -5,8 +5,8 @@ import type { Itinerario, Parada } from '../tipos';
 
 /**
  * Coordenadas WGS-84 [lat, lng] de cada sitio (OpenStreetMap). Aproximadas, a falta de
- * confirmar el número exacto: tramo este de Nanjing Road, Hush, Dongxin, CUBIC3, Hinichijou y la cena
- * del sábado.
+ * confirmar el número exacto: tramo este de Nanjing Road, Hush, CUBIC3, Hinichijou, la cena del sábado
+ * y TAN.
  */
 const C = {
   pvg: [31.151124, 121.798652],
@@ -65,6 +65,11 @@ const C = {
   duanqiao: [30.2609053, 120.14703],
   // Cena del sábado: 四吉饭店 no está en OSM; punto medio de Jinxian Road (vía 224146621), aproximado.
   fourSeasons: [31.22326, 121.45429],
+  // Cena del miércoles: Xiao Ping, nodo de OSM 13733444201. TAN: el edificio 松运楼 del bazar (nodo
+  // 5346226597), aproximado. Templo de Longhua: vía 404694432 (el comedor queda al fondo, sin mapear).
+  xiaoPing: [31.211256, 121.4548211],
+  tan: [31.228242, 121.487133],
+  temploLonghua: [31.1767917, 121.4472502],
   // Parque Guilin: centro del parque.
   guilin: [31.1670939, 121.4132808],
   pagodaLonghua: [31.1756179, 121.4473455],
@@ -79,14 +84,11 @@ const C = {
   yiCafe: [31.238, 121.4959],
   kempinski: [31.2445, 121.4998],
   shanghaiTower: [31.2355843, 121.5012643],
-  longhuaHui: [31.1755446, 121.4490205],
   // Paseo del Bund junto a la plaza de Chen Yi (antes había una coordenada desplazada, en el río).
   bund: [31.24103, 121.4866],
   speakLow: [31.2170628, 121.4605836],
   hush: [31.2205, 121.465],
   wukang: [31.2062561, 121.4337292],
-  // Dongxin (東欣酒家), nodo «Dong Xin» de OpenStreetMap (antes estaba 660 m al sur, mal).
-  dongxin: [31.213789, 121.4361309],
   demarzo: [31.2151229, 121.4355285],
   cubic3: [31.2129578, 121.4537631],
   hinichijou: [31.212911, 121.4535786],
@@ -200,7 +202,7 @@ export const itinerario: Itinerario = {
       titulo: 'Llegada, Nanjing Road, el Bund y parque Guilin',
       ciudad: 'Shanghái',
       notas:
-        'Plan: dormir hasta ~14:30 y salir a las 15:00. Comida tardía, tiendas por Nanjing Road, el Bund al encenderse las luces, el parque Guilin iluminado y cena tardía en Longhua, junto a la pagoda. Para volver, la línea 12 va directa al hotel.\n' +
+        'Plan: dormir hasta ~14:30 y salir a las 15:00. Comida tardía, tiendas por Nanjing Road, el Bund al encenderse las luces, el parque Guilin iluminado y cena tardía de cocina shanghainesa en Xiao Ping; para volver, la línea 12 va directa al hotel.\n' +
         'Entre las 14:00 y las 17:00 muchos restaurantes tradicionales cierran: por eso la comida es en Huanghe Road, que sirve toda la tarde.',
       paradas: [
         {
@@ -550,48 +552,32 @@ export const itinerario: Itinerario = {
           gastos: [{ concepto: 'entrada', min: 0 }],
         },
         {
-          id: '5e087f1f2d2b1c48',
-          hora: '20:35',
-          fin: '21:45',
-          nombre: 'Cena en Longhua Hui',
+          id: '0601638610e9c72b',
+          hora: '20:40',
+          fin: '21:50',
+          nombre: 'Cena shanghainesa en Xiao Ping',
           corto: 'la cena',
-          local: '龙华会',
+          local: '晓平饭店（嘉善路店）',
           categoria: 'comida',
-          ...en(C.longhuaHui),
-          llegada: { modo: 'metro', detalle: 'Línea 12, 3 paradas de Guilin Park a Longhua', min: 15 },
-          direccionLocal: '徐汇区龙华路2778号',
-          notas: 'Calle comercial de estilo tradicional alrededor de la pagoda de Longhua, con restaurantes en la planta B2 y la 2.ª. Cierra a las 22:00: al sentarse, preguntar hasta qué hora se puede pedir («最晚几点点餐？»).',
-          gastos: [{ concepto: 'cena (estimado)', min: 80, max: 130 }],
-          subparadas: [
-            {
-              id: '1a55b734d4317f83',
-              nombre: 'Pagoda de Longhua',
-              local: '龙华塔',
-              ...en(C.pagodaLonghua),
-              direccionLocal: '徐汇区龙华路2853号（龙华广场）',
-              notas: 'Pagoda de la dinastía Song, la más antigua de Shanghái, fuera del recinto del templo (que cierra a las 16:30). Se ve desde la plaza y desde la terraza de la 2.ª planta de Longhua Hui. Fuera de fiestas no se ilumina de noche (una crónica de 2023 lo dice expresamente, y las luces del mercadillo de otoño acabaron el 7 de octubre): puede verse a oscuras.',
-            },
-            {
-              id: 'c60c0e9f67729239',
-              nombre: 'Tao Xiaoguan: cocina de Shanghái',
-              local: '淘小馆',
-              notas: 'Cocina shanghainesa: 红烧肉 (cerdo estofado) y 松鼠鲈鱼 (lubina «ardilla», frita en salsa agridulce). Local B2-N53. Precio sin confirmar.',
-            },
-            {
-              id: '9ae3f223b5b91684',
-              nombre: 'Ou Jiang Yan: cocina de Wenzhou',
-              local: '瓯江宴',
-              opcional: true,
-              notas: 'Otra alternativa: cocina de Wenzhou, con marisco, en la 2.ª planta.',
-            },
+          ...en(C.xiaoPing),
+          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi desde el parque (~7 km, 15–20 min). En metro, línea 12 hasta Jiashan Road (6 paradas) y 11 min a pie', min: 20 },
+          direccion: '202 Jiashan Road (cerca de Yongjia Road)',
+          direccionLocal: '上海市徐汇区嘉善路202号（近永嘉路）',
+          reserva: 'Que llame el hotel al 021-6431 9399 para reservar a las 20:40, o al menos confirmar hasta qué hora se puede pedir: «今晚八点四十，两位，可以订位吗？最晚几点点餐？». Un miércoles a esa hora no suele haber cola (sin confirmar).',
+          notas:
+            'Cocina casera de Shanghái muy querida por la gente de aquí: 4,4 en Dianping con más de 14.000 reseñas y en las listas de los mejores restaurantes shanghaineses de 2026. Unos 120 ¥ por persona. Según Dianping abre hasta las 22:30 (otras fuentes antiguas dicen 21:00: confirmarlo).\n' +
+            'Qué pedir: 上海红烧肉 (cerdo estofado en salsa dulce de soja, 98 ¥), 响油鳝丝 (anguila salteada con aceite chisporroteante, 108 ¥), 葱油鲜黄贝 (almejas con aceite de cebolleta, 68 ¥) y 番茄牛肉滑蛋 (huevo revuelto con tomate y ternera, 48 ¥). Si queda hambre: 咸蛋黄茄子 (berenjena con yema salada) o 椒盐排条 (tiras de cerdo con sal y pimienta). La carta está en chino, con fotos.',
+          gastos: [{ concepto: 'cena (media en Dianping)', min: 120, max: 150 }],
+          enlaces: [
+            enlace('Xiao Ping (Nomfluence)', 'https://rachelgouk.com/listings/xiao-ping-shanghainese-restaurant/'),
+            enlace('Mejores restaurantes shanghaineses (2026)', 'https://rachelgouk.com/best-shanghainese-restaurants-in-shanghai/'),
           ],
-          enlaces: [enlace('Longhua Hui y la pagoda de noche (2023)', 'https://news.qq.com/rain/a/20231017A00FK100')],
         },
         {
           ...HOTEL,
           id: '30bf5ad687e219c4',
-          hora: '22:15',
-          llegada: { modo: 'metro', detalle: 'Línea 12 de Longhua a Hanzhong Road (6 paradas) y 10 min a pie', min: 30 },
+          hora: '22:20',
+          llegada: { modo: 'metro', detalle: 'A pie hasta Jiashan Road (11 min) y línea 12 hasta Hanzhong Road (3 paradas); o taxi, unos 15 min', min: 30 },
         },
       ],
     },
@@ -1308,7 +1294,7 @@ export const itinerario: Itinerario = {
       ciudad: 'Shanghái',
       notas:
         'Levantarnos a las 7:30 y desayunar en el hotel (de 07:00 a 10:00) para salir hacia las 8:30: el pueblo de agua, mejor temprano, y más en sábado, que hay más gente.\n' +
-        'Mañana en Zhujiajiao, a una hora en taxi; por la tarde, el jardín Yuyuan (última entrada a las 16:00) y el bazar sin prisas, con sus luces. Paso por el hotel para dejar las compras y cambiarse, cena a las 20:45 y noche de salida: cócteles en Speak Low y, si apetece, Hush.',
+        'Mañana en Zhujiajiao, a una hora en taxi; por la tarde, el jardín Yuyuan (última entrada a las 16:00) y el bazar sin prisas, con sus luces. Paso por el hotel para dejar las compras y cambiarse, cena a las 20:45 y noche de salida: cócteles en Speak Low y, si apetece, Hush. Si al final no salimos, cenar en el propio bazar (TAN) y volver al hotel.',
       paradas: [
         {
           id: '9cbf85d64f0cbd8d',
@@ -1520,6 +1506,15 @@ export const itinerario: Itinerario = {
             'Con tres horas da para todo sin prisas: picar algo ligero, que la cena es a las 20:45, y ver el espectáculo de las 18:30 o el de las 19:00.',
           subparadas: [
             {
+              id: '7737f515a300e664',
+              nombre: 'Plan B si no salimos: cena en TAN',
+              local: '坛·四川料理（豫园店）',
+              opcional: true,
+              ...en(C.tan),
+              direccionLocal: '黄浦区豫园老街90-98号 松运楼2楼',
+              notas: 'Si al final no salimos de noche: cenar aquí mismo hacia las 19:15–19:45 y volver al hotel, sin pasar antes por él. Cocina de Sichuan, Bib Gourmand 2026: la casa sencilla de The Bridge, de Chengdu, en un 2.º piso frente al puente en zigzag, sin precios de zona turística. De 17:00 a 21:30; unos 100–200 ¥ por persona. Reserva al 180 0170 9223 o en la app Pearl. Qué pedir: 口水鸡 (pollo en aceite de chile, 78 ¥), 麻婆豆腐 con tuétano (69 ¥), 辣子鸡 (pollo frito con guindillas, 88 ¥), 酸菜牛肉 (ternera con col encurtida, 138 ¥), 担担面 (18 ¥) y, de postre, 冰粉 (15 ¥). Mejor evitar el 藿香鳝鱼. Alternativa shanghainesa: 绿波廊, Bib Gourmand junto al lago, pero hay que sentarse antes de las 19:15.',
+            },
+            {
               id: '1358a639797f17db',
               nombre: 'Xiaolongbao de Nanxiang',
               local: '南翔馒头店',
@@ -1570,6 +1565,7 @@ export const itinerario: Itinerario = {
           ],
           enlaces: [
             enlace('Espectáculo de luces (otoño de 2026)', 'https://www.163.com/dy/article/L816NQGK055040N3.html'),
+            enlace('TAN (Nomfluence)', 'https://rachelgouk.com/tan-sichuan-cuisine-brings-the-heat-to-yu-gardens/'),
             enlace('Semir en Yuyuan', 'https://english.shanghai.gov.cn/en-Latest-WhatsNew/20260917/1213b27578094564b1ad9630d36c24f2.html'),
           ],
         },
@@ -1670,11 +1666,11 @@ export const itinerario: Itinerario = {
     },
     {
       fecha: '2026-10-25',
-      titulo: 'Historia Natural, Wukang/Anfu, cafés y bufé en Lujiazui',
+      titulo: 'Historia Natural, Longhua, Anfu/Wukang y bufé en Lujiazui',
       ciudad: 'Shanghái',
       notas:
         'Después de la noche de salida, levantarnos sobre las 11:00.\n' +
-        'Museo de Historia Natural, comida ligera (la cena es un bufé), Anfu Road y Wukang Road con sus cafés curiosos, y Lujiazui de noche.',
+        'Museo de Historia Natural; comida ligera de fideos en el templo de Longhua, con su pagoda (la cena es un bufé); Anfu Road y Wukang Road con sus cafés curiosos, y Lujiazui de noche.',
       paradas: [
         {
           id: '9b4ec6a1073f825d',
@@ -1708,42 +1704,49 @@ export const itinerario: Itinerario = {
           ],
         },
         {
-          id: '35c09ed7ab681f42',
+          id: 'fa5d7ca0e40041f5',
           hora: '14:15',
-          fin: '15:05',
-          nombre: 'Comida ligera en Dongxin',
-          corto: 'la comida',
-          local: '東欣酒家',
-          categoria: 'comida',
-          ...en(C.dongxin),
-          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi (~5 km, unos 20 min)', min: 20 },
-          direccion: '98 Wukang Road',
-          direccionLocal: '武康路98号',
+          fin: '15:10',
+          nombre: 'Templo y pagoda de Longhua, con fideos',
+          corto: 'Longhua',
+          local: '龙华寺',
+          categoria: 'cultura',
+          ...en(C.temploLonghua),
+          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi desde el museo (~9 km, 20–25 min un domingo)', min: 25 },
+          direccionLocal: '上海市徐汇区龙华路2853号',
           notas:
-            'Cocina shanghainesa de toda la vida, de 9:30 a 21:00 sin cerrar a mediodía (en Dianping, «咚馨酒家·本帮菜»). Comida ligera, que por la noche hay bufé: un par de platos para compartir, como 响油鳝丝 (anguila salteada con aceite caliente), 酒香草头 (trébol salteado al vino) o 扬州炝鲈鱼. Unos 115 ¥ por persona si se pide mucho; algunas reseñas dicen que sala bastante.\n' +
-            'Que siga abierto en 2026 no está confirmado: si no, SOMETHING, en el mismo número.',
-          gastos: [{ concepto: 'comida ligera (115 ¥ por persona con más platos)', min: 60, max: 115 }],
+            'El templo budista más antiguo y grande de Shanghái, en activo. Gratis (alguna reseña de 2025 habla de 10 ¥ con incienso), de 07:00 a 16:30.\n' +
+            'Orden: primero los fideos, que el comedor cierra hacia las 15:00; después, las salas del templo y la pagoda al salir. A las 15:10, taxi a Anfu Road (~6,5 km, unos 20 min).\n' +
+            'Es comida ligera a propósito: por la noche hay bufé.',
+          gastos: [{ concepto: 'fideos vegetarianos', min: 15, max: 25 }],
           subparadas: [
             {
-              id: '1d794a6fe5b032c8',
-              nombre: 'SOMETHING Dining & Bar',
-              opcional: true,
-              notas: 'Alternativa en el mismo número, 2.ª planta: cocina occidental y brunch de 10:00 a 22:00, más cara (unos 240 ¥ por persona en 2021) y poco local.',
+              id: '0cc19e1e311b1073',
+              nombre: 'Fideos vegetarianos del templo',
+              local: '龙华素斋',
+              direccionLocal: '龙华路2787号 染香楼1楼',
+              notas: 'Comedor de autoservicio dentro del recinto, al fondo: pasado el patio del abad (方丈院), en el lado este, cerca de la puerta trasera. 罗汉面 (fideos budistas con setas y verduras) a 15 ¥; los fideos y el acompañamiento se repiten gratis. Platillos como el «pato» vegetal (素鸭) a 10 ¥. Se paga escaneando el QR de la mesa. Hasta las 15:00 (sin confirmar en 2026); a mediodía hay cola.',
+            },
+            {
+              id: '1a55b734d4317f83',
+              nombre: 'Pagoda de Longhua',
+              local: '龙华塔',
+              ...en(C.pagodaLonghua),
+              direccionLocal: '徐汇区龙华路2853号（龙华广场）',
+              notas: 'Pagoda de la dinastía Song (977), la más antigua de Shanghái. Está fuera del recinto, delante de la entrada: se ve desde la plaza o rodeando el muro por fuera. No se puede subir. De noche no se ilumina, por eso va de día.',
             },
           ],
-          enlaces: [
-            enlace('Restaurantes de Wukang (gobierno de Shanghái)', 'https://english.shanghai.gov.cn/en-Restaurants/20250411/1dfa64b624304bff969afd23b9d2bb24.html'),
-          ],
+          enlaces: [enlace('Templo de Longhua (Ctrip)', 'https://you.ctrip.com/sight/shanghai2/742.html')],
         },
         {
           id: '4f62bc9a807e1d35',
-          hora: '15:10',
-          fin: '15:50',
+          hora: '15:35',
+          fin: '16:10',
           nombre: '13DEMARZO Café y Anfu Road',
           corto: 'Anfu Road',
           categoria: 'comida',
           ...en(C.demarzo),
-          llegada: { modo: 'a_pie' },
+          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi desde Longhua (~6,5 km)', min: 20 },
           direccion: '322 Anfu Road',
           direccionLocal: '安福路322号',
           notas:
@@ -1787,8 +1790,8 @@ export const itinerario: Itinerario = {
         },
         {
           id: 'e71a4390fc2d68b5',
-          hora: '16:05',
-          fin: '16:35',
+          hora: '16:25',
+          fin: '16:50',
           nombre: 'Wukang Road y Wukang Mansion',
           corto: 'Wukang Road',
           local: '武康大楼 · 武康路',
@@ -1810,8 +1813,8 @@ export const itinerario: Itinerario = {
         },
         {
           id: '0a6f24c9e85371db',
-          hora: '16:50',
-          fin: '17:15',
+          hora: '17:05',
+          fin: '17:20',
           nombre: 'Hinichijou (Bear Paw Café)',
           local: '熊爪咖啡',
           categoria: 'comida',
@@ -1826,8 +1829,8 @@ export const itinerario: Itinerario = {
         },
         {
           id: 'bc893e71d4a6205f',
-          hora: '17:15',
-          fin: '17:45',
+          hora: '17:20',
+          fin: '17:50',
           nombre: 'CUBIC3: -86°C Dirty',
           local: '三立方',
           categoria: 'comida',
@@ -2024,10 +2027,11 @@ export const itinerario: Itinerario = {
         'Nankín y su Museo Paleontológico: se cambió por Hangzhou (3 h 30 de tren, ida y vuelta, por un museo, y el domingo ya hay dinosaurios en el de Historia Natural).',
         'Joy City de noche: la noria Sky Ring (desde 60 ¥; abre hasta las 21:00–21:30) y Top Banana Market, que queda como plan B de la cena del jueves.',
         'Mercado de disfraces de Fuyou Road, junto a Yuyuan: con Zhujiajiao en sábado queda después de Disney. Los disfraces, con accesorios de Miniso Land (miércoles), ropa negra de Uniqlo (jueves) y orejas compradas en el parque.',
+        'Cangrejo peludo de temporada (octubre, las hembras): Cheng Long Hang (成隆行蟹王府, 汾阳路1号, 3.ª planta), especialistas en cangrejo, de 17:00 a 22:00 y a 12 min a pie de Speak Low. Alternativa para la cena del sábado: unos 300 ¥ por persona compartiendo platos de cangrejo y unos 580 ¥ con un cangrejo entero cada uno. Reserva al 021-6467 0999.',
+        'Dongxin (東欣酒家, Wukang Road 98): la comida shanghainesa del domingo, cambiada por los fideos del templo de Longhua.',
         'Quanjude (pato pekinés, Huaihai): cierra a las 21:00 y no encajaba; el pato es en Siji Minfu el jueves.',
         'Shanghái: Museo de Arte Contemporáneo, China Art Museum, Templo del Buda de Jade y varios centros comerciales.',
         'Masaje en Kangyou Four Seasons (222 Jinyuan Road): era el plan para el miércoles si no había habitación temprano.',
-        'Templo Longhua por dentro y sus fideos budistas 罗汉面 (15 ¥ en 龙华素斋): solo de día (el templo, de 07:00 a 16:30, gratis; el comedor, hasta las 15:00). El miércoles 21 se cena junto a la pagoda; para entrar en el templo, una mañana (línea 12 hasta Longhua).',
         'Middle Huaihai Road de día: parque Fuxing, TX Huaihai (marcas chinas jóvenes y Pane), HAI550 y Lanxin (cocina shanghainesa, Bib Gourmand). Se cambió por Zhujiajiao. Songmont (bolsos de piel de diseño chino), TX Huaihai y Pane (zapatillas) abren hasta las 22:00, a pocos minutos de Speak Low.',
         'Outlet Shanghai Village (上海购物村, 申迪东路88号), junto a Disneyland: Nike, adidas, New Balance, Puma, Levi’s, The North Face, Columbia… con un 30–60 % de descuento. Cabría el domingo 25 de 17:00 a 19:00 en lugar de los cafés (línea 11 directa desde Wukang Road, unos 45 min).',
       ],
