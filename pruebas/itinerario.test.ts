@@ -28,35 +28,33 @@ const CLAVES_HEREDADAS = [
   '2026-10-21|16:05|Nanjing Road: tramo de People’s Square',
   '2026-10-21|17:20|Nanjing Road: tramo hacia el Bund',
   '2026-10-21|18:30|The Bund al encenderse las luces',
-  '2026-10-21|19:20|Jing’an Joy City: maleta y ropa',
-  '2026-10-21|20:25|Noria Sky Ring',
-  '2026-10-21|21:00|Cena en Top Banana Market',
-  '2026-10-21|22:05|Hotel Aqua Suhe NO.1',
-  '2026-10-22|09:40|Zhujiajiao: jardín Kezhi, barca y puente Fangsheng',
-  '2026-10-22|12:15|Comida en Caoxi Renjia',
-  '2026-10-22|13:05|Templo del Dios de la Ciudad y correos Qing',
-  '2026-10-22|14:50|Jardín Yuyuan',
-  '2026-10-22|16:20|Disfraces en el mercado de Fuyou Road',
-  '2026-10-22|17:05|Bazar de Yuyuan y Old Street',
-  '2026-10-22|19:45|Cena: pato pekinés en Quanjude',
-  '2026-10-22|22:00|Hotel Aqua Suhe NO.1',
+  '2026-10-21|19:40|Parque Guilin de noche',
+  '2026-10-21|20:35|Cena en Longhua Hui',
+  '2026-10-21|22:15|Hotel Aqua Suhe NO.1',
+  '2026-10-22|08:50|Estación de Shanghái Sur',
+  '2026-10-22|09:53|Estación de Hangzhou Este',
+  '2026-10-22|10:45|Lingyin y Feilai Feng',
+  '2026-10-22|13:10|Comida y té en Meijiawu',
+  '2026-10-22|14:45|Dique Su',
+  '2026-10-22|15:20|Isla de los Tres Estanques',
+  '2026-10-22|16:10|Embarcadero de Hubin',
+  '2026-10-22|16:30|Atardecer en el puente roto y el dique Bai',
+  '2026-10-22|18:25|Estación de Hangzhou Este',
+  '2026-10-22|19:47|Estación de Shanghái Sur',
+  '2026-10-22|20:25|Cena: pato pekinés en Siji Minfu',
+  '2026-10-22|21:30|Maleta en Joy City',
+  '2026-10-22|22:10|Hotel Aqua Suhe NO.1',
   '2026-10-23|09:45|Shanghai Disneyland',
   '2026-10-23|22:50|Hotel Aqua Suhe NO.1',
-  '2026-10-24|07:35|Estación de Shanghái Sur',
-  '2026-10-24|08:49|Estación de Hangzhou Este',
-  '2026-10-24|10:00|Lingyin y Feilai Feng',
-  '2026-10-24|12:25|Comida y té en Meijiawu',
-  '2026-10-24|14:10|Dique Su',
-  '2026-10-24|14:45|Isla de los Tres Estanques',
-  '2026-10-24|15:30|Embarcadero de Hubin',
-  '2026-10-24|15:55|Estación de Hangzhou Este',
-  '2026-10-24|17:40|Estación de Shanghái Sur',
-  '2026-10-24|18:00|Parque Guilin al anochecer',
-  '2026-10-24|18:55|Pagoda de Longhua iluminada',
-  '2026-10-24|19:15|Cena en Longhua Hui',
-  '2026-10-24|21:05|Hotel Aqua Suhe NO.1',
-  '2026-10-24|22:00|Speak Low',
-  '2026-10-24|23:45|Hush (INS Land)',
+  '2026-10-24|09:40|Zhujiajiao: jardín Kezhi, barca y puente Fangsheng',
+  '2026-10-24|12:15|Comida en Caoxi Renjia',
+  '2026-10-24|13:05|Templo del Dios de la Ciudad y correos Qing',
+  '2026-10-24|14:50|Jardín Yuyuan',
+  '2026-10-24|16:20|Bazar de Yuyuan y Old Street',
+  '2026-10-24|19:40|Hotel Aqua Suhe NO.1',
+  '2026-10-24|20:45|Cena de Sichuan en Four Seasons Cuisine',
+  '2026-10-24|22:15|Speak Low',
+  '2026-10-24|24:00|Hush (INS Land)',
   '2026-10-24|26:30|Hotel Aqua Suhe NO.1',
   '2026-10-25|11:45|Museo de Historia Natural de Shanghái',
   '2026-10-25|14:15|Comida ligera en Dongxin',
@@ -73,30 +71,29 @@ const CLAVES_HEREDADAS = [
 ];
 const TEXTOS_HEREDADOS = [
   'Museo de Historia Natural (domingo 25): las entradas salen el domingo 18 a las 09:00 de China (las 03:00 en España), con el pasaporte, en el miniprograma «上海科技馆自然博物馆天文馆门票». No hay taquilla y los fines de semana se agotan.',
-  'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.',
-  'Sábado 24, Hangzhou: reservar Lingyin el sábado 17 a las 02:00 hora española (08:00 en China), en cuanto se abre: miniprograma «杭州灵隐飞来峰» en WeChat (o Alipay), con los dos pasaportes, turno de mañana. Comprar los trenes G1631 (上海南站 07:45) y G1384 (杭州东站 16:34). Si ya estaban comprados los de Nankín, devolverlos: gratis hasta el viernes 16 a las 03:00 hora española; después, un 5 %.',
+  'Jueves 22, Hangzhou: reservar ya Lingyin (miniprograma «杭州灵隐飞来峰» en WeChat, con los dos pasaportes, turno de mañana; la reserva para el jueves ya está abierta) y comprar los trenes G255 (上海南站 09:07) y G1386 (杭州东站 19:01).',
+  'Antes del jueves 22: probar en WeChat el miniprograma «美味不用等» (o la cuenta «四季民福» → «排队取号»), buscar «四季民福 静安大悦城» y comprobar que deja coger número sin teléfono chino. El jueves, hacia las 16:30, coger número para dos (los pasos, en la ficha de la cena).',
+  'Sábado 24: reservar mesa para dos a las 20:45 en Four Seasons Cuisine (四吉饭店), al 021 6244 0086 o que llame el hotel.',
   'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.',
   'Equipaje: añadir por internet una maleta facturada en el Vueling VY1542 (Barcelona–Málaga, martes 27 a las 06:50), que la tarifa no la incluye. Y decidir dónde pasar la noche en Barcelona (llegada a las 23:05 del lunes).',
   'Domingo 25: reservar el bufé del Yi Café (Pudong Shangri-La) para dos a las 18:30 en la web de reservas del Shangri-La (o al +86 21 2828 6888); 487 ¥ con todo. Comprar la entrada de la Shanghai Tower (180 ¥) por internet.',
-  'Jueves 22: llamar al 189 3062 5815 (o que llame el hotel) para saber si el espectáculo nocturno de luces del jardín Kezhi de Zhujiajiao (朱家角光影幻境·课植园, 118 ¥, de 17:00 a 21:00) abre ese día. Si abre, se puede invertir el día: Yuyuan por la mañana y Zhujiajiao por la tarde.',
   'Sábado noche: mirar la programación y la entrada de Hush/INS para el 24.',
-  'Jueves 22: reservar mesa en Quanjude para las 19:45 (021-6418 1577, o que llame el hotel).',
 ];
 
 describe('identidades persistentes', () => {
-  test('las 186 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
+  test('las 173 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
     const subs = paradas.flatMap(({ p }) => p.subparadas ?? []);
     const pendientes = itinerario.pendientes ?? [];
-    expect(paradas).toHaveLength(48);
-    expect(subs).toHaveLength(128);
-    expect(pendientes).toHaveLength(9);
+    expect(paradas).toHaveLength(46);
+    expect(subs).toHaveLength(118);
+    expect(pendientes).toHaveLength(8);
     const ids = [itinerario.id, ...paradas.map(({ p }) => p.id), ...subs.map((s) => s.id), ...pendientes.map((p) => p.id)];
     for (const id of ids) expect(id).toMatch(/^[a-f0-9]{16}$/);
-    expect(new Set(ids).size).toBe(186);
+    expect(new Set(ids).size).toBe(173);
     // Cada identidad está escrita en los datos, no calculada a partir del contenido ni del orden.
     const fuente = readFileSync(new URL('../src/datos/itinerario.ts', import.meta.url), 'utf8');
     const literales = [...fuente.matchAll(/\bid: '([a-f0-9]{16})'/g)].map((m) => m[1]);
-    expect(literales).toHaveLength(186);
+    expect(literales).toHaveLength(173);
     expect(literales.sort()).toEqual([...ids].sort());
     expectTypeOf<Pick<Itinerario, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
     expectTypeOf<Pick<Parada, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
@@ -141,14 +138,14 @@ describe('identidades persistentes', () => {
     }
     expect(cambiado.paradas[0].id).toBe(0);
     expect(cambiado.paradas[0].p.id).toBe(modelo.paradas.at(-1)!.p.id);
-    expect(modelo.paradas.at(-1)!.id).toBe(47);
+    expect(modelo.paradas.at(-1)!.id).toBe(45);
     // Con tres sitios hay al menos dos del mismo grupo (seguros u opcionales): invertirlos cambia su índice.
     const conSubs = cambiado.paradas.find((p) => p.subs.length > 2)!;
     const original = modelo.paradas.find((p) => p.p.id === conSubs.p.id)!;
     expect(conSubs.subs.some((s) => original.subs.find((o) => o.s.id === s.s.id)!.i !== s.i)).toBe(true);
     for (const t of cambiado.tramos) expect(t.id).toBe(t.hasta.id);
     expect(cambiado.listaPendientes.map((p) => p.id)).toEqual(modelo.listaPendientes.map((p) => p.id).reverse());
-    expect(cambiado.pendientes).toEqual(Array(9).fill('Otro texto'));
+    expect(cambiado.pendientes).toEqual(Array(8).fill('Otro texto'));
   });
 
   test('conserva exactamente las claves y los textos heredados en su orden original', () => {

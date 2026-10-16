@@ -5,8 +5,8 @@ import type { Itinerario, Parada } from '../tipos';
 
 /**
  * Coordenadas WGS-84 [lat, lng] de cada sitio (OpenStreetMap). Aproximadas, a falta de
- * confirmar el número exacto: tramo este de Nanjing Road, Songmont (huaihai), Hush, Dongxin, CUBIC3 e
- * Hinichijou.
+ * confirmar el número exacto: tramo este de Nanjing Road, Hush, Dongxin, CUBIC3, Hinichijou y la cena
+ * del sábado.
  */
 const C = {
   pvg: [31.151124, 121.798652],
@@ -19,19 +19,15 @@ const C = {
   uniqloJoyCity: [31.244707, 121.467646],
   // Watsons junto a Joy City, en Qufu Road (OpenStreetMap).
   watsonsJoyCity: [31.2446439, 121.4673719],
-  noria: [31.2461038, 121.4675959],
+  // Edificio norte de Joy City (el de la noria): Siji Minfu está en la 5.ª planta.
+  joyCityNorte: [31.2461038, 121.4675959],
   disney: [31.1462523, 121.6562825],
-  txHuaihai: [31.2225113, 121.4642123],
-  // Día 2 (OpenStreetMap). Bazar de Yuyuan: 豫园商城 (vía 62072391). Old Street: tramo medio de
-  // 方浜中路, aproximado. Songmont no está en OSM: aproximada por la numeración de Huaihai.
+  // Yuyuan (OpenStreetMap). Bazar: 豫园商城 (vía 62072391). Old Street: tramo medio de 方浜中路, aproximado.
   yuyuan: [31.2285062, 121.4867778],
   jardinYuyuan: [31.2289274, 121.4879752],
   oldStreet: [31.2268, 121.4853],
   nanxiang: [31.2285341, 121.4871017],
-  songmont: [31.2202, 121.4582],
-  quanjude: [31.2206795, 121.4586252],
-  // Día 2, sitios «si da tiempo» (OpenStreetMap).
-  uniqloHuaihai: [31.2191096, 121.4564339],
+  // Yuyuan, sitios «si da tiempo» (OpenStreetMap). Cine Cathay, del paseo art déco del sábado.
   jardinInterior: [31.2284167, 121.4880671],
   yulinglong: [31.2286793, 121.4880794],
   chenghuang: [31.2278786, 121.4881914],
@@ -41,10 +37,6 @@ const C = {
   huabao: [31.2274647, 121.4874582],
   cathay: [31.2200737, 121.4568575],
   aldi: [31.250737, 121.4411723],
-  // Mercado de pequeños artículos de Fuyou Road: 福佑门商厦, aproximado (esquina con Henan South Road);
-  // 福佑商厦, vía 389702034.
-  fuyoumen: [31.23008, 121.48365],
-  fuyou: [31.2302868, 121.4872436],
   // Zhujiajiao (OpenStreetMap). Caoxi Renjia no está en OSM: aproximada por el número de Beidajie.
   kezhi: [31.115462, 121.048963],
   fangsheng: [31.113576, 121.051449],
@@ -56,7 +48,7 @@ const C = {
   chenghuangZjj: [31.110541, 121.04925],
   correosQing: [31.109075, 121.04914],
   tongtianhe: [31.110013, 121.050045],
-  // Día 4 (OpenStreetMap). Estaciones: el edificio. Lingyin: la entrada principal (nodo de 2019; el
+  // Hangzhou y estación de Shanghái Sur (OpenStreetMap). Estaciones: el edificio. Lingyin: la entrada principal (nodo de 2019; el
   // control de pasaportes puede estar unos metros más allá). Meijiawu: la parada del autobús, casi
   // enfrente del restaurante. Embarcadero de 花港: no está en OSM, aproximado por el parque.
   estacionShanghaiSur: [31.15512, 121.42483],
@@ -70,6 +62,9 @@ const C = {
   santan: [30.2412182, 120.1402635],
   fotoBillete: [30.2400516, 120.1401848],
   hubin: [30.2545411, 120.1574853],
+  duanqiao: [30.2609053, 120.14703],
+  // Cena del sábado: 四吉饭店 no está en OSM; punto medio de Jinxian Road (vía 224146621), aproximado.
+  fourSeasons: [31.22326, 121.45429],
   // Parque Guilin: centro del parque.
   guilin: [31.1670939, 121.4132808],
   pagodaLonghua: [31.1756179, 121.4473455],
@@ -127,10 +122,6 @@ const C = {
   waibaidu: [31.245307, 121.485744],
   zhapu: [31.246148, 121.483294],
   yuanmingyuan: [31.243156, 121.483836],
-  sihang: [31.24226, 121.46693],
-  fotografiska: [31.24166, 121.46527],
-  zhejiangQiao: [31.24334, 121.47202],
-  suheMixc: [31.24437, 121.47387],
   // Noche del día 2, junto al hotel.
   lawson: [31.25015, 121.44684],
   mcdonaldsChangshou: [31.24144, 121.4324],
@@ -206,10 +197,10 @@ export const itinerario: Itinerario = {
   dias: [
     {
       fecha: '2026-10-21',
-      titulo: 'Llegada, siesta, Nanjing Road y noria',
+      titulo: 'Llegada, Nanjing Road, el Bund y parque Guilin',
       ciudad: 'Shanghái',
       notas:
-        'Plan: dormir hasta ~14:30 y salir a las 15:00. Comida tardía, tiendas por Nanjing Road, el Bund al encenderse las luces y la noria de noche.\n' +
+        'Plan: dormir hasta ~14:30 y salir a las 15:00. Comida tardía, tiendas por Nanjing Road, el Bund al encenderse las luces, el parque Guilin iluminado y cena tardía en Longhua, junto a la pagoda. Para volver, la línea 12 va directa al hotel.\n' +
         'Entre las 14:00 y las 17:00 muchos restaurantes tradicionales cierran: por eso la comida es en Huanghe Road, que sirve toda la tarde.',
       paradas: [
         {
@@ -288,7 +279,7 @@ export const itinerario: Itinerario = {
           direccion: '97 Huanghe Road, junto a People’s Square',
           direccionLocal: '黄河路97号',
           notas:
-            'Shengjian (bollos fritos de sopa), distintos de los xiaolongbao del jueves: un plato de 4 cuesta unos 12 ¥. Abre hasta tarde.\n' +
+            'Shengjian (bollos fritos de sopa), distintos de los xiaolongbao del sábado: un plato de 4 cuesta unos 12 ¥. Abre hasta tarde.\n' +
             'Huanghe Road se puso de moda por la serie «Blossoms Shanghai» (繁花).',
           gastos: [{ concepto: 'comida', min: 25, max: 45 }],
           subparadas: [
@@ -436,7 +427,7 @@ export const itinerario: Itinerario = {
               local: '名创优品 MINISO LAND',
               ...en(C.minisoLand),
               direccionLocal: '上海市黄浦区南京东路步行街 名创优品全球壹号店',
-              notas: 'La tienda Miniso que más vende del mundo: tres plantas de licencias (Disney, Sanrio, Harry Potter, anime) y un pasillo de cajas sorpresa. Suele tener bombas y sales de baño baratas (泡澡球, 浴盐) para el jacuzzi del hotel.',
+              notas: 'La tienda Miniso que más vende del mundo: tres plantas de licencias (Disney, Sanrio, Harry Potter, anime) y un pasillo de cajas sorpresa. Suele tener bombas y sales de baño baratas (泡澡球, 浴盐) para el jacuzzi del hotel, y accesorios para los disfraces de Disney: orejas, cuernos blandos, sombrero de bruja o antifaz que deje ver los ojos (las normas, en la ficha de Disney). La ropa negra de base, el jueves en Uniqlo.',
             },
             {
               id: '402af8c613b9ed75',
@@ -543,28 +534,370 @@ export const itinerario: Itinerario = {
           ],
         },
         {
-          id: '6b1ad38f925e704c',
-          hora: '19:20',
+          id: '319ed0320062a6d2',
+          hora: '19:40',
           fin: '20:20',
-          nombre: 'Jing’an Joy City: maleta y ropa',
+          nombre: 'Parque Guilin de noche',
+          corto: 'el parque Guilin',
+          local: '桂林公园',
+          categoria: 'naturaleza',
+          ...en(C.guilin),
+          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi desde el Bund (~12 km, 30–40 min). En metro, línea 10 hasta South Shaanxi Road y línea 12 hasta Guilin Park, unos 45 min; la entrada está unos 250 m al sur de la estación', min: 35 },
+          direccionLocal: '徐汇区桂林路128号',
+          notas:
+            'Jardín chino de 1929 del gánster Huang Jinrong, jefe de la Banda Verde del Shanghái de los años 30: muro con forma de dragón, barco de piedra (般若舫) y pabellones, con más de mil osmantos (a finales de octubre la floración ya habrá pasado). Reabrió el 24 de julio de 2026 tras un año de obras.\n' +
+            'Gratis, de 05:00 a 21:00, con última entrada a las 20:30: no llegar más tarde. Se llega de noche: farolas cálidas perfilan los aleros y el salón 四教厅 se ilumina. Si venimos muy cansados, se puede ir directo a cenar.',
+          gastos: [{ concepto: 'entrada', min: 0 }],
+        },
+        {
+          id: '5e087f1f2d2b1c48',
+          hora: '20:35',
+          fin: '21:45',
+          nombre: 'Cena en Longhua Hui',
+          corto: 'la cena',
+          local: '龙华会',
+          categoria: 'comida',
+          ...en(C.longhuaHui),
+          llegada: { modo: 'metro', detalle: 'Línea 12, 3 paradas de Guilin Park a Longhua', min: 15 },
+          direccionLocal: '徐汇区龙华路2778号',
+          notas: 'Calle comercial de estilo tradicional alrededor de la pagoda de Longhua, con restaurantes en la planta B2 y la 2.ª. Cierra a las 22:00: al sentarse, preguntar hasta qué hora se puede pedir («最晚几点点餐？»).',
+          gastos: [{ concepto: 'cena (estimado)', min: 80, max: 130 }],
+          subparadas: [
+            {
+              id: '1a55b734d4317f83',
+              nombre: 'Pagoda de Longhua',
+              local: '龙华塔',
+              ...en(C.pagodaLonghua),
+              direccionLocal: '徐汇区龙华路2853号（龙华广场）',
+              notas: 'Pagoda de la dinastía Song, la más antigua de Shanghái, fuera del recinto del templo (que cierra a las 16:30). Se ve desde la plaza y desde la terraza de la 2.ª planta de Longhua Hui. Fuera de fiestas no se ilumina de noche (una crónica de 2023 lo dice expresamente, y las luces del mercadillo de otoño acabaron el 7 de octubre): puede verse a oscuras.',
+            },
+            {
+              id: 'c60c0e9f67729239',
+              nombre: 'Tao Xiaoguan: cocina de Shanghái',
+              local: '淘小馆',
+              notas: 'Cocina shanghainesa: 红烧肉 (cerdo estofado) y 松鼠鲈鱼 (lubina «ardilla», frita en salsa agridulce). Local B2-N53. Precio sin confirmar.',
+            },
+            {
+              id: '9ae3f223b5b91684',
+              nombre: 'Ou Jiang Yan: cocina de Wenzhou',
+              local: '瓯江宴',
+              opcional: true,
+              notas: 'Otra alternativa: cocina de Wenzhou, con marisco, en la 2.ª planta.',
+            },
+          ],
+          enlaces: [enlace('Longhua Hui y la pagoda de noche (2023)', 'https://news.qq.com/rain/a/20231017A00FK100')],
+        },
+        {
+          ...HOTEL,
+          id: '30bf5ad687e219c4',
+          hora: '22:15',
+          llegada: { modo: 'metro', detalle: 'Línea 12 de Longhua a Hanzhong Road (6 paradas) y 10 min a pie', min: 30 },
+        },
+      ],
+    },
+    {
+      fecha: '2026-10-22',
+      titulo: 'Hangzhou, atardecer en el lago y pato pekinés',
+      ciudad: 'Hangzhou',
+      notas:
+        'Excursión de un día a Hangzhou, sin prisas: budas tallados en la roca en Lingyin, comida con té Longjing en una aldea de té, el lago del Oeste en barco y el atardecer en el puente roto. A la vuelta, pato pekinés y la maleta en Joy City.\n' +
+        'Levantarnos a las 7:30, desayunar en el hotel y salir a las 8:15 hacia la estación de Shanghái Sur (línea 1 directa).\n' +
+        'Billetes: en 12306 (en inglés, con el pasaporte) o en Trip.com. Ida en el G255 (上海南站 09:07 → 杭州东站 09:53, 86 ¥) y vuelta en el G1386 (杭州东站 19:01 → 上海南站 19:47, 77 ¥), en 2.ª clase.\n' +
+        'Lingyin solo con reserva, en el miniprograma «杭州灵隐飞来峰»: para el jueves ya está abierta.\n' +
+        'Fuera del plan en Hangzhou: la pagoda Leifeng, el pueblo de Longjing, el paseo del arroyo 九溪十八涧, la calle Hefang y la fuente musical del lago (a diario a las 19:30).',
+      paradas: [
+        {
+          id: 'e5f24a900e3f99b1',
+          hora: '08:50',
+          fin: '09:07',
+          nombre: 'Estación de Shanghái Sur',
+          local: '上海南站',
+          categoria: 'transporte',
+          ...en(C.estacionShanghaiSur),
+          llegada: { modo: 'metro', detalle: 'Línea 1 de Hanzhong Road a Shanghai South Railway Station (11 paradas, sin transbordo)', min: 35 },
+          direccionLocal: '上海市徐汇区沪闵路9001号',
+          notas:
+            'Tren G255 a las 09:07 (llega a 杭州东 a las 09:53). No hay billete de papel: se entra con el pasaporte con el que se compró, por el paso manual (人工通道) si los tornos no lo leen. Llegar con margen para el control de seguridad.\n' +
+            'Si se escapa, el G1633 sale de esta misma estación a las 09:21 (llega a las 10:21): cambiar el billete en 12306.',
+          gastos: [{ concepto: 'tren de ida (G255), 2.ª clase', min: 86 }],
+          enlaces: [enlace('Horarios y billetes (12306)', 'https://www.12306.cn/en/index.html')],
+        },
+        {
+          id: '97b87c047e38f301',
+          hora: '09:53',
+          fin: '10:00',
+          nombre: 'Estación de Hangzhou Este',
+          local: '杭州东站',
+          categoria: 'transporte',
+          ...en(C.estacionHangzhouEste),
+          llegada: { modo: 'tren', detalle: 'G255 (09:07 → 09:53)', min: 46 },
+          notas: 'Para Lingyin, seguir las señales de los taxis (出租车): entre semana pueden llegar hasta la entrada. En Hangzhou, metro y autobús se pagan con el código de transporte de WeChat (miniprograma «乘车码», con la tarjeta extranjera ya vinculada a WeChat Pay): activarlo antes, en Shanghái. Si no funciona: billete sencillo en las máquinas del metro (se paga escaneando con WeChat o en efectivo) y, en el autobús, monedas o billetes pequeños, que no dan cambio.',
+        },
+        {
+          id: 'a42b37ab706683e8',
+          hora: '10:45',
+          fin: '12:45',
+          nombre: 'Lingyin y Feilai Feng',
+          corto: 'Lingyin',
+          local: '灵隐飞来峰',
+          categoria: 'cultura',
+          ...en(C.lingyin),
+          llegada: {
+            modo: 'taxi',
+            detalle: 'Taxi o DiDi (~14 km, unos 50–60 ¥). Si hay mucha cola de taxis: línea 1 y línea 3 del metro hasta Huanglong Sports Center y la lanzadera 黄龙体育中心西至灵隐专线 (5 ¥), unos 65 min',
+            min: 45,
+          },
+          direccionLocal: '杭州市西湖区灵隐路法云弄1号',
+          notas:
+            'El templo budista más famoso del sur de China, al pie de un monte de caliza con más de 300 budas tallados en la roca entre los siglos X y XIV. Gratis desde diciembre de 2025, también el templo.\n' +
+            'SIN RESERVA NO SE ENTRA: reserva nominal con el pasaporte en el miniprograma «杭州灵隐飞来峰» (en WeChat o en Alipay), turno de mañana (se entra de 07:30 a 13:00). Se abre 7 días antes a las 08:00 de China: la del jueves 22 ya está abierta. Hay que llevar el pasaporte original. Si falla, lista de espera en el mismo miniprograma hasta las 20:00 del día anterior, o teléfono 0571-8796 9691.\n' +
+            'Orden: primero las esculturas del arroyo (a la entrada) y después el templo, de la puerta hacia arriba. No hacer caso a quien ofrezca entrar sin reserva por caminos de monte.\n' +
+            'Entre semana el taxi llega hasta aquí; los fines de semana de otoño, de 08:00 a 17:00, no (dejan en 西溪路608号, con lanzadera).',
+          gastos: [{ concepto: 'entrada', min: 0 }],
+          subparadas: [
+            {
+              id: 'b07561d988f62b72',
+              nombre: 'Esculturas de Feilai Feng y el Buda risueño',
+              local: '飞来峰造像',
+              notas: 'A lo largo del arroyo 冷泉溪, nada más entrar. Lo mejor: el Buda risueño (布袋弥勒) de época Song, el relieve más grande del monte, rodeado de 18 luohan. Y las cuevas 青林洞, 玉乳洞 y 龙泓洞, con figuras dentro. Unos 45 min.',
+            },
+            {
+              id: '3939f6636458a4a2',
+              nombre: 'Templo Lingyin',
+              local: '灵隐寺',
+              ...en(C.temploLingyin),
+              notas: 'Al otro lado del arroyo. Eje central: 天王殿, el Gran Salón 大雄宝殿 (con un enorme Buda dorado de madera de alcanfor), 药师殿 y 华严殿. En la puerta regalan tres varillas de incienso.',
+            },
+            {
+              id: '8d37955c8c1ca350',
+              nombre: 'Sala de los 500 luohan',
+              local: '五百罗汉堂',
+              notas: 'Dentro del templo: 500 luohan de bronce de 1,7 m en fila y, en el centro, un pabellón de bronce de 12 m dedicado a las cuatro montañas sagradas del budismo chino.',
+            },
+            {
+              id: '2b0e88aa779254ff',
+              nombre: 'Fideos vegetarianos del templo',
+              local: '十方苑素面',
+              opcional: true,
+              notas: 'En el comedor del templo, subiendo unos escalones a la derecha de la antigua taquilla: unos 20 ¥, y repetir es gratis. Mejor un cuenco para dos, que la comida es en Meijiawu. Suele haber cola.',
+            },
+          ],
+          enlaces: [
+            enlace('Reserva y normas (web del templo)', 'https://en.lingyinsi.org/detail_15105.html'),
+            enlace('Tráfico en otoño (杭州网)', 'https://hznews.hangzhou.com.cn/chengshi/content/2026-09/06/content_9299984.htm'),
+          ],
+        },
+        {
+          id: 'f534d343a4cc6844',
+          hora: '13:10',
+          fin: '14:20',
+          nombre: 'Comida y té en Meijiawu',
+          corto: 'Meijiawu',
+          local: '梅家坞',
+          categoria: 'comida',
+          ...en(C.meijiawu),
+          llegada: { modo: 'bus', detalle: 'Autobús 103, 121 o 1314 desde la parada 灵隐东 (梅灵北路, 300 m al sur de la terminal), 6 paradas hasta 梅家坞. Entre semana, también en taxi: unos 10 min', min: 25 },
+          direccionLocal: '杭州市西湖区梅灵南路 梅家坞',
+          notas:
+            'Aldea de té Longjing en un valle, con unas 160 casas de comidas entre las terrazas.\n' +
+            'Qué pedir: 龙井虾仁 (gambas salteadas con té Longjing, el plato de Hangzhou), 东坡肉 (panceta estofada, una porción por persona), 茶香排骨 (costillas al té), 黄鱼年糕 (pastel de arroz con corvina) y pescado de río al vapor (钱江白条). Si hay hambre, un 本鸡煲 (cazuela de pollo de corral). El famoso 西湖醋鱼 (pescado al vinagre) tiene mala fama entre los propios locales: mejor no.\n' +
+            'El té: un vaso de Longjing (龙井) para cada uno, que lo rellenan. Preguntar el precio antes: «一杯多少钱?».\n' +
+            'Si se compra té, que sea poco y con la etiqueta oficial de 西湖龙井 con código QR. Ojo con la unidad: 1 斤 son 500 g y 1 两, 50 g. Un 雨前 auténtico ronda los 120–200 ¥ el 两; muy por debajo, desconfiar. No seguir a nadie que ofrezca llevarte a «su» casa de té.',
+          gastos: [{ concepto: 'comida (estimado)', min: 100, max: 150 }, { concepto: 'vaso de té Longjing', min: 30, max: 60 }],
+          subparadas: [
+            {
+              id: '9c216f3882222c61',
+              nombre: 'Xiangfu Ming Tea House',
+              local: '香芙茗茶楼(梅家坞总店)',
+              notas: 'El mejor valorado de la aldea en Dianping (4,8; unos 100 ¥ por persona), casi enfrente de la parada del autobús. Recomiendan 黄鱼年糕, 神仙鸡煲 (cazuela de pollo), 茶香排骨 y 梅干菜蒸鳗鱼 (anguila con verdura encurtida).',
+            },
+            {
+              id: 'b7981100620d79db',
+              nombre: 'Chunjuan Tea House',
+              local: '春娟茶楼',
+              opcional: true,
+              direccionLocal: '杭州市西湖区梅家坞195号',
+              notas: 'Alternativa si el otro está lleno: casa de comidas de una vecina del pueblo, frente al aparcamiento, de 09:00 a 21:00. Unos 90 ¥ por persona en reseñas antiguas (sin confirmar en 2026).',
+            },
+            {
+              id: 'ec4e1b73d0362e8a',
+              nombre: 'Paseo entre las terrazas de té',
+              local: '梅家坞茶园',
+              opcional: true,
+              ...en(C.terrazasMeijiawu),
+              notas: 'Diez minutos de paseo entre las plantaciones, a los dos lados de la carretera, antes de volver a la parada.',
+            },
+          ],
+        },
+        {
+          id: '2d9aaa2a9440c780',
+          hora: '14:45',
+          fin: '15:05',
+          nombre: 'Dique Su',
+          corto: 'el dique Su',
+          local: '苏堤',
+          categoria: 'naturaleza',
+          ...en(C.diqueSu),
+          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi hasta 苏堤南口 (unos 8 km, 15–20 min); o el autobús 1314 en dirección 一公园, desde la parada de enfrente, unos 40 min', min: 25 },
+          notas:
+            'El dique de 2,8 km y seis puentes que cruza el lago del Oeste, con sauces a los lados. Subir al primer puente (映波桥) y bajar por la orilla hasta el embarcadero de 花港观鱼, unos 10 min a pie.\n' +
+            'Si hay mucha cola en el barco o vamos tarde (la isla deja de admitir gente a las 16:00): ir en taxi hasta Hubin (湖滨) y hacer allí la ida y vuelta a la isla, o pasear directamente hacia el puente roto.',
+          subparadas: [
+            {
+              id: '9f02ca046fb842b1',
+              nombre: 'Embarcadero de Huagang',
+              local: '花港观鱼码头',
+              ...en(C.huagang),
+              notas: 'Barco «上岛游» a la isla de los Tres Estanques: 55 ¥, con la entrada de la isla. Sale cada 15–30 min, de 08:00 a 17:00. El punto del mapa es el parque; el embarcadero está en su orilla.',
+            },
+          ],
+        },
+        {
+          id: '8492f8dc8775d156',
+          hora: '15:20',
+          fin: '15:50',
+          nombre: 'Isla de los Tres Estanques',
+          corto: 'la isla',
+          local: '三潭印月',
+          categoria: 'naturaleza',
+          ...en(C.santan),
+          llegada: { modo: 'ferry', detalle: 'Barco 上岛游 desde Huagang; atraca en el lado oeste de la isla', min: 15 },
+          notas:
+            'Isla con estanques dentro del lago y, delante, las tres pequeñas torres de piedra que salen en el billete de 1 yuan. Recorrer el eje central hasta el pabellón del sur para la foto. Última entrada a las 16:00.\n' +
+            'Para la vuelta, coger el barco del embarcadero ESTE de la isla, el que va a Hubin (湖滨), no el que vuelve a Huagang.',
+          gastos: [{ concepto: 'barco con la entrada de la isla', min: 55 }],
+          subparadas: [
+            {
+              id: 'a763f0aaea022284',
+              nombre: 'Foto del billete de 1 yuan',
+              local: '我心相印亭',
+              ...en(C.fotoBillete),
+              notas: 'Desde el lado este de este pabellón, en el extremo sur de la isla, se ven las torres como en el billete (en el billete hay tres; de verdad se ven dos). En Hangzhou no dan billetes de 1 yuan, solo monedas: llevar uno de Shanghái.',
+            },
+          ],
+        },
+        {
+          id: 'a19573a7468a6087',
+          hora: '16:10',
+          fin: '16:15',
+          nombre: 'Embarcadero de Hubin',
+          local: '二公园码头',
+          categoria: 'transporte',
+          ...en(C.hubin),
+          llegada: { modo: 'ferry', detalle: 'Barco de la isla a Hubin (湖滨)', min: 20 },
+          direccionLocal: '杭州市上城区湖滨路 二公园码头',
+          notas: 'Desde aquí, el paseo de la orilla lleva hacia el norte hasta el puente roto, unos 1,2 km.',
+        },
+        {
+          id: '6c208c57da5c48fd',
+          hora: '16:30',
+          fin: '17:45',
+          nombre: 'Atardecer en el puente roto y el dique Bai',
+          corto: 'el atardecer',
+          local: '断桥',
+          categoria: 'mirador',
+          ...en(C.duanqiao),
+          llegada: { modo: 'a_pie', detalle: 'Por la orilla de Hubin hacia el norte, unos 1,2 km', min: 15 },
+          direccionLocal: '杭州市西湖区北山街 断桥',
+          notas:
+            'El sol se pone a las 17:21 y el cielo guarda color hasta las 17:45: es la imagen más famosa de Hangzhou. Del puente roto sale el dique Bai (白堤), 1 km con el lago a los dos lados hasta la colina Gushan; al otro lado del lago se ve la pagoda Leifeng.\n' +
+            'Recordatorio: hacia las 16:30, coger número para la cena en Siji Minfu desde el móvil (los pasos, en la ficha de la cena).',
+          subparadas: [
+            {
+              id: '67a3199fa3903bf9',
+              nombre: 'Dique Bai',
+              local: '白堤',
+              notas: 'Paseo de 1 km entre el puente roto y la colina Gushan (孤山), con sauces y el lago a los dos lados. Ida y vuelta, unos 30 min.',
+            },
+          ],
+        },
+        {
+          id: '5cf5e83071b8394d',
+          hora: '18:25',
+          fin: '19:01',
+          nombre: 'Estación de Hangzhou Este',
+          local: '杭州东站',
+          categoria: 'transporte',
+          ...en(C.estacionHangzhouEste),
+          llegada: { modo: 'metro', detalle: 'A pie hasta el metro Longxiangqiao (龙翔桥, unos 1,5 km) y línea 1 en dirección 萧山国际机场 hasta Railway East Station (火车东站), 6 paradas', min: 40 },
+          notas: 'Tren G1386 a las 19:01 (llega a 上海南站 a las 19:47). El embarque cierra unos minutos antes de la salida: estar en el andén con margen. Para picar algo, hay tiendas en la estación.',
+          gastos: [{ concepto: 'tren de vuelta (G1386), 2.ª clase', min: 77 }],
+        },
+        {
+          id: '19b12ba1c8914e31',
+          hora: '19:47',
+          fin: '19:50',
+          nombre: 'Estación de Shanghái Sur',
+          local: '上海南站',
+          categoria: 'transporte',
+          ...en(C.estacionShanghaiSur),
+          llegada: { modo: 'tren', detalle: 'G1386 (19:01 → 19:47)', min: 46 },
+          notas: 'Del tren, a la línea 1 del metro (dirección 富锦路), sin salir a la calle.',
+        },
+        {
+          id: 'ebd3a84f0109b344',
+          hora: '20:25',
+          fin: '21:25',
+          nombre: 'Cena: pato pekinés en Siji Minfu',
+          corto: 'el pato',
+          local: '四季民福烤鸭店(静安大悦城店)',
+          categoria: 'comida',
+          ...en(C.joyCityNorte),
+          llegada: { modo: 'metro', detalle: 'Línea 1 de Shanghai South Railway Station a Xinzha Road (9 paradas, sin transbordo) y unos 10 min a pie hasta el edificio norte de Joy City', min: 35 },
+          direccion: '5F, North Building, Jing’an Joy City, 198 North Xizang Road',
+          direccionLocal: '静安区西藏北路198号 大悦城北座5楼',
+          reserva: 'No reservan: se hace cola. Coger número desde el móvil hacia las 16:30 (pasos en las notas) o llamar al (021) 6669 6362 y pedir que os apunten: «今晚八点二十左右到，两位，可以帮我们排号吗？» (llegamos hacia las 20:20, dos personas, ¿nos apuntáis en la cola?).',
+          notas:
+            'La cadena de pato pekinés más popular de Pekín (4,8 en Dianping, con más de 18.000 opiniones), mejor valorada que Quanjude. De lunes a jueves abre de 10:30 a 21:30: llegando a las 20:25, pedir el pato nada más sentarse, que tarda 20–30 min.\n' +
+            'Qué pedir para dos con hambre: el pato entero (酥香嫩烤鸭, 259 ¥). El medio (159 ¥) sale peor: con hambre acabaríais pidiendo otro y dos medios son 318 ¥. Con el pato: tres cestas de tortitas (鸭饼, 6 ¥ cada una, de 8 a 10), dos platos de salsa y verduras (小料盘, 6 ¥), el esqueleto en sopa para acabar (鸭架熬汤, 25 ¥; o frito con sal y pimienta, 椒盐) y brotes de guisante aliñados para refrescar (巧拌豆苗, 45 ¥). De postre, el surtido de dulces pekineses (小吃拼盘, 79 ¥). Si aún queda hambre: gambas crujientes con miel (蜜汁酥皮虾, 89 ¥) o fideos zhajiang (老北京炸酱面, 26 ¥). Unos 450–520 ¥ entre los dos. Precios de la carta de este local de enero de 2025; el pato sigue a 259 ¥ en 2026.\n' +
+            'Para pedir, enseñar: «一只烤鸭，三份鸭饼，两份小料，鸭架熬汤，巧拌豆苗，小吃拼盘».\n' +
+            'Cómo se come: los primeros trozos de piel crujiente, mojados en azúcar; después, en la tortita, salsa dulce, cebolleta, pepino y pato, y se enrolla.\n' +
+            'Cómo coger número desde el móvil, hacia las 16:30 (es cuando se abre la cola de la cena en el local del Bund; en este no está comprobado): 1) en WeChat, buscar el miniprograma «美味不用等» (si no aparece el local, probar la cuenta oficial «四季民福» → «排队取号», o la app Dianping); 2) buscar «四季民福 静安大悦城»; 3) pulsar «取号» (o «排队取号»), elegir 2 personas y confirmar; 4) guardar el número: la cola se sigue en «我的» → «我的排号单». Al llegar puede que pidan escanear un código en la puerta (签到). Si se pasa el turno (过号), el número se anula: estar allí antes de que llamen. Si no deja (pide teléfono chino o se han agotado los números), llamar al (021) 6669 6362 o coger número en papel en la puerta al llegar.',
+          gastos: [{ concepto: 'cena con pato entero, entre dos (unos 450–520 ¥ en total)', min: 225, max: 260 }],
+          subparadas: [
+            {
+              id: '731c8fe4a629bd50',
+              nombre: 'Plan B: Top Banana Market',
+              local: 'Top Banana 市集',
+              opcional: true,
+              notas: 'Si en Siji Minfu ya no dejan sentarse: en la planta baja de este mismo edificio, mercado de cocinas asiáticas con mesas compartidas (abrió en 2026): sukiyaki de wagyu en barra (Karasuma), tempura (Nuu Nuu), sudeste asiático (Opalm Asia) y fideos salteados (Wen Made). Hora de cierre sin confirmar.',
+            },
+          ],
+          enlaces: [
+            enlace('Carta de este local (enero de 2025)', 'https://yiwutrip.tw/sijiminfu/'),
+            enlace('Siji Minfu Joy City en Dianping', 'https://m.dianping.com/shop/811885518'),
+          ],
+        },
+        {
+          id: '6b1ad38f925e704c',
+          hora: '21:30',
+          fin: '21:58',
+          nombre: 'Maleta en Joy City',
+          corto: 'la maleta',
           local: '静安大悦城',
           categoria: 'compras',
           ...en(C.joyCity),
-          llegada: { modo: 'taxi', detalle: 'Taxi desde el Bund (~3 km)', min: 15 },
+          llegada: { modo: 'a_pie', detalle: 'Del edificio norte al sur de Joy City', min: 5 },
           direccionLocal: '上海市静安区西藏北路166号',
           notas:
             'Maleta: las de 90分 (NINETYGO) y Mijia son la opción china con mejor calidad/precio (policarbonato, ruedas silenciosas, candado TSA). Precios orientativos: 20″ ~200–500 ¥, 24″ ~300–700 ¥, 28″ ~460 ¥ en adelante.\n' +
             'Para comparar o si no hay existencias: en JD o Taobao son algo más baratas y llegan al hotel en 1–2 días. En los grandes almacenes de Nanjing Road predominan marcas internacionales más caras.\n' +
             'Tamaño: China Eastern deja facturar una maleta de hasta 23 kg y 158 cm sumando los tres lados (alto + ancho + fondo). En el Vueling Barcelona–Málaga del martes 27 la tarifa no incluye maleta: añadirla por internet.\n' +
-            'Ropa imprescindible para Disneyland. Las tiendas cierran a las 22:00. Una hora da para poco: venir con la lista de la maleta y la ropa hecha.\n' +
-            'Las luces del río Suzhou se apagan hacia las 21:30 entre semana (estimado): mejor ver la orilla antes.',
+            'Las tiendas cierran a las 22:00: media hora da para poco, así que venir con el tamaño de la maleta decidido. Si no da tiempo, la maleta puede quedar para el domingo por la mañana, antes del museo (Joy City está a 1,3 km y abre a las 10:00).',
           subparadas: [
+            {
+              id: '90d58e2a731fb6c4',
+              nombre: 'Tienda Xiaomi',
+              local: '小米之家',
+              notas: 'Maletas 90分 (NINETYGO) y Mijia. En el edificio sur, planta baja, según información de hace unos años: confirmarlo.',
+            },
             {
               id: '18c044a375c81fa1',
               nombre: 'Uniqlo',
               local: '优衣库',
+              opcional: true,
               ...en(C.uniqloJoyCity),
-              notas: 'La ropa normal que más compensa: un 20–35 % más barata que en España, mismo artículo (webs oficiales, octubre de 2026). Camiseta AIRism 79 ¥ (9,60 €; en España 14,90 €), sudadera 199 ¥ (24 €; 34,90 €), vaqueros 299 ¥ (36 €; 49,90 €), polar forrado 299 ¥ (36 €; 49,90 €), plumas Ultra Light Down 499 ¥ (61 €; 79,90 €). Las ofertas de la semana bajan algo más.',
+              notas: 'Para la ropa negra de base de los disfraces de mañana. La ropa normal que más compensa: un 20–35 % más barata que en España, mismo artículo (webs oficiales, octubre de 2026). Camiseta AIRism 79 ¥ (9,60 €; en España 14,90 €), sudadera 199 ¥ (24 €; 34,90 €), vaqueros 299 ¥ (36 €; 49,90 €), polar forrado 299 ¥ (36 €; 49,90 €), plumas Ultra Light Down 499 ¥ (61 €; 79,90 €). Las ofertas de la semana bajan algo más.',
             },
             {
               id: '730d95fb49eada58',
@@ -575,48 +908,6 @@ export const itinerario: Itinerario = {
               direccionLocal: '静安区曲阜路（静安大悦城旁）',
               notas: 'Droguería junto a la entrada de Joy City por Qufu Road. Suele tener sales y pastillas de baño japonesas (入浴剂, como Bub de Kao o Bathclin) y bombas de baño (泡澡球). Para preguntar: «有泡澡球或者浴盐吗？» (¿tenéis bombas o sales de baño?). La bañera de la habitación es de hidromasaje, con chorros: sales o pastillas sin aceites, o bombas sencillas, siempre con los chorros apagados (los chorros, mejor con agua sola). Nada de espuma de baño con hidromasaje (desborda) ni aceites, purpurina o pétalos (se quedan en los conductos). Buscar «低泡» (poca espuma) o «按摩浴缸可用» (apto para hidromasaje).',
             },
-            {
-              id: '90d58e2a731fb6c4',
-              nombre: 'Tienda Xiaomi',
-              local: '小米之家',
-              notas: 'Maletas 90分 (NINETYGO) y Mijia. En el edificio sur, planta baja, según información de hace unos años: confirmarlo.',
-            },
-            {
-              id: '4c72f1a5eb306d98',
-              nombre: 'Sihang Warehouse',
-              local: '四行仓库',
-              opcional: true,
-              ...en(C.sihang),
-              direccionLocal: '上海市静安区光复路21号',
-              notas: 'Escenario de la defensa de 1937 (la película «The Eight Hundred»): de noche, el muro oeste con los impactos desde la plaza, y el río desde el puente de Xizang Road. El museo cierra a las 16:30.',
-            },
-            {
-              id: 'e517a8d9c46b023f',
-              nombre: 'Fotografiska Shanghai',
-              local: 'Fotografiska影像艺术中心',
-              opcional: true,
-              ...en(C.fotografiska),
-              direccionLocal: '上海市静安区光复路127号',
-              notas: 'Museo sueco de fotografía en un almacén junto al río, con bar dentro: de lo poco cultural abierto de noche (10:30–23:00, última entrada hacia las 22:00; 80 ¥).',
-            },
-            {
-              id: 'b86f3c205da9714e',
-              nombre: 'Puente de Zhejiang Road',
-              local: '浙江路桥',
-              opcional: true,
-              ...en(C.zhejiangQiao),
-              direccionLocal: '上海市静安区浙江北路北苏州路口 浙江路桥',
-              notas: 'Puente de celosía de acero de 1906, uno de los dos centenarios del centro (el otro es el Garden Bridge). Muy fotogénico, y de camino a Suhe MixC.',
-            },
-            {
-              id: '17a9de486f30cb52',
-              nombre: 'Suhe MixC World y Shenyu Li',
-              local: '苏河湾万象天地 · 慎余里',
-              opcional: true,
-              ...en(C.suheMixc),
-              direccionLocal: '上海市静安区福建北路100号',
-              notas: 'Centro comercial «cañón» bajo un parque, muy de gente de aquí: arriba, el templo de Mazu de 1884 reconstruido; al lado, el lane shikumen Shenyu Li (1931), con bares y cenas tardías.',
-            },
           ],
           enlaces: [
             enlace('Joy City', 'https://english.shanghai.gov.cn/en-ShoppingCenters/20231217/dbb23c40ef1b4ff68794226b8ca37d1a.html'),
@@ -624,411 +915,10 @@ export const itinerario: Itinerario = {
           ],
         },
         {
-          id: 'ead714086b3cf925',
-          hora: '20:25',
-          fin: '21:00',
-          nombre: 'Noria Sky Ring',
-          corto: 'la noria',
-          local: 'SKY RING摩天轮',
-          categoria: 'mirador',
-          ...en(C.noria),
-          llegada: { modo: 'a_pie' },
-          notas:
-            'En la azotea del edificio norte, con acceso por la planta 8. Las cabinas tienen luz regulable y altavoz Bluetooth.\n' +
-            'Trip.com da como horario 11:00–21:00 con última entrada a las 21:00 (una guía oficial antigua decía hasta las 22:00): confirmarlo ese día. Si abre hasta las 22:00, subir más tarde y cenar antes.\n' +
-            'Algunas reseñas avisan de que desde arriba se ve sobre todo la ciudad cercana; los rascacielos de Lujiazui quedan lejos.',
-          gastos: [{ concepto: 'entrada (desde)', min: 60 }],
-        },
-        {
-          id: '731c8fe4a629bd50',
-          hora: '21:00',
-          fin: '21:50',
-          nombre: 'Cena en Top Banana Market',
-          corto: 'la cena',
-          categoria: 'comida',
-          ...en(C.noria),
-          llegada: { modo: 'a_pie' },
-          notas:
-            'Mercado gastronómico de cocinas asiáticas con mesas compartidas (abrió en 2026), con bebidas y postres.\n' +
-            'Está en la planta baja del edificio norte de Joy City. Confirmar a qué hora cierra; si cierra pronto, cenar antes de subir a la noria.',
-          gastos: [{ concepto: 'cena (estimado, sin precios publicados)', min: 60, max: 120 }],
-          subparadas: [
-            { id: 'd80c7e5ab391f264', nombre: 'Opalm Asia', notas: 'Cocina del sudeste asiático.' },
-            { id: '5639b1df20e7ac84', nombre: 'Nuu Nuu', notas: 'Tempura.' },
-            { id: 'a3f0682ce9157bd4', nombre: 'Karasuma', notas: 'Sukiyaki de wagyu para comer en barra.' },
-            { id: '79ce2405bd8a631f', nombre: 'Wen Made', notas: 'Fideos salteados.' },
-          ],
-          enlaces: [enlace('Top Banana Market', 'https://english.shanghai.gov.cn/en-FirstStores/20260211/4976961a80794cf495e4eb67df6371ee.html')],
-        },
-        {
-          ...HOTEL,
-          id: '30bf5ad687e219c4',
-          hora: '22:05',
-          llegada: { modo: 'taxi', min: 10 },
-        },
-      ],
-    },
-    {
-      fecha: '2026-10-22',
-      titulo: 'Zhujiajiao, Yuyuan y pato pekinés',
-      ciudad: 'Shanghái',
-      notas:
-        'Levantarnos a las 7:30 y desayunar en el hotel (de 07:00 a 10:00) para salir hacia las 8:30: el pueblo de agua, mejor temprano.\n' +
-        'Mañana en Zhujiajiao, a una hora en taxi; por la tarde, el jardín Yuyuan (última entrada a las 16:00), el bazar al anochecer y la cena de pato.\n',
-      paradas: [
-        {
-          id: '9cbf85d64f0cbd8d',
-          hora: '09:40',
-          fin: '12:10',
-          nombre: 'Zhujiajiao: jardín Kezhi, barca y puente Fangsheng',
-          corto: 'Zhujiajiao',
-          local: '朱家角古镇',
-          categoria: 'barrio',
-          ...en(C.kezhi),
-          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi (~48 km, 160–200 ¥) hasta el centro de visitantes, 朱家角古镇游客中心 (课植园路555号)', min: 65 },
-          direccionLocal: '青浦区朱家角镇西井街111号（课植园）',
-          notas:
-            'Pueblo de agua de las dinastías Ming y Qing: canales, puentes de piedra y casas sobre el agua. El pueblo es gratis; lo de pago abre de 08:30 a 17:00. Antes de las 10:30 está tranquilo; la calle Beidajie se llena a mediodía.\n' +
-            'Orden: el jardín Kezhi (课植园, 20 ¥, 45–60 min), una mansión con jardín de 1912–1927, el más grande del pueblo; la barca de remos desde su embarcadero, pasando bajo el puente Fangsheng; y la calle vieja.\n' +
-            'El bono de 60 ¥ solo incluye Kezhi, Hexin y el museo Helong: sale a cuenta si se va a los tres.\n' +
-            'Temporada cultural de otoño: casi todo (kunqu en barca, hanfu, luces en el puente) terminó el 7 de octubre, y para el jueves 22 no hay nada confirmado. Preguntar en el centro de visitantes (021-5924 0077) por si hay pingtan o 船拳 ese día. De noche el pueblo se ilumina de 19:00 a 22:00, pero entre semana se vacía hacia las 20:00.',
-          gastos: [
-            { concepto: 'jardín Kezhi', min: 20 },
-            { concepto: 'barca de remos (200 ¥ la barca, entre dos)', min: 100 },
-          ],
-          subparadas: [
-            {
-              id: '48df20796c5bd66e',
-              nombre: 'Barca de remos',
-              local: '摇橹船',
-              notas: 'Del embarcadero del jardín Kezhi a Beidajie, pasando bajo el puente Fangsheng: 200 ¥ la barca (hasta 6 personas, no se comparte), unos 15 min. Hasta el templo del Dios de la Ciudad, 300 ¥ y 20 min. Venta de 08:30 a 17:00.',
-            },
-            {
-              id: '2b0f1ee75d749fe4',
-              nombre: 'Puente Fangsheng',
-              local: '放生桥',
-              ...en(C.fangsheng),
-              notas: 'Puente de piedra de cinco arcos, de 1571: el más grande de Shanghái. Gratis.',
-            },
-            {
-              id: '4a5e6a2fe88efcdf',
-              nombre: 'Calle Beidajie',
-              local: '北大街',
-              ...en(C.beidajie),
-              notas: 'La calle vieja, llena de puestos para picar: 阿婆粽 (zongzi recién hechos), 熏青豆 (soja verde ahumada), shaomai de 荣兴园 (unos 30 ¥) y los dulces 袜底酥 y 海棠糕. En el n.º 287, 涵大隆酱园 (desde 1886): tofu fermentado con rosa y encurtidos para llevar.',
-            },
-            {
-              id: '937c02d122a00bcc',
-              nombre: 'Jardín Hexin',
-              local: '和心园',
-              opcional: true,
-              notas: 'Jardín con la colección de antigüedades de un coleccionista, en la misma calle que Kezhi (西井街). 30 ¥, 30 min.',
-            },
-            {
-              id: 'a706408d62598429',
-              nombre: 'Té junto al canal',
-              local: '江南第一茶楼',
-              opcional: true,
-              ...en(C.teZjj),
-              direccionLocal: '北大街208–212号',
-              notas: 'Casa de té de finales de los Qing junto al puente: pedir 熏豆茶, el té local con soja ahumada (precio sin confirmar). El 阿婆茶楼 (东井街122号), de más de cien años, se ve por fuera; su canto pingtan es por la tarde.',
-            },
-            {
-              id: '9b517383bd085260',
-              nombre: 'Museo de arte Helong',
-              local: '鹤龙美术馆',
-              opcional: true,
-              ...en(C.helong),
-              direccionLocal: '北大街222号',
-              notas: 'Museo de arte: 20 ¥ y 20 min. Solo si os gusta el arte.',
-            },
-          ],
-          enlaces: [
-            enlace('Zhujiajiao: información práctica', 'https://www.zhujiajiao.com/cn/questions/'),
-            enlace('Barcas de remos', 'https://www.zhujiajiao.com/cn/boad/'),
-          ],
-        },
-        {
-          id: '94fff1a4dc038ed0',
-          hora: '12:15',
-          fin: '13:00',
-          nombre: 'Comida en Caoxi Renjia',
-          corto: 'la comida',
-          local: '漕溪人家',
-          categoria: 'comida',
-          ...en(C.caoxi),
-          llegada: { modo: 'a_pie' },
-          direccionLocal: '青浦区朱家角镇北大街242号',
-          notas:
-            'Cocina del pueblo junto al río: 扎肉 (panceta atada con paja y estofada), 白水鱼 (pescado blanco del lago, al vapor), 油爆虾 (gambitas fritas), 炒螺丝 (caracoles de río salteados) y 田螺塞肉 (caracoles rellenos de carne). Unos 90 ¥ por persona; teléfono 021-5923 0108.\n' +
-            'Posición aproximada (por el número de la calle). La carne envasada no se puede llevar a España.',
-          gastos: [{ concepto: 'comida (unos 90 ¥ por persona en las reseñas)', min: 70, max: 110 }],
-          subparadas: [
-            {
-              id: 'ca22ba005987446a',
-              nombre: 'Dongtian Shifu',
-              local: '洞天食府',
-              opcional: true,
-              notas: 'Alternativa al lado (北大街240号), de 10:00 a 19:30: 扎肉 grande, gambitas de río y almeja de río con tofu. 70–90 ¥ por persona; suele haber cola.',
-            },
-            {
-              id: 'd832391f7a12bd93',
-              nombre: 'Templo Yuanjin',
-              local: '圆津禅院',
-              opcional: true,
-              ...en(C.yuanjin),
-              direccionLocal: '漕河街193号',
-              notas: 'Templo de origen Yuan al otro lado del puente 泰安桥: desde su torre se ve todo el pueblo. De 08:30 a 16:30; entrada sin confirmar (antes, unos 10 ¥).',
-            },
-          ],
-        },
-        {
-          id: 'ae4e238ab17f2b2e',
-          hora: '13:05',
-          fin: '13:35',
-          nombre: 'Templo del Dios de la Ciudad y correos Qing',
-          corto: 'el templo',
-          local: '朱家角城隍庙',
-          categoria: 'cultura',
-          ...en(C.chenghuangZjj),
-          llegada: { modo: 'a_pie' },
-          direccionLocal: '青浦区朱家角镇漕河街69号',
-          notas:
-            'Templo con escenario de ópera, un ábaco gigante y un ginkgo: unos 10 ¥, 15–20 min.\n' +
-            'Para volver, el taxi se coge en el cruce de 祥凝浜路 y 新风路, junto al punto de información (新风路172号), a 5 minutos de los correos.',
-          gastos: [{ concepto: 'entrada (aprox.)', min: 10 }],
-          subparadas: [
-            {
-              id: 'ce4ef90b0eec7786',
-              nombre: 'Correos de la dinastía Qing',
-              local: '大清邮局',
-              ...en(C.correosQing),
-              direccionLocal: '西湖街35号',
-              notas: 'Oficina de correos de la dinastía Qing que sigue funcionando: gratis, y se puede mandar una postal con su matasellos.',
-            },
-            {
-              id: 'a4c1a7e349f04d0b',
-              nombre: 'Farmacia Tongtianhe',
-              local: '童天和国药号',
-              opcional: true,
-              ...en(C.tongtianhe),
-              direccionLocal: '大新街60号',
-              notas: 'Farmacia china antigua: un vistazo de 5 minutos.',
-            },
-          ],
-        },
-        {
-          id: '0512e12375921a0f',
-          hora: '14:50',
-          fin: '16:15',
-          nombre: 'Jardín Yuyuan',
-          corto: 'el jardín',
-          local: '豫园',
-          categoria: 'cultura',
-          ...en(C.jardinYuyuan),
-          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi desde Zhujiajiao hasta la puerta norte del jardín (~49 km, 170–200 ¥); en metro, líneas 17 y 10, casi 2 h', min: 75 },
-          direccionLocal: '黄浦区福佑路168号（豫园北门）',
-          notas:
-            'Jardín clásico chino de la dinastía Ming (siglo XVI): rocallas, estanques, pabellones y galerías.\n' +
-            'De 09:00 a 16:30, con última entrada a las 16:00; los lunes cierra. Entradas en las taquillas de las puertas norte y sur o en el miniprograma «上海豫园». Los jueves no hay visita nocturna.\n' +
-            'La casa de té del lago (湖心亭) cuesta 120–380 ¥ por persona: la foto desde el puente en zigzag es gratis.',
-          gastos: [{ concepto: 'entrada', min: 40 }],
-          subparadas: [
-            {
-              id: '70078887d9e269c2',
-              nombre: 'Jardín interior y escenario antiguo',
-              local: '内园 古戏台',
-              ...en(C.jardinInterior),
-              notas: 'Con la misma entrada, al fondo hacia el sureste: el jardín interior de 1709, con su escenario de ópera. Lo que más se salta la gente.',
-            },
-            {
-              id: '7877ea9f02df69e8',
-              nombre: 'Roca Yulinglong y la gran rocalla',
-              local: '玉玲珑 大假山',
-              ...en(C.yulinglong),
-              notas: 'La roca de los 72 agujeros y, al lado, subir a la gran rocalla para ver los tejados del jardín.',
-            },
-            {
-              id: '39e59306c1ecdb4c',
-              nombre: 'Templo del Dios de la Ciudad',
-              local: '上海城隍庙',
-              opcional: true,
-              ...en(C.chenghuang),
-              direccionLocal: '方浜中路249号',
-              notas: 'Templo taoísta donde los vecinos queman incienso. De 08:30 a 16:30, 10–15 ¥: solo si se sale del jardín antes de las 16:10.',
-            },
-            {
-              id: 'b5763830ad716357',
-              nombre: 'Chenxiang Pavilion',
-              local: '沉香阁',
-              opcional: true,
-              ...en(C.chenxiang),
-              direccionLocal: '沉香阁路29号',
-              notas: 'Pequeño convento budista de monjas, de 1815, casi sin turistas. Horario y precio sin confirmar.',
-            },
-          ],
-          enlaces: [enlace('Jardín Yuyuan (web oficial)', 'https://www.yugarden.com.cn/page/articleview/message.html')],
-        },
-        {
-          id: 'f2a06844df75254f',
-          hora: '16:20',
-          fin: '17:00',
-          nombre: 'Disfraces en el mercado de Fuyou Road',
-          corto: 'los disfraces',
-          local: '福佑门商厦',
-          categoria: 'compras',
-          ...en(C.fuyoumen),
-          opcional: true,
-          llegada: { modo: 'a_pie', detalle: 'Unos 7 min por Fuyou Road desde la puerta norte del jardín' },
-          direccionLocal: '黄浦区福佑路427号（河南南路口）',
-          notas:
-            'Solo si aún no tenéis disfraz. Mercado mayorista de pequeños artículos (plantas 1 a 3) junto al bazar de Yuyuan: los puestos cambian de género con la temporada y en octubre venden cosas de Halloween (que lo hagan en 2026, sin confirmar). Precios de mayorista multiplicados por 2 o 3: regatear. Se cierra pronto (hacia las 17:00–18:00, sin confirmar): ir nada más salir del jardín.\n' +
-            'Ideas que cumplen las normas de Disneyland: villanos (ropa negra propia, capa por encima del tobillo y cuernos blandos o sombrero de bruja, sin tridente ni escoba); Mickey y Minnie de Halloween (negro, rojo y orejas); vampiros (capa corta, colmillos y antifaz que deje ver los ojos); piratas (pañuelo y camiseta de rayas, sin espada); Zootopia (orejas de zorro o de conejo y camisa, sin insignias de policía).\n' +
-            'Plan B: accesorios en Miniso Land (Nanjing Road, día 1) y orejas de Mickey dentro del parque nada más entrar (100–159 ¥).',
-          subparadas: [
-            {
-              id: '5c191f93c9ee2d55',
-              nombre: 'Fuyou Shangsha, otro edificio del mercado',
-              local: '福佑商厦',
-              opcional: true,
-              ...en(C.fuyou),
-              notas: 'Otro edificio de pequeños artículos, junto a la puerta norte del jardín, por si falta algo. Horario sin confirmar.',
-            },
-          ],
-        },
-        {
-          id: '2a97c5e4b1308df6',
-          hora: '17:05',
-          fin: '19:15',
-          nombre: 'Bazar de Yuyuan y Old Street',
-          corto: 'el bazar',
-          local: '豫园商城',
-          categoria: 'barrio',
-          ...en(C.yuyuan),
-          llegada: { modo: 'a_pie' },
-          direccionLocal: '黄浦区方浜中路265号',
-          notas:
-            'Manzanas de edificios de estilo tradicional, con tejados curvos, llenas de tiendas (seda, abanicos, té, palillos, dulces) y puestos de comida. Muy turístico: en los puestos se regatea; las casas antiguas, como 老庙黄金 (oro), 童涵春堂 (medicina china) o 沈大成 (dulces), tienen precio fijo. Las «antigüedades», mejor darlas por falsas.\n' +
-            'Hacia las 17:30 se encienden las luces y de 18:30 a 21:30 hay un espectáculo de luces cada media hora (hasta el 15 de noviembre).',
-          subparadas: [
-            {
-              id: '1358a639797f17db',
-              nombre: 'Xiaolongbao de Nanxiang',
-              local: '南翔馒头店',
-              ...en(C.nanxiang),
-              direccionLocal: '豫园路85号',
-              notas: 'La casa histórica del xiaolongbao (desde 1900), junto al puente en zigzag: empanadillas al vapor con caldo dentro. Para picar, en la planta baja, para llevar: 6 de cerdo por 30 ¥ (ahí está la cola). Sentados, 38 ¥ (48 ¥ los de cangrejo). Cierra hacia las 20:00; las plantas de arriba, antes.',
-            },
-            {
-              id: '9ad3488944a71d2e',
-              nombre: 'Shanghai Old Street',
-              local: '上海老街',
-              ...en(C.oldStreet),
-              direccionLocal: '方浜中路（河南南路至安仁街）',
-              notas: 'Calle de fachadas antiguas con tiendas de recuerdos y carteles retro. Parte de las tiendas se han trasladado: puede estar a medio gas.',
-            },
-            {
-              id: '392c62347e4689cc',
-              nombre: 'Ningbo Tangtuan: bolas de arroz',
-              local: '宁波汤团店',
-              opcional: true,
-              ...en(C.tangtuan),
-              direccionLocal: '豫园老街104号',
-              notas: 'Bolas de arroz glutinoso rellenas de sésamo negro, servidas en caldo: un clásico del bazar al que también va gente de aquí. Barato.',
-            },
-            {
-              id: '3bfbda759ec70c27',
-              nombre: 'Habas especiadas de Chenghuangmiao',
-              local: '上海五香豆商店',
-              opcional: true,
-              ...en(C.wuxiangdou),
-              notas: 'Habas especiadas de receta antigua, protegida como patrimonio de Shanghái: baratas y aguantan el viaje. Buen recuerdo para llevar.',
-            },
-            {
-              id: '7fe6d973887350a6',
-              nombre: 'Huabao Building',
-              local: '华宝楼',
-              opcional: true,
-              ...en(C.huabao),
-              direccionLocal: '方浜中路265号',
-              notas: 'En la planta baja, bebidas de hierbas de la farmacia 童涵春堂 (goji negro con rosa y limón, y tés de las 24 estaciones) y una tienda de oro decorada como las cuevas de Dunhuang, para mirar. En la plaza central, tiendas de Li-Ning y Anta: zapatillas de running chinas de 36 a 73 €.',
-            },
-            {
-              id: 'c7031f9d6a84be25',
-              nombre: 'Semir, tienda insignia',
-              local: '森马',
-              notas: 'Marca china de ropa diaria y básicos, tienda insignia de dos plantas con artículos exclusivos de Shanghái. De lo poco más barato que en Europa: camisetas 79–89 ¥ (10–11 €), vaqueros 189–259 ¥ (23–32 €), sudaderas 119–299 ¥ (15–36 €).',
-            },
-          ],
-          enlaces: [
-            enlace('Espectáculo de luces (otoño de 2026)', 'https://www.163.com/dy/article/L816NQGK055040N3.html'),
-            enlace('Semir en Yuyuan', 'https://english.shanghai.gov.cn/en-Latest-WhatsNew/20260917/1213b27578094564b1ad9630d36c24f2.html'),
-          ],
-        },
-        {
-          id: 'be5df2b5090d703c',
-          hora: '19:45',
-          fin: '21:40',
-          nombre: 'Cena: pato pekinés en Quanjude',
-          corto: 'Quanjude',
-          local: '全聚德 淮海中路店',
-          categoria: 'comida',
-          ...en(C.quanjude),
-          llegada: { modo: 'taxi', min: 20 },
-          direccion: '4F, 780 Middle Huaihai Road (cerca de Ruijin No. 1 Road)',
-          direccionLocal: '黄浦区淮海中路780号栗时代大厦4楼',
-          reserva: 'Por teléfono, al 021-6418 1577 (o que llame la recepción del hotel): «今晚七点四十五，两位，可以订位吗？最晚几点点餐？» (mesa para dos a las 19:45; ¿hasta qué hora se puede pedir?).',
-          notas:
-            'El restaurante clásico del pato pekinés; en Shanghái queda este local. Trinchan el pato en la mesa y se come envuelto en tortitas finas, con cebolleta, pepino y salsa dulce.\n' +
-            'Por la noche abre de 17:00 a 21:00: sentarse como muy tarde a las 19:45 (no publican hasta qué hora se puede pedir). Las reseñas lo ven correcto y clásico, no el mejor pato de la ciudad.\n' +
-            'Pato entero: menos de 250 ¥ con acompañamientos en 2024; el precio de 2026, sin confirmar.\n' +
-            'Después de cenar, si queda energía: Uniqlo, Songmont y TX Huaihai abren hasta las 22:00, a 300–700 m.',
-          gastos: [{ concepto: 'cena (media en reseñas: 135–155 ¥ por persona)', min: 135, max: 155 }],
-          subparadas: [
-            {
-              id: 'da5ed5ffcb5bfc6c',
-              nombre: 'Uniqlo, tienda insignia',
-              local: '优衣库 淮海中路全球旗舰店',
-              opcional: true,
-              ...en(C.uniqloHuaihai),
-              direccionLocal: '淮海中路887号',
-              notas: 'Después de cenar, a 300 m: un 20–35 % más barato que en España, mismo artículo (precios en la ficha de Joy City, día 1). Se traslada al n.º 755, que abre el 30 de octubre; según su personal, el 887 abre hasta el 29: el 22 debería estar abierto, quizá con menos existencias.',
-            },
-            {
-              id: 'e9a56c44ae79c150',
-              nombre: 'Songmont',
-              local: '山下有松',
-              opcional: true,
-              ...en(C.songmont),
-              direccionLocal: '淮海中路817–821号',
-              notas: 'Junto a Quanjude: bolsos de piel minimalistas de diseño chino, de 1.600 a 2.200 ¥: más baratos que fuera (el bolso «cesta», unos 1.600 ¥ aquí y 429 $ fuera). Tienda de 600 m², de 10:00 a 22:00. Posición aproximada.',
-            },
-            {
-              id: '895c612cb57450d5',
-              nombre: 'TX Huaihai y Pane',
-              local: 'TX淮海｜年轻力中心',
-              opcional: true,
-              ...en(C.txHuaihai),
-              direccionLocal: '淮海中路523号',
-              notas: 'Centro comercial de marcas chinas jóvenes y streetwear, hasta las 22:00, a 700 m. En la planta baja, Pane (zapatillas de Shanghái): 85–122 €, más baratas que fuera de China. Enfrente, Mason Prince.',
-            },
-            {
-              id: '6225e0f93669938f',
-              nombre: 'Paseo art déco iluminado',
-              local: '国泰电影院',
-              opcional: true,
-              ...en(C.cathay),
-              direccionLocal: '淮海中路870号',
-              notas: 'Después de cenar, 15 minutos: el cine Cathay (1932), en la esquina con Maoming Road, y subiendo por Maoming, el Jinjiang Hotel, Cathay Mansions y Grosvenor House (1929–1935). Gratis.',
-            },
-          ],
-          enlaces: [enlace('Pato pekinés en Shanghái (SmartShanghai, 2026)', 'https://www.smartshanghai.com/articles/dining/the-list-5-place-for-peking-duck-in-shanghai')],
-        },
-        {
           ...HOTEL,
           id: '4d90e45a12604f67',
-          hora: '22:00',
-          llegada: { modo: 'taxi', min: 20 },
+          hora: '22:10',
+          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi con la maleta (~2 km)', min: 10 },
         },
       ],
     },
@@ -1414,296 +1304,282 @@ export const itinerario: Itinerario = {
     },
     {
       fecha: '2026-10-24',
-      titulo: 'Hangzhou, parque Guilin y noche de salida',
-      ciudad: 'Hangzhou',
+      titulo: 'Zhujiajiao, Yuyuan y noche de salida',
+      ciudad: 'Shanghái',
       notas:
-        'Excursión de un día a Hangzhou: budas tallados en la roca en Lingyin, comida con té Longjing en una aldea de té y el lago del Oeste en barco. Es lo que no tenemos en ningún otro día del viaje.\n' +
-        'Levantarnos a las 6:30 y salir a las 7:00: el desayuno del hotel abre a las 7:00, así que pedirlo para llevar la noche antes o comprar algo en la estación y desayunar en el tren.\n' +
-        'Billetes: en 12306 (en inglés, con el pasaporte) o en Trip.com. Ida en el G1631 (上海南站 07:45 → 杭州东站 08:49) y vuelta en el G1384 (杭州东站 16:34 → 上海南站 17:40), 77 ¥ cada uno en 2.ª clase.\n' +
-        'Lingyin solo con reserva, que se abre el sábado 17 a las 02:00 hora española.\n' +
-        'Por la tarde, ya en Shanghái: el parque Guilin iluminado, la pagoda de Longhua y cena allí; después, cócteles en Speak Low y, si apetece, Hush.\n' +
-        'Fuera del plan en Hangzhou: la pagoda Leifeng, el pueblo de Longjing, el paseo del arroyo 九溪十八涧 y la calle Hefang.',
+        'Levantarnos a las 7:30 y desayunar en el hotel (de 07:00 a 10:00) para salir hacia las 8:30: el pueblo de agua, mejor temprano, y más en sábado, que hay más gente.\n' +
+        'Mañana en Zhujiajiao, a una hora en taxi; por la tarde, el jardín Yuyuan (última entrada a las 16:00) y el bazar sin prisas, con sus luces. Paso por el hotel para dejar las compras y cambiarse, cena a las 20:45 y noche de salida: cócteles en Speak Low y, si apetece, Hush.',
       paradas: [
         {
-          id: 'e5f24a900e3f99b1',
-          hora: '07:35',
-          fin: '07:45',
-          nombre: 'Estación de Shanghái Sur',
-          local: '上海南站',
-          categoria: 'transporte',
-          ...en(C.estacionShanghaiSur),
-          llegada: { modo: 'metro', detalle: 'Línea 1 de Hanzhong Road a Shanghai South Railway Station (11 paradas, sin transbordo)', min: 35 },
-          direccionLocal: '上海市徐汇区沪闵路9001号',
+          id: '9cbf85d64f0cbd8d',
+          hora: '09:40',
+          fin: '12:10',
+          nombre: 'Zhujiajiao: jardín Kezhi, barca y puente Fangsheng',
+          corto: 'Zhujiajiao',
+          local: '朱家角古镇',
+          categoria: 'barrio',
+          ...en(C.kezhi),
+          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi (~48 km, 160–200 ¥) hasta el centro de visitantes, 朱家角古镇游客中心 (课植园路555号)', min: 65 },
+          direccionLocal: '青浦区朱家角镇西井街111号（课植园）',
           notas:
-            'Tren G1631 a las 07:45 (llega a 杭州东 a las 08:49). No hay billete de papel: se entra con el pasaporte con el que se compró, por el paso manual (人工通道) si los tornos no lo leen. Llegar con margen: los sábados hay cola en el control de seguridad.\n' +
-            'Si se escapa, el G255 sale de esta misma estación a las 09:07 (llega a las 09:53): cambiar el billete en 12306.',
-          gastos: [{ concepto: 'tren de ida (G1631), 2.ª clase', min: 77 }],
-          enlaces: [enlace('Horarios y billetes (12306)', 'https://www.12306.cn/en/index.html')],
-        },
-        {
-          id: '97b87c047e38f301',
-          hora: '08:49',
-          fin: '08:55',
-          nombre: 'Estación de Hangzhou Este',
-          local: '杭州东站',
-          categoria: 'transporte',
-          ...en(C.estacionHangzhouEste),
-          llegada: { modo: 'tren', detalle: 'G1631 (07:45 → 08:49)', min: 64 },
-          notas: 'Seguir las señales del metro (地铁), línea 1. En Hangzhou, metro y autobús se pagan con el código de transporte de WeChat (miniprograma «乘车码», con la tarjeta extranjera ya vinculada a WeChat Pay): activarlo antes, en Shanghái. Si no funciona: billete sencillo en las máquinas del metro (se paga escaneando con WeChat o en efectivo) y, en el autobús, monedas o billetes pequeños, que no dan cambio.',
-        },
-        {
-          id: 'a42b37ab706683e8',
-          hora: '10:00',
-          fin: '12:00',
-          nombre: 'Lingyin y Feilai Feng',
-          corto: 'Lingyin',
-          local: '灵隐飞来峰',
-          categoria: 'cultura',
-          ...en(C.lingyin),
-          llegada: {
-            modo: 'metro',
-            detalle: 'Línea 1 hasta West Lake Cultural Square (3 paradas), línea 3 hasta Huanglong Sports Center (4 paradas) y el autobús lanzadera 黄龙体育中心西至灵隐专线 (5 ¥, 15–20 min)',
-            min: 65,
-          },
-          direccionLocal: '杭州市西湖区灵隐路法云弄1号',
-          notas:
-            'El templo budista más famoso del sur de China, al pie de un monte de caliza con más de 300 budas tallados en la roca entre los siglos X y XIV. Gratis desde diciembre de 2025, también el templo.\n' +
-            'SIN RESERVA NO SE ENTRA: reserva nominal con el pasaporte en el miniprograma «杭州灵隐飞来峰» (en WeChat o en Alipay), turno de mañana (se entra de 07:30 a 13:00). Para el sábado 24 se abre el sábado 17 a las 08:00 de China (02:00 en España) y se agota. Hay que llevar el pasaporte original. Si falla, lista de espera en el mismo miniprograma hasta las 20:00 del viernes, o teléfono 0571-8796 9691.\n' +
-            'Orden: primero las esculturas del arroyo (a la entrada) y después el templo, de la puerta hacia arriba. No hacer caso a quien ofrezca entrar sin reserva por caminos de monte.\n' +
-            'Los fines de semana de otoño, de 08:00 a 17:00, los taxis y DiDi no pueden llegar hasta aquí: dejan en el aparcamiento de 西溪路608号, con lanzadera de 2 ¥.',
-          gastos: [{ concepto: 'entrada', min: 0 }],
+            'Pueblo de agua de las dinastías Ming y Qing: canales, puentes de piedra y casas sobre el agua. El pueblo es gratis; lo de pago abre de 08:30 a 17:00. Antes de las 10:30 está tranquilo; la calle Beidajie se llena a mediodía.\n' +
+            'Orden: el jardín Kezhi (课植园, 20 ¥, 45–60 min), una mansión con jardín de 1912–1927, el más grande del pueblo; la barca de remos desde su embarcadero, pasando bajo el puente Fangsheng; y la calle vieja.\n' +
+            'El bono de 60 ¥ solo incluye Kezhi, Hexin y el museo Helong: sale a cuenta si se va a los tres.\n' +
+            'Temporada cultural de otoño: casi todo (kunqu en barca, hanfu, luces en el puente) terminó el 7 de octubre, y para el sábado 24 no hay nada confirmado. Preguntar en el centro de visitantes (021-5924 0077) por si hay pingtan o 船拳 ese día. De noche el pueblo se ilumina de 19:00 a 22:00, pero entre semana se vacía hacia las 20:00.',
+          gastos: [
+            { concepto: 'jardín Kezhi', min: 20 },
+            { concepto: 'barca de remos (200 ¥ la barca, entre dos)', min: 100 },
+          ],
           subparadas: [
             {
-              id: 'b07561d988f62b72',
-              nombre: 'Esculturas de Feilai Feng y el Buda risueño',
-              local: '飞来峰造像',
-              notas: 'A lo largo del arroyo 冷泉溪, nada más entrar. Lo mejor: el Buda risueño (布袋弥勒) de época Song, el relieve más grande del monte, rodeado de 18 luohan. Y las cuevas 青林洞, 玉乳洞 y 龙泓洞, con figuras dentro. Unos 45 min.',
+              id: '48df20796c5bd66e',
+              nombre: 'Barca de remos',
+              local: '摇橹船',
+              notas: 'Del embarcadero del jardín Kezhi a Beidajie, pasando bajo el puente Fangsheng: 200 ¥ la barca (hasta 6 personas, no se comparte), unos 15 min. Hasta el templo del Dios de la Ciudad, 300 ¥ y 20 min. Venta de 08:30 a 17:00.',
             },
             {
-              id: '3939f6636458a4a2',
-              nombre: 'Templo Lingyin',
-              local: '灵隐寺',
-              ...en(C.temploLingyin),
-              notas: 'Al otro lado del arroyo. Eje central: 天王殿, el Gran Salón 大雄宝殿 (con un enorme Buda dorado de madera de alcanfor), 药师殿 y 华严殿. En la puerta regalan tres varillas de incienso.',
+              id: '2b0f1ee75d749fe4',
+              nombre: 'Puente Fangsheng',
+              local: '放生桥',
+              ...en(C.fangsheng),
+              notas: 'Puente de piedra de cinco arcos, de 1571: el más grande de Shanghái. Gratis.',
             },
             {
-              id: '8d37955c8c1ca350',
-              nombre: 'Sala de los 500 luohan',
-              local: '五百罗汉堂',
-              notas: 'Dentro del templo: 500 luohan de bronce de 1,7 m en fila y, en el centro, un pabellón de bronce de 12 m dedicado a las cuatro montañas sagradas del budismo chino.',
+              id: '4a5e6a2fe88efcdf',
+              nombre: 'Calle Beidajie',
+              local: '北大街',
+              ...en(C.beidajie),
+              notas: 'La calle vieja, llena de puestos para picar: 阿婆粽 (zongzi recién hechos), 熏青豆 (soja verde ahumada), shaomai de 荣兴园 (unos 30 ¥) y los dulces 袜底酥 y 海棠糕. En el n.º 287, 涵大隆酱园 (desde 1886): tofu fermentado con rosa y encurtidos para llevar.',
             },
             {
-              id: '2b0e88aa779254ff',
-              nombre: 'Fideos vegetarianos del templo',
-              local: '十方苑素面',
+              id: '937c02d122a00bcc',
+              nombre: 'Jardín Hexin',
+              local: '和心园',
               opcional: true,
-              notas: 'En el comedor del templo, subiendo unos escalones a la derecha de la antigua taquilla: unos 20 ¥, y repetir es gratis. Mejor un cuenco para dos, que la comida es en Meijiawu. Suele haber cola.',
+              notas: 'Jardín con la colección de antigüedades de un coleccionista, en la misma calle que Kezhi (西井街). 30 ¥, 30 min.',
+            },
+            {
+              id: 'a706408d62598429',
+              nombre: 'Té junto al canal',
+              local: '江南第一茶楼',
+              opcional: true,
+              ...en(C.teZjj),
+              direccionLocal: '北大街208–212号',
+              notas: 'Casa de té de finales de los Qing junto al puente: pedir 熏豆茶, el té local con soja ahumada (precio sin confirmar). El 阿婆茶楼 (东井街122号), de más de cien años, se ve por fuera; su canto pingtan es por la tarde.',
+            },
+            {
+              id: '9b517383bd085260',
+              nombre: 'Museo de arte Helong',
+              local: '鹤龙美术馆',
+              opcional: true,
+              ...en(C.helong),
+              direccionLocal: '北大街222号',
+              notas: 'Museo de arte: 20 ¥ y 20 min. Solo si os gusta el arte.',
             },
           ],
           enlaces: [
-            enlace('Reserva y normas (web del templo)', 'https://en.lingyinsi.org/detail_15105.html'),
-            enlace('Tráfico en otoño (杭州网)', 'https://hznews.hangzhou.com.cn/chengshi/content/2026-09/06/content_9299984.htm'),
+            enlace('Zhujiajiao: información práctica', 'https://www.zhujiajiao.com/cn/questions/'),
+            enlace('Barcas de remos', 'https://www.zhujiajiao.com/cn/boad/'),
           ],
         },
         {
-          id: 'f534d343a4cc6844',
-          hora: '12:25',
-          fin: '13:30',
-          nombre: 'Comida y té en Meijiawu',
-          corto: 'Meijiawu',
-          local: '梅家坞',
+          id: '94fff1a4dc038ed0',
+          hora: '12:15',
+          fin: '13:00',
+          nombre: 'Comida en Caoxi Renjia',
+          corto: 'la comida',
+          local: '漕溪人家',
           categoria: 'comida',
-          ...en(C.meijiawu),
-          llegada: { modo: 'bus', detalle: 'Autobús 103, 121 o 1314 desde la parada 灵隐东 (梅灵北路, 300 m al sur de la terminal), 6 paradas hasta 梅家坞', min: 25 },
-          direccionLocal: '杭州市西湖区梅灵南路 梅家坞',
-          notas:
-            'Aldea de té Longjing en un valle, con unas 160 casas de comidas entre las terrazas.\n' +
-            'Qué pedir: 龙井虾仁 (gambas salteadas con té Longjing, el plato de Hangzhou), 东坡肉 (panceta estofada, una porción por persona), 茶香排骨 (costillas al té), 黄鱼年糕 (pastel de arroz con corvina) y pescado de río al vapor (钱江白条). Si hay hambre, un 本鸡煲 (cazuela de pollo de corral). El famoso 西湖醋鱼 (pescado al vinagre) tiene mala fama entre los propios locales: mejor no.\n' +
-            'El té: un vaso de Longjing (龙井) para cada uno, que lo rellenan. Preguntar el precio antes: «一杯多少钱?».\n' +
-            'Si se compra té, que sea poco y con la etiqueta oficial de 西湖龙井 con código QR. Ojo con la unidad: 1 斤 son 500 g y 1 两, 50 g. Un 雨前 auténtico ronda los 120–200 ¥ el 两; muy por debajo, desconfiar. No seguir a nadie que ofrezca llevarte a «su» casa de té.',
-          gastos: [{ concepto: 'comida (estimado)', min: 100, max: 150 }, { concepto: 'vaso de té Longjing', min: 30, max: 60 }],
-          subparadas: [
-            {
-              id: '9c216f3882222c61',
-              nombre: 'Xiangfu Ming Tea House',
-              local: '香芙茗茶楼(梅家坞总店)',
-              notas: 'El mejor valorado de la aldea en Dianping (4,8; unos 100 ¥ por persona), casi enfrente de la parada del autobús. Recomiendan 黄鱼年糕, 神仙鸡煲 (cazuela de pollo), 茶香排骨 y 梅干菜蒸鳗鱼 (anguila con verdura encurtida).',
-            },
-            {
-              id: 'b7981100620d79db',
-              nombre: 'Chunjuan Tea House',
-              local: '春娟茶楼',
-              opcional: true,
-              direccionLocal: '杭州市西湖区梅家坞195号',
-              notas: 'Alternativa si el otro está lleno: casa de comidas de una vecina del pueblo, frente al aparcamiento, de 09:00 a 21:00. Unos 90 ¥ por persona en reseñas antiguas (sin confirmar en 2026).',
-            },
-            {
-              id: 'ec4e1b73d0362e8a',
-              nombre: 'Paseo entre las terrazas de té',
-              local: '梅家坞茶园',
-              opcional: true,
-              ...en(C.terrazasMeijiawu),
-              notas: 'Diez minutos de paseo entre las plantaciones, a los dos lados de la carretera, antes de volver a la parada.',
-            },
-          ],
-        },
-        {
-          id: '2d9aaa2a9440c780',
-          hora: '14:10',
-          fin: '14:30',
-          nombre: 'Dique Su',
-          corto: 'el dique Su',
-          local: '苏堤',
-          categoria: 'naturaleza',
-          ...en(C.diqueSu),
-          llegada: { modo: 'bus', detalle: 'Autobús 1314 en dirección 一公园, desde la parada de enfrente; bajar en 苏堤南口 (unas 10 paradas)', min: 40 },
-          notas:
-            'El dique de 2,8 km y seis puentes que cruza el lago del Oeste, con sauces a los lados. Subir al primer puente (映波桥) y bajar por la orilla hasta el embarcadero de 花港观鱼, unos 10 min a pie.\n' +
-            'Si hay mucha cola en el barco o vamos tarde: seguir en el 1314 hasta el final (一公园, en Hubin) y hacer allí la ida y vuelta a la isla, o pasear por la orilla hacia el puente roto (断桥) y coger el metro en Longxiangqiao.',
-          subparadas: [
-            {
-              id: '9f02ca046fb842b1',
-              nombre: 'Embarcadero de Huagang',
-              local: '花港观鱼码头',
-              ...en(C.huagang),
-              notas: 'Barco «上岛游» a la isla de los Tres Estanques: 55 ¥, con la entrada de la isla. Sale cada 15–30 min, de 08:00 a 17:00. El punto del mapa es el parque; el embarcadero está en su orilla.',
-            },
-          ],
-        },
-        {
-          id: '8492f8dc8775d156',
-          hora: '14:45',
-          fin: '15:10',
-          nombre: 'Isla de los Tres Estanques',
-          corto: 'la isla',
-          local: '三潭印月',
-          categoria: 'naturaleza',
-          ...en(C.santan),
-          llegada: { modo: 'ferry', detalle: 'Barco 上岛游 desde Huagang; atraca en el lado oeste de la isla', min: 15 },
-          notas:
-            'Isla con estanques dentro del lago y, delante, las tres pequeñas torres de piedra que salen en el billete de 1 yuan. Recorrer el eje central hasta el pabellón del sur para la foto.\n' +
-            'Para la vuelta, coger el barco del embarcadero ESTE de la isla, el que va a Hubin (湖滨), no el que vuelve a Huagang.',
-          gastos: [{ concepto: 'barco con la entrada de la isla', min: 55 }],
-          subparadas: [
-            {
-              id: 'a763f0aaea022284',
-              nombre: 'Foto del billete de 1 yuan',
-              local: '我心相印亭',
-              ...en(C.fotoBillete),
-              notas: 'Desde el lado este de este pabellón, en el extremo sur de la isla, se ven las torres como en el billete (en el billete hay tres; de verdad se ven dos). En Hangzhou no dan billetes de 1 yuan, solo monedas: llevar uno de Shanghái.',
-            },
-          ],
-        },
-        {
-          id: 'a19573a7468a6087',
-          hora: '15:30',
-          fin: '15:35',
-          nombre: 'Embarcadero de Hubin',
-          local: '二公园码头',
-          categoria: 'transporte',
-          ...en(C.hubin),
-          llegada: { modo: 'ferry', detalle: 'Barco de la isla a Hubin (湖滨)', min: 20 },
-          direccionLocal: '杭州市上城区湖滨路 二公园码头',
-          notas: 'Desde aquí, 340 m a pie por Hubin Road hasta el metro Longxiangqiao (龙翔桥), línea 1.',
-        },
-        {
-          id: '5cf5e83071b8394d',
-          hora: '15:55',
-          fin: '16:34',
-          nombre: 'Estación de Hangzhou Este',
-          local: '杭州东站',
-          categoria: 'transporte',
-          ...en(C.estacionHangzhouEste),
-          llegada: { modo: 'metro', detalle: 'A pie hasta Longxiangqiao y línea 1 en dirección 萧山国际机场 hasta Railway East Station (火车东站), 6 paradas', min: 20 },
-          notas: 'Tren G1384 a las 16:34 (llega a 上海南站 a las 17:40). El embarque cierra unos minutos antes de la salida: estar en el andén con margen. Para picar algo, hay tiendas en la estación.',
-          gastos: [{ concepto: 'tren de vuelta (G1384), 2.ª clase', min: 77 }],
-        },
-        {
-          id: '19b12ba1c8914e31',
-          hora: '17:40',
-          fin: '17:45',
-          nombre: 'Estación de Shanghái Sur',
-          local: '上海南站',
-          categoria: 'transporte',
-          ...en(C.estacionShanghaiSur),
-          llegada: { modo: 'tren', detalle: 'G1384 (16:34 → 17:40)', min: 66 },
-          notas: 'Sin pasar por el hotel: del tren, a la línea 15 del metro.',
-        },
-        {
-          id: '319ed0320062a6d2',
-          hora: '18:00',
-          fin: '18:40',
-          nombre: 'Parque Guilin al anochecer',
-          corto: 'el parque Guilin',
-          local: '桂林公园',
-          categoria: 'naturaleza',
-          ...en(C.guilin),
-          llegada: { modo: 'metro', detalle: 'Línea 15, una parada de Shanghai South Railway Station a Guilin Park; la entrada del parque está unos 250 m al sur de la estación', min: 15 },
-          direccionLocal: '徐汇区桂林路128号',
-          notas:
-            'Jardín chino de 1929 del gánster Huang Jinrong, jefe de la Banda Verde del Shanghái de los años 30: muro con forma de dragón, barco de piedra (般若舫) y pabellones, con más de mil osmantos (el 24 la floración ya habrá pasado). Reabrió el 24 de julio de 2026 tras un año de obras.\n' +
-            'Gratis, de 05:00 a 21:00 (última entrada a las 20:30). Se llega ya de noche (anochece hacia las 17:40): farolas cálidas perfilan los aleros y el salón 四教厅 se ilumina. Si venimos muy cansados, se puede ir directo a cenar.',
-          gastos: [{ concepto: 'entrada', min: 0 }],
-          subparadas: [
-            {
-              id: 'ccb1e355847a34d0',
-              nombre: 'Té a 5 ¥ la tetera',
-              local: '浸想桂园',
-              notas: 'Junto al salón 四教厅 y en el salón del estanque de lotos: tetera de té por 5 ¥. El salón de té (café, té y dulces) cierra hacia las 19:30.',
-            },
-          ],
-        },
-        {
-          id: '1a55b734d4317f83',
-          hora: '18:55',
-          fin: '19:10',
-          nombre: 'Pagoda de Longhua iluminada',
-          corto: 'la pagoda',
-          local: '龙华塔',
-          categoria: 'cultura',
-          ...en(C.pagodaLonghua),
-          llegada: { modo: 'metro', detalle: 'Línea 12, 3 paradas de Guilin Park a Longhua', min: 15 },
-          direccionLocal: '徐汇区龙华路2853号（龙华广场）',
-          notas:
-            'Pagoda de la dinastía Song, la más antigua de Shanghái, fuera del recinto del templo (que cierra a las 16:30): se ve iluminada desde la plaza y desde la terraza de la 2.ª planta de Longhua Hui.\n' +
-            'El 24 es el día 15 del 9.º mes lunar, día de rezo: habrá más gente de lo normal. Las luces y el mercadillo de otoño de Longhua Hui terminaron el 7 de octubre.',
-        },
-        {
-          id: '5e087f1f2d2b1c48',
-          hora: '19:15',
-          fin: '20:30',
-          nombre: 'Cena en Longhua Hui',
-          corto: 'la cena',
-          local: '龙华会',
-          categoria: 'comida',
-          ...en(C.longhuaHui),
+          ...en(C.caoxi),
           llegada: { modo: 'a_pie' },
-          direccionLocal: '徐汇区龙华路2778号',
-          notas: 'Calle comercial de estilo tradicional alrededor de la pagoda, de 10:00 a 22:00, con restaurantes en la planta B2 y la 2.ª.',
-          gastos: [{ concepto: 'cena (estimado)', min: 80, max: 130 }],
+          direccionLocal: '青浦区朱家角镇北大街242号',
+          notas:
+            'Cocina del pueblo junto al río: 扎肉 (panceta atada con paja y estofada), 白水鱼 (pescado blanco del lago, al vapor), 油爆虾 (gambitas fritas), 炒螺丝 (caracoles de río salteados) y 田螺塞肉 (caracoles rellenos de carne). Unos 90 ¥ por persona; teléfono 021-5923 0108.\n' +
+            'Posición aproximada (por el número de la calle). La carne envasada no se puede llevar a España.',
+          gastos: [{ concepto: 'comida (unos 90 ¥ por persona en las reseñas)', min: 70, max: 110 }],
           subparadas: [
             {
-              id: 'c60c0e9f67729239',
-              nombre: 'Tao Xiaoguan: cocina de Shanghái',
-              local: '淘小馆',
-              notas: 'Cocina shanghainesa: 红烧肉 (cerdo estofado) y 松鼠鲈鱼 (lubina «ardilla», frita en salsa agridulce). Local B2-N53. Precio sin confirmar.',
+              id: 'ca22ba005987446a',
+              nombre: 'Dongtian Shifu',
+              local: '洞天食府',
+              opcional: true,
+              notas: 'Alternativa al lado (北大街240号), de 10:00 a 19:30: 扎肉 grande, gambitas de río y almeja de río con tofu. 70–90 ¥ por persona; suele haber cola.',
             },
             {
-              id: '9ae3f223b5b91684',
-              nombre: 'Ou Jiang Yan: cocina de Wenzhou',
-              local: '瓯江宴',
+              id: 'd832391f7a12bd93',
+              nombre: 'Templo Yuanjin',
+              local: '圆津禅院',
               opcional: true,
-              notas: 'Otra alternativa: cocina de Wenzhou, con marisco, en la 2.ª planta.',
+              ...en(C.yuanjin),
+              direccionLocal: '漕河街193号',
+              notas: 'Templo de origen Yuan al otro lado del puente 泰安桥: desde su torre se ve todo el pueblo. De 08:30 a 16:30; entrada sin confirmar (antes, unos 10 ¥).',
             },
+          ],
+        },
+        {
+          id: 'ae4e238ab17f2b2e',
+          hora: '13:05',
+          fin: '13:35',
+          nombre: 'Templo del Dios de la Ciudad y correos Qing',
+          corto: 'el templo',
+          local: '朱家角城隍庙',
+          categoria: 'cultura',
+          ...en(C.chenghuangZjj),
+          llegada: { modo: 'a_pie' },
+          direccionLocal: '青浦区朱家角镇漕河街69号',
+          notas:
+            'Templo con escenario de ópera, un ábaco gigante y un ginkgo: unos 10 ¥, 15–20 min.\n' +
+            'Para volver, el taxi se coge en el cruce de 祥凝浜路 y 新风路, junto al punto de información (新风路172号), a 5 minutos de los correos.',
+          gastos: [{ concepto: 'entrada (aprox.)', min: 10 }],
+          subparadas: [
+            {
+              id: 'ce4ef90b0eec7786',
+              nombre: 'Correos de la dinastía Qing',
+              local: '大清邮局',
+              ...en(C.correosQing),
+              direccionLocal: '西湖街35号',
+              notas: 'Oficina de correos de la dinastía Qing que sigue funcionando: gratis, y se puede mandar una postal con su matasellos.',
+            },
+            {
+              id: 'a4c1a7e349f04d0b',
+              nombre: 'Farmacia Tongtianhe',
+              local: '童天和国药号',
+              opcional: true,
+              ...en(C.tongtianhe),
+              direccionLocal: '大新街60号',
+              notas: 'Farmacia china antigua: un vistazo de 5 minutos.',
+            },
+          ],
+        },
+        {
+          id: '0512e12375921a0f',
+          hora: '14:50',
+          fin: '16:15',
+          nombre: 'Jardín Yuyuan',
+          corto: 'el jardín',
+          local: '豫园',
+          categoria: 'cultura',
+          ...en(C.jardinYuyuan),
+          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi desde Zhujiajiao hasta la puerta norte del jardín (~49 km, 170–200 ¥); en metro, líneas 17 y 10, casi 2 h', min: 75 },
+          direccionLocal: '黄浦区福佑路168号（豫园北门）',
+          notas:
+            'Jardín clásico chino de la dinastía Ming (siglo XVI): rocallas, estanques, pabellones y galerías.\n' +
+            'De 09:00 a 16:30, con última entrada a las 16:00; los lunes cierra. Entradas en las taquillas de las puertas norte y sur o en el miniprograma «上海豫园».\n' +
+            'La casa de té del lago (湖心亭) cuesta 120–380 ¥ por persona: la foto desde el puente en zigzag es gratis.',
+          gastos: [{ concepto: 'entrada', min: 40 }],
+          subparadas: [
+            {
+              id: '70078887d9e269c2',
+              nombre: 'Jardín interior y escenario antiguo',
+              local: '内园 古戏台',
+              ...en(C.jardinInterior),
+              notas: 'Con la misma entrada, al fondo hacia el sureste: el jardín interior de 1709, con su escenario de ópera. Lo que más se salta la gente.',
+            },
+            {
+              id: '7877ea9f02df69e8',
+              nombre: 'Roca Yulinglong y la gran rocalla',
+              local: '玉玲珑 大假山',
+              ...en(C.yulinglong),
+              notas: 'La roca de los 72 agujeros y, al lado, subir a la gran rocalla para ver los tejados del jardín.',
+            },
+            {
+              id: '39e59306c1ecdb4c',
+              nombre: 'Templo del Dios de la Ciudad',
+              local: '上海城隍庙',
+              opcional: true,
+              ...en(C.chenghuang),
+              direccionLocal: '方浜中路249号',
+              notas: 'Templo taoísta donde los vecinos queman incienso. De 08:30 a 16:30, 10–15 ¥: solo si se sale del jardín antes de las 16:10.',
+            },
+            {
+              id: 'b5763830ad716357',
+              nombre: 'Chenxiang Pavilion',
+              local: '沉香阁',
+              opcional: true,
+              ...en(C.chenxiang),
+              direccionLocal: '沉香阁路29号',
+              notas: 'Pequeño convento budista de monjas, de 1815, casi sin turistas. Horario y precio sin confirmar.',
+            },
+          ],
+          enlaces: [enlace('Jardín Yuyuan (web oficial)', 'https://www.yugarden.com.cn/page/articleview/message.html')],
+        },
+        {
+          id: '2a97c5e4b1308df6',
+          hora: '16:20',
+          fin: '19:15',
+          nombre: 'Bazar de Yuyuan y Old Street',
+          corto: 'el bazar',
+          local: '豫园商城',
+          categoria: 'barrio',
+          ...en(C.yuyuan),
+          llegada: { modo: 'a_pie' },
+          direccionLocal: '黄浦区方浜中路265号',
+          notas:
+            'Manzanas de edificios de estilo tradicional, con tejados curvos, llenas de tiendas (seda, abanicos, té, palillos, dulces) y puestos de comida. Muy turístico: en los puestos se regatea; las casas antiguas, como 老庙黄金 (oro), 童涵春堂 (medicina china) o 沈大成 (dulces), tienen precio fijo. Las «antigüedades», mejor darlas por falsas.\n' +
+            'Hacia las 17:30 se encienden las luces y de 18:30 a 21:30 hay un espectáculo de luces cada media hora (hasta el 15 de noviembre).\n' +
+            'Con tres horas da para todo sin prisas: picar algo ligero, que la cena es a las 20:45, y ver el espectáculo de las 18:30 o el de las 19:00.',
+          subparadas: [
+            {
+              id: '1358a639797f17db',
+              nombre: 'Xiaolongbao de Nanxiang',
+              local: '南翔馒头店',
+              ...en(C.nanxiang),
+              direccionLocal: '豫园路85号',
+              notas: 'La casa histórica del xiaolongbao (desde 1900), junto al puente en zigzag: empanadillas al vapor con caldo dentro. Para picar, en la planta baja, para llevar: 6 de cerdo por 30 ¥ (ahí está la cola). Sentados, 38 ¥ (48 ¥ los de cangrejo). Cierra hacia las 20:00; las plantas de arriba, antes.',
+            },
+            {
+              id: '9ad3488944a71d2e',
+              nombre: 'Shanghai Old Street',
+              local: '上海老街',
+              ...en(C.oldStreet),
+              direccionLocal: '方浜中路（河南南路至安仁街）',
+              notas: 'Calle de fachadas antiguas con tiendas de recuerdos y carteles retro. Parte de las tiendas se han trasladado: puede estar a medio gas.',
+            },
+            {
+              id: '392c62347e4689cc',
+              nombre: 'Ningbo Tangtuan: bolas de arroz',
+              local: '宁波汤团店',
+              opcional: true,
+              ...en(C.tangtuan),
+              direccionLocal: '豫园老街104号',
+              notas: 'Bolas de arroz glutinoso rellenas de sésamo negro, servidas en caldo: un clásico del bazar al que también va gente de aquí. Barato.',
+            },
+            {
+              id: '3bfbda759ec70c27',
+              nombre: 'Habas especiadas de Chenghuangmiao',
+              local: '上海五香豆商店',
+              opcional: true,
+              ...en(C.wuxiangdou),
+              notas: 'Habas especiadas de receta antigua, protegida como patrimonio de Shanghái: baratas y aguantan el viaje. Buen recuerdo para llevar.',
+            },
+            {
+              id: '7fe6d973887350a6',
+              nombre: 'Huabao Building',
+              local: '华宝楼',
+              opcional: true,
+              ...en(C.huabao),
+              direccionLocal: '方浜中路265号',
+              notas: 'En la planta baja, bebidas de hierbas de la farmacia 童涵春堂 (goji negro con rosa y limón, y tés de las 24 estaciones) y una tienda de oro decorada como las cuevas de Dunhuang, para mirar. En la plaza central, tiendas de Li-Ning y Anta: zapatillas de running chinas de 36 a 73 €.',
+            },
+            {
+              id: 'c7031f9d6a84be25',
+              nombre: 'Semir, tienda insignia',
+              local: '森马',
+              notas: 'Marca china de ropa diaria y básicos, tienda insignia de dos plantas con artículos exclusivos de Shanghái. De lo poco más barato que en Europa: camisetas 79–89 ¥ (10–11 €), vaqueros 189–259 ¥ (23–32 €), sudaderas 119–299 ¥ (15–36 €).',
+            },
+          ],
+          enlaces: [
+            enlace('Espectáculo de luces (otoño de 2026)', 'https://www.163.com/dy/article/L816NQGK055040N3.html'),
+            enlace('Semir en Yuyuan', 'https://english.shanghai.gov.cn/en-Latest-WhatsNew/20260917/1213b27578094564b1ad9630d36c24f2.html'),
           ],
         },
         {
           ...HOTEL,
           id: '18b27e6a0da8f17f',
-          hora: '21:05',
-          fin: '21:40',
-          llegada: { modo: 'metro', detalle: 'Línea 12 de Longhua a Hanzhong Road (6 paradas) y 10 min a pie', min: 30 },
-          notas: 'Arreglarse para salir. También se puede ir directo de Longhua a Speak Low (línea 12 hasta South Shaanxi Road y 700 m a pie).',
+          hora: '19:40',
+          fin: '20:15',
+          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi desde el bazar (~5 km)', min: 20 },
+          notas: 'Dejar las compras, ducharse y arreglarse para salir.',
           subparadas: [
             {
               id: '32c2a33dd7816039',
@@ -1717,14 +1593,48 @@ export const itinerario: Itinerario = {
           ],
         },
         {
+          id: 'c4ccfce5ef07ee76',
+          hora: '20:45',
+          fin: '22:00',
+          nombre: 'Cena de Sichuan en Four Seasons Cuisine',
+          corto: 'la cena',
+          local: '四吉饭店',
+          categoria: 'comida',
+          ...en(C.fourSeasons),
+          llegada: { modo: 'taxi', detalle: 'Taxi o DiDi desde el hotel (~5 km)', min: 20 },
+          direccion: '169 Jinxian Road',
+          direccionLocal: '黄浦区进贤路169号',
+          reserva: 'Llamar al 021 6244 0086 (o que llame el hotel): «10月24日周六晚上8点45分，两位，可以订位吗？» (sábado 24 a las 20:45, dos personas, ¿se puede reservar?). No está confirmado que reserven; si no, llegar hacia las 20:30, que suele haber cola.',
+          notas:
+            'Taberna de cocina de Sichuan del maestro 朱建中, con la carta escrita a mano y especialidad en pescado de río. Picante de verdad: el contraste con la comida de Zhujiajiao y el bazar. 4,4–4,6 en Dianping; unos 210 ¥ por persona. De 17:30 a 22:00 (hasta qué hora se puede pedir, sin confirmar).\n' +
+            'Las raciones son grandes: con 3 o 4 platos comen dos. Qué pedir: la ternera de la casa con pimientos de Xinjiang (大师招牌牛肉, 99 ¥, la más pedida), mapo tofu (麻婆豆腐, 59 ¥), huevos centenarios con pimiento asado (非遗烧椒皮蛋) y, con mucha hambre, el pescado de río con guindillas (岩团, 268 ¥ los 750 g). Si el picante asusta, pedir «微辣» (poco picante).\n' +
+            'Plan B a 200 m: 滴水洞 (Di Shui Dong), cocina de Hunan, en 茂名南路56号2楼 (021 6253 2689), abierto hasta las 22:00 o más.',
+          gastos: [{ concepto: 'cena (media en Dianping)', min: 200, max: 220 }],
+          subparadas: [
+            {
+              id: '6225e0f93669938f',
+              nombre: 'Paseo art déco iluminado',
+              local: '国泰电影院',
+              opcional: true,
+              ...en(C.cathay),
+              direccionLocal: '淮海中路870号',
+              notas: 'Después de cenar, de camino a Speak Low: bajando por Maoming Road, Cathay Mansions, el Jinjiang Hotel y Grosvenor House (1929–1935), y en la esquina con Huaihai, el cine Cathay (1932). Gratis.',
+            },
+          ],
+          enlaces: [
+            enlace('Four Seasons Cuisine (Nomfluence, 2026)', 'https://rachelgouk.com/four-seasons-cuisine-for-authentic-sichuan-food-in-shanghai/'),
+            enlace('En Dianping', 'https://m.dianping.com/shop/1566947195'),
+          ],
+        },
+        {
           id: 'e90fb13c7a6428d5',
-          hora: '22:00',
-          fin: '23:30',
+          hora: '22:15',
+          fin: '23:45',
           nombre: 'Speak Low',
           local: 'Speak Low',
           categoria: 'ocio',
           ...en(C.speakLow),
-          llegada: { modo: 'taxi', min: 20 },
+          llegada: { modo: 'a_pie', detalle: 'Bajando por Maoming South Road y luego por Fuxing Middle Road, 1,3 km (o taxi, 5 min)', min: 18 },
           direccion: '579 Middle Fuxing Road',
           direccionLocal: '复兴中路579号',
           notas: 'Cócteles de estilo japonés. Cada planta del bar tiene su ambiente; la tercera es la más cuidada.',
@@ -1733,7 +1643,7 @@ export const itinerario: Itinerario = {
         },
         {
           id: '46a3d805cf129be7',
-          hora: '23:45',
+          hora: '24:00',
           fin: '26:00',
           nombre: 'Hush (INS Land)',
           local: 'INS新乐园',
@@ -1745,7 +1655,7 @@ export const itinerario: Itinerario = {
           direccionLocal: '雁荡路109号',
           notas:
             'Si apetece hip-hop/R&B. Es sábado, la noche con más ambiente: comprobar la sesión y el precio de la entrada antes de comprar pases.\n' +
-            'Si llegamos cansados de Hangzhou, el bar ya cumple el plan nocturno y la discoteca se puede omitir. Hora de salida orientativa; al día siguiente nos levantamos sobre las 11:00.\n' +
+            'Si llegamos cansados del día, el bar ya cumple el plan nocturno y la discoteca se puede omitir. Hora de salida orientativa; al día siguiente nos levantamos sobre las 11:00.\n' +
             'INS Land está en el lado norte del parque Fuxing; el punto del mapa es aproximado.',
           gastos: [{ concepto: 'entrada de fin de semana (por confirmar)', min: 198, max: 288 }],
           enlaces: [enlace('Hush', 'https://www.smartshanghai.com/venue/28730/smshwxmpqr.jpeg?share=true28730')],
@@ -1763,7 +1673,7 @@ export const itinerario: Itinerario = {
       titulo: 'Historia Natural, Wukang/Anfu, cafés y bufé en Lujiazui',
       ciudad: 'Shanghái',
       notas:
-        'Después de Hangzhou y la noche de salida, levantarnos sobre las 11:00.\n' +
+        'Después de la noche de salida, levantarnos sobre las 11:00.\n' +
         'Museo de Historia Natural, comida ligera (la cena es un bufé), Anfu Road y Wukang Road con sus cafés curiosos, y Lujiazui de noche.',
       paradas: [
         {
@@ -2066,7 +1976,7 @@ export const itinerario: Itinerario = {
     {
       titulo: 'Lo que queremos priorizar',
       puntos: [
-        'Disfrutar Shanghái sin madrugar: levantarnos a las 10:00 como muy pronto. Excepciones: Zhujiajiao (07:30), Disneyland (08:00), Hangzhou (06:30) y el vuelo de vuelta.',
+        'Disfrutar Shanghái sin madrugar: levantarnos a las 10:00 como muy pronto. Excepciones: Hangzhou y Zhujiajiao (07:30), Disneyland (08:00) y el vuelo de vuelta.',
         'Comprar una maleta y ropa allí; descubrir marcas chinas originales con buena relación calidad-precio.',
         'Probar comidas y bebidas curiosas.',
         'Disneyland, un día en Hangzhou y una noche de buenos cócteles y baile.',
@@ -2112,23 +2022,25 @@ export const itinerario: Itinerario = {
       titulo: 'Fuera del plan por ahora',
       puntos: [
         'Nankín y su Museo Paleontológico: se cambió por Hangzhou (3 h 30 de tren, ida y vuelta, por un museo, y el domingo ya hay dinosaurios en el de Historia Natural).',
+        'Joy City de noche: la noria Sky Ring (desde 60 ¥; abre hasta las 21:00–21:30) y Top Banana Market, que queda como plan B de la cena del jueves.',
+        'Mercado de disfraces de Fuyou Road, junto a Yuyuan: con Zhujiajiao en sábado queda después de Disney. Los disfraces, con accesorios de Miniso Land (miércoles), ropa negra de Uniqlo (jueves) y orejas compradas en el parque.',
+        'Quanjude (pato pekinés, Huaihai): cierra a las 21:00 y no encajaba; el pato es en Siji Minfu el jueves.',
         'Shanghái: Museo de Arte Contemporáneo, China Art Museum, Templo del Buda de Jade y varios centros comerciales.',
         'Masaje en Kangyou Four Seasons (222 Jinyuan Road): era el plan para el miércoles si no había habitación temprano.',
-        'Templo Longhua por dentro y sus fideos budistas 罗汉面 (15 ¥ en 龙华素斋): solo de día (el templo, de 07:00 a 16:30, gratis; el comedor, hasta las 15:00). El sábado 24 se ve la pagoda iluminada por fuera; para entrar, una mañana (línea 12 hasta Longhua).',
-        'Middle Huaihai Road de día: parque Fuxing, TX Huaihai (marcas chinas jóvenes y Pane), HAI550 y Lanxin (cocina shanghainesa, Bib Gourmand). Se cambió por Zhujiajiao; Uniqlo, Songmont y TX se pueden ver después de cenar en Quanjude.',
+        'Templo Longhua por dentro y sus fideos budistas 罗汉面 (15 ¥ en 龙华素斋): solo de día (el templo, de 07:00 a 16:30, gratis; el comedor, hasta las 15:00). El miércoles 21 se cena junto a la pagoda; para entrar en el templo, una mañana (línea 12 hasta Longhua).',
+        'Middle Huaihai Road de día: parque Fuxing, TX Huaihai (marcas chinas jóvenes y Pane), HAI550 y Lanxin (cocina shanghainesa, Bib Gourmand). Se cambió por Zhujiajiao. Songmont (bolsos de piel de diseño chino), TX Huaihai y Pane (zapatillas) abren hasta las 22:00, a pocos minutos de Speak Low.',
         'Outlet Shanghai Village (上海购物村, 申迪东路88号), junto a Disneyland: Nike, adidas, New Balance, Puma, Levi’s, The North Face, Columbia… con un 30–60 % de descuento. Cabría el domingo 25 de 17:00 a 19:00 en lugar de los cafés (línea 11 directa desde Wukang Road, unos 45 min).',
       ],
     },
   ],
   pendientes: [
     { id: 'c849d1a6f7302be5', texto: 'Museo de Historia Natural (domingo 25): las entradas salen el domingo 18 a las 09:00 de China (las 03:00 en España), con el pasaporte, en el miniprograma «上海科技馆自然博物馆天文馆门票». No hay taquilla y los fines de semana se agotan.' },
-    { id: '38f76ad0e1bc5492', texto: 'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.' },
-    { id: '12a4a2178f65dcac', texto: 'Sábado 24, Hangzhou: reservar Lingyin el sábado 17 a las 02:00 hora española (08:00 en China), en cuanto se abre: miniprograma «杭州灵隐飞来峰» en WeChat (o Alipay), con los dos pasaportes, turno de mañana. Comprar los trenes G1631 (上海南站 07:45) y G1384 (杭州东站 16:34). Si ya estaban comprados los de Nankín, devolverlos: gratis hasta el viernes 16 a las 03:00 hora española; después, un 5 %.' },
+    { id: '8b59b4e99b3d5c50', texto: 'Jueves 22, Hangzhou: reservar ya Lingyin (miniprograma «杭州灵隐飞来峰» en WeChat, con los dos pasaportes, turno de mañana; la reserva para el jueves ya está abierta) y comprar los trenes G255 (上海南站 09:07) y G1386 (杭州东站 19:01).' },
+    { id: '02289d107c299ac9', texto: 'Antes del jueves 22: probar en WeChat el miniprograma «美味不用等» (o la cuenta «四季民福» → «排队取号»), buscar «四季民福 静安大悦城» y comprobar que deja coger número sin teléfono chino. El jueves, hacia las 16:30, coger número para dos (los pasos, en la ficha de la cena).' },
+    { id: 'e8deedfb8bf826fb', texto: 'Sábado 24: reservar mesa para dos a las 20:45 en Four Seasons Cuisine (四吉饭店), al 021 6244 0086 o que llame el hotel.' },
     { id: '71ea52c093b6fd84', texto: 'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.' },
     { id: 'b1f8074a6d3c92e5', texto: 'Equipaje: añadir por internet una maleta facturada en el Vueling VY1542 (Barcelona–Málaga, martes 27 a las 06:50), que la tarifa no la incluye. Y decidir dónde pasar la noche en Barcelona (llegada a las 23:05 del lunes).' },
     { id: '095cbe73a24f681d', texto: 'Domingo 25: reservar el bufé del Yi Café (Pudong Shangri-La) para dos a las 18:30 en la web de reservas del Shangri-La (o al +86 21 2828 6888); 487 ¥ con todo. Comprar la entrada de la Shanghai Tower (180 ¥) por internet.' },
-    { id: 'dbb04bf7fb5b181c', texto: 'Jueves 22: llamar al 189 3062 5815 (o que llame el hotel) para saber si el espectáculo nocturno de luces del jardín Kezhi de Zhujiajiao (朱家角光影幻境·课植园, 118 ¥, de 17:00 a 21:00) abre ese día. Si abre, se puede invertir el día: Yuyuan por la mañana y Zhujiajiao por la tarde.' },
     { id: 'ef64a20d831c7b95', texto: 'Sábado noche: mirar la programación y la entrada de Hush/INS para el 24.' },
-    { id: 'ec67c889c1582263', texto: 'Jueves 22: reservar mesa en Quanjude para las 19:45 (021-6418 1577, o que llame el hotel).' },
   ],
 };
