@@ -38,7 +38,7 @@ beforeEach(() => arrancarItinerario.mockClear());
 afterEach(() => vi.unstubAllGlobals());
 
 describe('entrada del piloto: valida perfil, origen y plan real antes de arrancar la app', () => {
-  it('perfil válido: arranca UNA vez con las composiciones del perfil, congeladas y sin referencias de la entrada', () => {
+  it('perfil válido: arranca UNA vez con las composiciones del perfil, congeladas y sin referencias de la entrada', async () => {
     const d = ejemplo();
     // Precondiciones con constructores reales y puros: el perfil vale, el catálogo admite el plan real y su
     // catálogo de portabilidad es válido.
@@ -49,10 +49,17 @@ describe('entrada del piloto: valida perfil, origen y plan real antes de arranca
     arrancarPiloto(d, ORIGEN);
     expect(arrancarItinerario).toHaveBeenCalledTimes(1);
     const [composicion] = arrancarItinerario.mock.calls[0];
+    // El piloto comparte el progreso con un cliente EXPLÍCITO (la web publicada no lo tiene).
     expect(composicion).toEqual({ respaldo: { origen: ORIGEN, listado: ejemplo().listadoCliente, maxBytesOriginal: 1024 },
-      portabilidad: ejemplo().portabilidad });
-    const { respaldo, portabilidad } = composicion;
-    if (!respaldo || !portabilidad) throw new Error('Faltan composiciones');
+      portabilidad: ejemplo().portabilidad, progreso: { http: expect.any(Function) } });
+    const { respaldo, portabilidad, progreso } = composicion;
+    if (!respaldo || !portabilidad || !progreso) throw new Error('Faltan composiciones');
+    // Mismo origen, tal cual: el cliente solo delega en fetch con lo que le pasa el transporte.
+    const fetch = vi.fn(async () => new Response(null, { status: 204 }));
+    vi.stubGlobal('fetch', fetch);
+    const opciones = { method: 'GET', credentials: 'same-origin' as const };
+    await progreso.http('/api/progreso', opciones);
+    expect(fetch).toHaveBeenCalledWith('/api/progreso', opciones);
     for (const hoja of [respaldo, respaldo.listado, portabilidad, portabilidad.limites, portabilidad.limitesHistoria]) {
       expect(Object.isFrozen(hoja)).toBe(true);
     }
@@ -61,7 +68,7 @@ describe('entrada del piloto: valida perfil, origen y plan real antes de arranca
     // Cambiar después lo que se pasó no cambia lo que recibió la app.
     d.origen = 'https://otro.example'; d.listadoCliente.maxFilas = 8; d.portabilidad.limites.maxRegistros = 999;
     expect(composicion).toEqual({ respaldo: { origen: ORIGEN, listado: ejemplo().listadoCliente, maxBytesOriginal: 1024 },
-      portabilidad: ejemplo().portabilidad });
+      portabilidad: ejemplo().portabilidad, progreso: { http: expect.any(Function) } });
   });
 
   it.each([

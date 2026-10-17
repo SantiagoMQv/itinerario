@@ -126,4 +126,21 @@ export interface Itinerario {
   secciones?: Seccion[];
   /** Cosas por comprobar o reservar; se pueden ir marcando en la app. */
   pendientes?: Pendiente[];
+  /** Lo que estuvo en el plan publicado de ESTE viaje y ya no está (o cambió de tipo). No son visitas: nunca se
+   * enseñan en el plan ni se pueden marcar. Solo sirven para reconocer lo guardado antes (marcas, recibos, colas
+   * y fotos) sin reescribirlo. Un ID publicado no se borra: se quita del plan y se añade aquí. */
+  retiradas?: Retiradas;
 }
+
+/** Identidades retiradas, por tipo y con la relación exacta con su parada. Las valida `src/identidades.ts`. */
+export interface Retiradas {
+  /** Paradas que ya no están, con su nombre de entonces (para rotular sus fotos). */
+  readonly paradas?: readonly ParadaRetirada[];
+  /** Sitios de dentro que ya no están, con la parada (activa o retirada) a la que pertenecían. */
+  readonly subparadas?: readonly SubparadaRetirada[];
+  /** Pendientes que ya no están (también los que cambiaron de acción y recibieron otro ID). */
+  readonly pendientes?: readonly PendienteRetirado[];
+}
+export interface ParadaRetirada { readonly id: string; readonly nombre: string }
+export interface SubparadaRetirada { readonly paradaId: string; readonly id: string; readonly nombre: string }
+export interface PendienteRetirado { readonly id: string }

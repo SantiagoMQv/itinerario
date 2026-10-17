@@ -1,6 +1,7 @@
 // Progreso compartido entre dos móviles simulados (dos contextos aislados de Chromium, cada uno con
 // su IndexedDB y su localStorage reales). /api/progreso pasa por el controlador y el almacén REALES
-// del servidor con una pasarela en memoria. No prueba Cloudflare, Neon, SQL, cookies ni móviles.
+// del servidor con una pasarela en memoria. La app es la real con cliente de progreso EXPLÍCITO (como el
+// piloto; la web publicada no lo tiene). No prueba Cloudflare, Neon, SQL, cookies ni móviles.
 import { type Browser, type BrowserContext, type Page, type Route, expect, test } from '@playwright/test';
 import { itinerario } from '../src/datos/itinerario';
 import { crearProgreso } from '../src/progreso';
@@ -8,12 +9,18 @@ import type { InstantaneaProgreso } from '../src/progreso-validacion';
 import { crearControladorProgreso, type ControladorProgreso } from '../servidor/api-progreso';
 import { crearAlmacenProgreso, type DecisionHistorica } from '../servidor/almacen-progreso';
 import type { RegistroSesion } from '../servidor/sesiones';
+import { compilarAppConProgreso, servirAppConProgreso } from './app-con-progreso';
 
 const HORA = '2026-10-22T13:30:00+08:00';
-// Paradas del 22 de octubre (IDs persistentes del plan, no índices visuales).
-const LANXIN = '9df146a2e730cb58';
-const TIENDAS = '452ea1cf8d93706b';
-const EQUIPAJE = 'b1f8074a6d3c92e5';
+// Paradas del 22 de octubre (IDs persistentes del plan, no índices visuales): a las 13:30 toca la comida en
+// Meijiawu y después el dique Su.
+const MEIJIAWU = 'f534d343a4cc6844';
+const DIQUE = '2d9aaa2a9440c780';
+const EQUIPAJE = 'b059fb349a2744a7';
+test.beforeAll(async () => {
+  test.setTimeout(120_000);
+  await compilarAppConProgreso();
+});
 const ACTOR: RegistroSesion = {
   id: '00000000-0000-4000-8000-000000000001', huella: 'a'.repeat(64), viajeId: itinerario.id,
   dispositivoId: 'sesion', creadaEn: 0, venceEn: 4_000_000_000_000, revocada: false,
@@ -76,7 +83,10 @@ async function movil(browser: Browser, servidor: Servidor, legado?: Record<strin
   page.on('pageerror', (e) => errores.push(e.message));
   return { contexto, page, red, errores };
 }
+const conApp = new WeakSet<BrowserContext>();
 async function abrirPagina(contexto: BrowserContext) {
+  // La app real con el cliente de progreso del piloto, una sola vez por contexto (también al reabrir).
+  if (!conApp.has(contexto)) { await servirAppConProgreso(contexto); conApp.add(contexto); }
   const page = await contexto.newPage();
   await page.clock.setFixedTime(new Date(HORA));
   await page.goto('/');
@@ -151,7 +161,7 @@ test.describe('progreso compartido entre dos móviles', () => {
   test('lo marcado en un móvil, y sus casillas, llegan al otro', async ({ browser }) => {
     const a = await movil(browser, servidor);
     await marcarHecha(a.page);
-    await expect.poll(() => servidor.actual.estado.paradas[LANXIN]?.marca).toBe('hecha');
+    await expect.poll(() => servidor.actual.estado.paradas[MEIJIAWU]?.marca).toBe('hecha');
     await expect(a.page.locator('#red')).toBeHidden();
 
     await a.page.locator('.pestana.todo').click();
@@ -160,11 +170,11 @@ test.describe('progreso compartido entre dos móviles', () => {
     await expect.poll(() => servidor.actual.estado.pendientes[EQUIPAJE]?.hecho).toBe(true);
 
     const b = await movil(browser, servidor);
-    // B abre después: arranca leyendo el servidor y lo de ahora ya no es Lanxin.
-    await expect(b.page.locator('#ahora')).toContainText('Más tiendas');
+    // B abre después: arranca leyendo el servidor y lo de ahora ya no es la comida en Meijiawu.
+    await expect(b.page.locator('#ahora')).toContainText('Dique Su');
     await b.page.locator('.pestana.todo').click();
     await expect(b.page.locator(`input[data-pendiente-id="${EQUIPAJE}"]`)).toBeChecked();
-    expect((await raiz(b.page))!.estado.paradas[LANXIN].marca).toBe('hecha');
+    expect((await raiz(b.page))!.estado.paradas[MEIJIAWU].marca).toBe('hecha');
     expect([...a.errores, ...b.errores]).toEqual([]);
   });
 
@@ -172,16 +182,16 @@ test.describe('progreso compartido entre dos móviles', () => {
     const a = await movil(browser, servidor);
     const b = await movil(browser, servidor);
     await marcarHecha(b.page);
-    await expect.poll(() => servidor.actual.estado.paradas[LANXIN]?.marca).toBe('hecha');
+    await expect.poll(() => servidor.actual.estado.paradas[MEIJIAWU]?.marca).toBe('hecha');
 
-    // B dice «Llegué» a las tiendas, pero su POST queda retenido: A llega antes al servidor.
+    // B dice «Llegué» al dique Su, pero su POST queda retenido: A llega antes al servidor.
     let soltar!: () => void;
     b.red.retener = new Promise((ok) => { soltar = ok; });
     await pulsar(b.page, 'aqui');
     await expect(b.page.locator('#red')).toContainText(/Enviando|sin enviar|Sin confirmar/);
     await marcarHecha(a.page);
     await pulsar(a.page, 'aqui');
-    await expect.poll(() => servidor.actual.estado.aqui.paradaId).toBe(TIENDAS);
+    await expect.poll(() => servidor.actual.estado.aqui.paradaId).toBe(DIQUE);
     const aquiDeA = servidor.actual.estado.aqui.revision;
     soltar();
 
@@ -191,9 +201,9 @@ test.describe('progreso compartido entre dos móviles', () => {
     await expect(revisar).toBeVisible();
     await expect(b.page.locator('#compartido')).toContainText('no se aplicó');
     // Un solo aquí, el de A; B no reformula ni reintenta por su cuenta.
-    expect(servidor.actual.estado.aqui).toEqual({ paradaId: TIENDAS, revision: aquiDeA });
+    expect(servidor.actual.estado.aqui).toEqual({ paradaId: DIQUE, revision: aquiDeA });
     const r = (await raiz(b.page))!;
-    expect(r.estado.aqui.paradaId).toBe(TIENDAS);
+    expect(r.estado.aqui.paradaId).toBe(DIQUE);
     expect(Object.values(r.estado.paradas).filter((p) => p.marca === 'aqui')).toHaveLength(1);
     expect(r.cola.filter((e) => e.rechazo && !e.resolucion)).toHaveLength(1);
     const ids = servidor.posts.map((p) => p.id);
@@ -224,7 +234,7 @@ test.describe('progreso compartido entre dos móviles', () => {
     await expect.poll(async () => (await raiz(otra))!.cola.length).toBe(0);
     expect(servidor.posts.map((p) => p.id)).toEqual([pendiente[0].operacion.id, pendiente[0].operacion.id]);
     expect(servidor.actual.revisionServidor).toBe(1);
-    expect((await raiz(otra))!.estado.paradas[LANXIN].marca).toBe('hecha');
+    expect((await raiz(otra))!.estado.paradas[MEIJIAWU].marca).toBe('hecha');
     await expect(otra.locator('#red')).toBeHidden();
   });
 
@@ -243,7 +253,7 @@ test.describe('progreso compartido entre dos móviles', () => {
 
     servidor.sesion = true;
     await sincronizarDesdeTodo(a.page);
-    await expect.poll(() => servidor.actual.estado.paradas[LANXIN]?.marca).toBe('hecha');
+    await expect.poll(() => servidor.actual.estado.paradas[MEIJIAWU]?.marca).toBe('hecha');
     await expect.poll(async () => (await raiz(a.page))!.cola.length).toBe(0);
   });
 
@@ -252,7 +262,7 @@ test.describe('progreso compartido entre dos móviles', () => {
     const a = await movil(browser, servidor);
     await marcarHecha(a.page);
     await a.page.locator('#toast-accion').click();
-    await expect(a.page.locator('#ahora')).toContainText('Lanxin');
+    await expect(a.page.locator('#ahora')).toContainText('Meijiawu');
     expect((await raiz(a.page))!.cola).toHaveLength(0);
     expect(servidor.posts).toHaveLength(0);
 
@@ -262,9 +272,9 @@ test.describe('progreso compartido entre dos móviles', () => {
     await expect.poll(() => servidor.actual.estado.pendientes[EQUIPAJE]?.hecho).toBe(true);
     await a.page.reload();
     await marcarHecha(a.page);
-    await expect.poll(() => servidor.actual.estado.paradas[LANXIN]?.marca).toBe('hecha');
+    await expect.poll(() => servidor.actual.estado.paradas[MEIJIAWU]?.marca).toBe('hecha');
     await a.page.locator('#toast-accion').click();
-    await expect.poll(() => servidor.actual.estado.paradas[LANXIN]?.marca ?? null).toBe(null);
+    await expect.poll(() => servidor.actual.estado.paradas[MEIJIAWU]?.marca ?? null).toBe(null);
     // El deshacer es una operación propia: la casilla de antes sigue hecha.
     expect(servidor.actual.estado.pendientes[EQUIPAJE].hecho).toBe(true);
     expect(servidor.posts.at(-1)!.cuerpo).toContain('"tipo":"deshacer"');
@@ -272,12 +282,12 @@ test.describe('progreso compartido entre dos móviles', () => {
 
   test('lo marcado antes en este móvil se importa tal cual, sin tocar las claves antiguas', async ({ browser }) => {
     const legado = {
-      marcas: '{"2026-10-22|13:00|Lanxin (Lyceum Restaurant)":"hecha","2026-10-22|99:99|Desconocida":"aqui"}',
-      'marcas-hora': '{"2026-10-22|13:00|Lanxin (Lyceum Restaurant)":29877930}',
+      marcas: '{"2026-10-22|13:10|Comida y té en Meijiawu":"hecha","2026-10-22|99:99|Desconocida":"aqui"}',
+      'marcas-hora': '{"2026-10-22|13:10|Comida y té en Meijiawu":29877930}',
       'pendientes-hechos': '["Equipaje: verificar la franquicia',
     };
     const a = await movil(browser, servidor, legado);
-    await expect(a.page.locator('#ahora')).toContainText('Más tiendas');
+    await expect(a.page.locator('#ahora')).toContainText('Dique Su');
     const r = (await raiz(a.page))!;
     expect(r.formato).toBe(3);
     expect(r.legado!.originales).toEqual(legado);
@@ -287,12 +297,12 @@ test.describe('progreso compartido entre dos móviles', () => {
     await expect(a.page.locator('#compartido')).toContainText('no se pudieron pasar');
     const claves = await a.page.evaluate(() => ['marcas', 'marcas-hora', 'pendientes-hechos'].map((k) => localStorage.getItem(k)));
     expect(claves).toEqual([legado.marcas, legado['marcas-hora'], legado['pendientes-hechos']]);
-    await expect.poll(() => servidor.actual.estado.paradas[LANXIN]?.marca).toBe('hecha');
+    await expect.poll(() => servidor.actual.estado.paradas[MEIJIAWU]?.marca).toBe('hecha');
 
     // Al reabrir no se vuelve a importar ni se reescriben las claves.
     await a.page.close();
     const otra = await abrirPagina(a.contexto);
-    await expect(otra.locator('#ahora')).toContainText('Más tiendas');
+    await expect(otra.locator('#ahora')).toContainText('Dique Su');
     expect((await raiz(otra))!.legado!.originales).toEqual(legado);
     expect(await otra.evaluate(() => ['marcas', 'marcas-hora', 'pendientes-hechos'].map((k) => localStorage.getItem(k))))
       .toEqual(claves);
@@ -330,7 +340,7 @@ test.describe('progreso compartido entre dos móviles', () => {
     await page.locator('#toast-accion').click();
     await expect(hecha).not.toHaveAttribute('aria-disabled', 'true');
     await marcarHecha(page);
-    expect((await raiz(page))!.estado.paradas[LANXIN].marca).toBe('hecha');
+    expect((await raiz(page))!.estado.paradas[MEIJIAWU].marca).toBe('hecha');
   });
   test('Reintentar tras una apertura fallida recupera la sincronización real con el servidor', async ({ browser }) => {
     const contexto = await browser.newContext({ baseURL: 'http://localhost:4173', locale: 'es-ES',
@@ -356,7 +366,7 @@ test.describe('progreso compartido entre dos móviles', () => {
     await page.locator('#toast-accion').click();
     await marcarHecha(page);
     // La marca guardada dispara el envío sin recargar la página: GET, POST del original y acuse.
-    await expect.poll(() => servidor.actual.estado.paradas[LANXIN]?.marca).toBe('hecha');
+    await expect.poll(() => servidor.actual.estado.paradas[MEIJIAWU]?.marca).toBe('hecha');
     expect(servidor.lecturas).toBeGreaterThanOrEqual(1);
     expect(servidor.posts).toHaveLength(1);
     await expect.poll(async () => (await raiz(page))!.cola.length).toBe(0);
@@ -388,7 +398,7 @@ test.describe('progreso compartido entre dos móviles', () => {
     await expect(page.locator('#ahora [data-marcar="hecha"]').first()).toHaveAttribute('aria-disabled', 'true');
 
     // Ficha: el selector también, con valor explícito (nunca un atributo vacío).
-    await page.locator('#contenido li.parada .fila', { hasText: 'Lanxin' }).click();
+    await page.locator('#contenido li.parada .fila', { hasText: 'Meijiawu' }).click();
     const fijar = page.locator('#contenido li.parada.abierta [data-fijar="hecha"]');
     await expect(fijar).toHaveAttribute('aria-disabled', 'true');
     // La hoja sube al abrir la ficha: se espera a que llegue arriba antes de tocar.

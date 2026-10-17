@@ -105,6 +105,34 @@ async function abierta(...args: Parameters<typeof interfaz>) {
 }
 const marcaDe = (p: ProgresoInterfaz, id: string) => p.vista.raiz?.estado.paradas[id]?.marca ?? null;
 
+describe('solo este móvil (web publicada: sin cliente de progreso)', () => {
+  it('abre, marca, deshace e importa el legado sin transporte ni ninguna petición', async () => {
+    const p = crearProgresoInterfaz({ plan, dispositivoId: 'movil-a', http: null, fabrica: new IDBFactory(), nombre: 'local',
+      entradasLegadas: { marcas: '{"2026-10-21|10:00|Dos":"saltada"}' },
+      uuid: () => `00000000-0000-4000-8000-${String(++numero).padStart(12, '0')}` });
+    cierres.push(() => p.cerrar());
+    await p.abrir();
+    expect(p.vista.fase).toBe('lista');
+    expect(p.vista.transporte).toBeNull();
+    expect(p.compartido).toBe(false);
+    expect(marcaDe(p, 'p2')).toBe('saltada');
+    const r = await p.marcarParada('p1', 'hecha', 600);
+    expect(r.tipo).toBe('guardada');
+    await p.sincronizar();
+    expect(marcaDe(p, 'p1')).toBe('hecha');
+    expect(p.vista.raiz?.cola.every((e) => !e.enviada)).toBe(true);
+    // Nada que pedir: ni «sin enviar» ni «Sincronizar»; lo guardado aquí es lo que hay.
+    expect(resumenCompartido(p.vista, true, false)).toEqual({ pildora: null, accion: null, ocupado: false,
+      detalle: 'Lo marcado se guarda solo en este móvil.' });
+    if (r.tipo === 'guardada') expect((await p.deshacer(r.operacionId)).tipo).toBe('cancelada');
+    expect(marcaDe(p, 'p1')).toBeNull();
+  });
+  it('si lo guardado no se puede abrir, lo sigue diciendo también sin compartir', () => {
+    const v: VistaProgreso = { fase: 'fallo-local', raiz: null, transporte: null, ocupado: false, atascadas: [] };
+    expect(resumenCompartido(v, true, false).pildora).toBe('Marcas sin abrir');
+  });
+});
+
 describe('lectura de lo guardado antes en este móvil', () => {
   it('captura los textos originales de las tres claves sin interpretarlos ni escribir nada', () => {
     const s = almacen({ marcas: '{"roto":', 'marcas-hora': '{"x":1}', 'pendientes-hechos': '["Reserva"]', tema: '"oscuro"' });

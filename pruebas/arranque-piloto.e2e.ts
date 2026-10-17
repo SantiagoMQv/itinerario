@@ -432,9 +432,13 @@ window.fixtureArranque = {
       await abrir(page);
       expect(await page.evaluate(() => window.fixtureArranque!.reentrada()))
         .toEqual({ exterior: { ok: true }, anidada: { ok: false, nombre: 'Error', mensaje: GUARDA } });
-      await expect(page.locator('#compartido .estado-compartido')).toHaveText(INCIERTO);
+      // La exterior es la publicada (null y null, sin cliente de progreso): «Todo» pintado y sin «Compartido».
+      await expect(page.locator('#pendientes')).toBeVisible();
+      await expect(page.locator('#compartido')).toHaveCount(0);
       // Una sola app, la publicada (null y null): sin controles privados.
-      expect(await efectos(page)).toMatchObject({ canvas: 1, compartido: 1, fotosViaje: 0, copia: 0 });
+      expect(await efectos(page)).toMatchObject({ canvas: 1, compartido: 0, fotosViaje: 0, copia: 0 });
       expect(await voltearTema(page)).toEqual({ antes: 'claro', despues: 'oscuro' });
+      // Sin cliente de progreso, ninguna petición a la API (tampoco el GET de progreso).
+      expect(api()).toEqual([]);
     });
 });

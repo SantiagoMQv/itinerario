@@ -607,7 +607,9 @@ test.describe('publicada (portabilidad: null)', () => {
       await page.goto('/');
       await expect(page.locator('#contenido')).not.toBeEmpty();
       await page.locator('#dias [data-dia="todo"]').click();
-      await expect(page.locator('#compartido')).toHaveCount(1);
+      // «Todo» pintado (sus pendientes) y, en la publicada, sin «Compartido»: ni cliente de progreso ni red.
+      await expect(page.locator('#pendientes')).toBeVisible();
+      await expect(page.locator('#compartido')).toHaveCount(0);
       await expect(page.locator('#copia-movil')).toHaveCount(0);
       await expect(page.getByText('Copia de este móvil')).toHaveCount(0);
       const nombres = await page.evaluate(async () => (await indexedDB.databases()).map((x) => x.name ?? ''));

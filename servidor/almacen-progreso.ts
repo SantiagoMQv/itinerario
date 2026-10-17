@@ -1,4 +1,5 @@
 import type { Itinerario } from '../src/tipos';
+import { identidades } from '../src/identidades';
 import { aplicarOperacion, crearProgreso, type Operacion } from '../src/progreso';
 import { campos, densa, iguales, type InstantaneaProgreso } from '../src/progreso-validacion';
 import {
@@ -97,8 +98,8 @@ export function crearAlmacenProgreso(configuracion: ConfiguracionAlmacenProgreso
       || typeof pasarela.confirmar !== 'function' || !datosPlan(plan)) return fallar();
     crearProgreso(plan); // Valida catálogo compartido, sin guardar ni fabricar raíz durable.
     if (!identidad(plan.id)) return fallar();
-    const paradas = new Set(plan.dias.flatMap((dia) => dia.paradas.map((p) => p.id)));
-    const pendientes = new Set((plan.pendientes ?? []).map((p) => p.id));
+    // Conocidas: las decisiones históricas sobre retiradas se siguen validando; el núcleo decide lo nuevo.
+    const { paradas: { conocidas: paradas }, pendientes: { conocidas: pendientes } } = identidades(plan);
     function original(valor: unknown): Operacion {
       const op = capturarOperacionProgreso(valor);
       if (!op || !identidad(op.id) || !identidad(op.dispositivoId)) return fallar();

@@ -1,4 +1,5 @@
 import type { Itinerario } from './tipos';
+import { identidades } from './identidades';
 
 /** Núcleo puro de un viaje. No consulta reloj, almacenamiento, preferencias ni red. */
 export type Marca = 'hecha' | 'saltada' | 'aqui';
@@ -54,22 +55,12 @@ const paradaDe = (e: EstadoProgreso, id: string) => propia(e.paradas, id) ?? vac
 const pendienteDe = (e: EstadoProgreso, id: string) => propia(e.pendientes, id) ?? pendienteVacio();
 const igualParada = (a: RegistroParada, b: RegistroParada) => a.marca === b.marca && a.horaReal === b.horaReal;
 
+/** Valida el catálogo entero (activas y retiradas) y deja a mano lo activo que necesita el legado. */
 function catalogo(plan: Itinerario) {
-  const ids = new Set<string>();
-  const registrar = (id: string) => {
-    if (!textoValido(id) || ids.has(id)) throw new Error('Identidad del itinerario vacía o duplicada');
-    ids.add(id);
-  };
-  registrar(plan.id);
-  const paradas = plan.dias.flatMap((dia) => dia.paradas.map((parada) => {
-    registrar(parada.id);
-    for (const sub of parada.subparadas ?? []) registrar(sub.id);
-    return { id: parada.id, nombre: parada.nombre, fecha: dia.fecha,
-      clave: `${dia.fecha}|${parada.hora}|${parada.nombre}` };
-  }));
-  const pendientes = plan.pendientes ?? [];
-  for (const pendiente of pendientes) registrar(pendiente.id);
-  return { paradas, pendientes };
+  const ids = identidades(plan);
+  const paradas = plan.dias.flatMap((dia) => dia.paradas.map((parada) => ({ id: parada.id, nombre: parada.nombre,
+    fecha: dia.fecha, clave: `${dia.fecha}|${parada.hora}|${parada.nombre}` })));
+  return { paradas, pendientes: plan.pendientes ?? [], ids };
 }
 
 export function crearProgreso(plan: Itinerario): EstadoProgreso {
@@ -99,16 +90,29 @@ function firma(op: Operacion): string {
 /**
  * Entradas tipadas; el adaptador de red debe validar esquema y snapshots antes de llamar al núcleo.
  * Los acuses no caducan aquí: su retención/compactación requiere una política idempotente del servidor.
+ * Una parada o un pendiente retirados (`plan.retiradas`) solo se reconocen: el replay exacto de lo ya
+ * aceptado sigue dando «duplicada», pero una operación nueva sobre ellos es inválida y no se aplica.
  */
 export function aplicarOperacion(plan: Itinerario, estado: EstadoProgreso, op: Operacion): ResultadoOperacion {
+  return aplicar(plan, estado, op, false);
+}
+/**
+ * SOLO para comprobar la integridad de lo ya guardado (`proyectarColaGuardada`): reproduce una operación con las
+ * reglas con las que se guardó, cuando sus retiradas aún eran del plan. Nunca para operar, enviar ni acusar.
+ */
+export function aplicarOperacionGuardada(plan: Itinerario, estado: EstadoProgreso, op: Operacion): ResultadoOperacion {
+  return aplicar(plan, estado, op, true);
+}
+function aplicar(plan: Itinerario, estado: EstadoProgreso, op: Operacion, comoGuardada: boolean): ResultadoOperacion {
   const invalida = (motivo: string): ResultadoOperacion => ({ tipo: 'invalida', estado, motivo });
   const conflicto = (motivo: string): ResultadoOperacion => ({ tipo: 'conflicto', estado, motivo });
-  const fuente = catalogo(plan);
+  const { ids } = catalogo(plan);
   if (estado.viajeId !== plan.id || !textoValido(op.id) || !textoValido(op.dispositivoId)) {
     return invalida('Viaje o identidad de operación inválidos');
   }
+  let retirada = false;
   if (op.tipo === 'parada') {
-    if (!fuente.paradas.some((p) => p.id === op.paradaId) || !revisionValida(op.revision)
+    if (!ids.paradas.conocidas.has(op.paradaId) || !revisionValida(op.revision)
       || (op.marca !== null && !marcaValida(op.marca))
       || (op.horaReal !== undefined && (!horaValida(op.horaReal) || op.marca === null))) {
       return invalida('Parada, revisión, marca u hora inválida');
@@ -116,14 +120,17 @@ export function aplicarOperacion(plan: Itinerario, estado: EstadoProgreso, op: O
     for (const revision of [op.revisionAqui, op.revisionAnterior]) {
       if (revision !== undefined && !revisionValida(revision)) return invalida('Revisión inválida');
     }
+    retirada = !ids.paradas.activas.has(op.paradaId);
   } else if (op.tipo === 'pendiente') {
-    if (!fuente.pendientes.some((p) => p.id === op.pendienteId)
+    if (!ids.pendientes.conocidas.has(op.pendienteId)
       || typeof op.hecho !== 'boolean' || !revisionValida(op.revision)) return invalida('Pendiente inválido');
+    retirada = !ids.pendientes.activas.has(op.pendienteId);
   } else if (op.tipo !== 'deshacer') return invalida('Tipo desconocido');
 
   const huella = firma(op);
   const acuse = propia(estado.operaciones, op.id);
   if (acuse) return acuse.firma === huella ? { tipo: 'duplicada', estado } : invalida('ID reutilizado con otro contenido');
+  if (retirada && !comoGuardada) return invalida('Ya no está en el plan: no se aplica');
   const registros: Cambio[] = [];
   let cambioAqui: Cambios['aqui'];
   if (op.tipo === 'parada') {

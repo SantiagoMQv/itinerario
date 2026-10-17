@@ -7,19 +7,22 @@ import { itinerario } from '../src/datos/itinerario';
 import { aMinutos } from '../src/formato';
 import { distanciaKm } from '../src/geo';
 import { construirModelo, trayectosApretados } from '../src/modelo';
+import { identidades } from '../src/identidades';
+import { crearProgreso } from '../src/progreso';
 
 const modelo = construirModelo(itinerario);
 const paradas = itinerario.dias.flatMap((d) => d.paradas.map((p) => ({ d, p, quien: `${d.fecha} ${p.hora} «${p.nombre}»` })));
 
-// Shanghái y Nankín, con margen. Unas coordenadas con lat y lng cambiadas caen fuera.
-const CAJA = { lat: [30.6, 32.4], lng: [118.4, 122.1] };
+// Shanghái y Hangzhou, con margen. Unas coordenadas con lat y lng cambiadas caen fuera.
+const CAJA = { lat: [29.9, 31.8], lng: [119.7, 122.1] };
 const dentro = (lat: number, lng: number) => lat >= CAJA.lat[0] && lat <= CAJA.lat[1] && lng >= CAJA.lng[0] && lng <= CAJA.lng[1];
 // Una subparada es un sitio dentro de la parada o a un paseo de ella.
 const SUB_MAX_KM = 2;
 const HORA = /^([01]\d|2[0-9]):[0-5]\d$/;
 const HAN = /\p{Script=Han}/u;
 
-// Capturadas antes de añadir identidades: protegen las marcas guardadas en los móviles.
+// Claves «fecha|hora|nombre» del plan: las marcas antiguas de los móviles se recuperan con ellas. Si un
+// cambio del itinerario las toca, actualizar la lista a propósito (antes del viaje no hay marcas que perder).
 const CLAVES_HEREDADAS = [
   '2026-10-21|07:00|Aeropuerto de Pudong (PVG), T1',
   '2026-10-21|10:00|Hotel Aqua Suhe NO.1',
@@ -27,67 +30,79 @@ const CLAVES_HEREDADAS = [
   '2026-10-21|16:05|Nanjing Road: tramo de People’s Square',
   '2026-10-21|17:20|Nanjing Road: tramo hacia el Bund',
   '2026-10-21|18:30|The Bund al encenderse las luces',
-  '2026-10-21|19:20|Jing’an Joy City: maleta y ropa',
-  '2026-10-21|20:25|Noria Sky Ring',
-  '2026-10-21|21:00|Cena en Top Banana Market',
-  '2026-10-21|22:05|Hotel Aqua Suhe NO.1',
-  '2026-10-22|10:30|Middle Huaihai Road: TX Huaihai',
-  '2026-10-22|13:00|Lanxin (Lyceum Restaurant)',
-  '2026-10-22|14:10|Más tiendas por Huaihai',
-  '2026-10-22|15:30|Hotel Aqua Suhe NO.1',
-  '2026-10-22|16:45|Yuyuan y Shanghai Old Street',
-  '2026-10-22|18:30|Xiaolongbao en Nanxiang',
-  '2026-10-22|20:00|The Bund',
-  '2026-10-22|22:00|Speak Low',
-  '2026-10-22|23:45|Hush (INS Land)',
-  '2026-10-22|26:30|Hotel Aqua Suhe NO.1',
+  '2026-10-21|19:40|Parque Guilin de noche',
+  '2026-10-21|20:40|Cena shanghainesa en Xiao Ping',
+  '2026-10-21|22:20|Hotel Aqua Suhe NO.1',
+  '2026-10-22|08:50|Estación de Shanghái Sur',
+  '2026-10-22|09:53|Estación de Hangzhou Este',
+  '2026-10-22|10:45|Lingyin y Feilai Feng',
+  '2026-10-22|13:10|Comida y té en Meijiawu',
+  '2026-10-22|14:45|Dique Su',
+  '2026-10-22|15:20|Isla de los Tres Estanques',
+  '2026-10-22|16:10|Embarcadero de Hubin',
+  '2026-10-22|16:30|Atardecer en el puente roto y el dique Bai',
+  '2026-10-22|18:25|Estación de Hangzhou Este',
+  '2026-10-22|19:47|Estación de Shanghái Sur',
+  '2026-10-22|20:25|Cena: pato pekinés en Siji Minfu',
+  '2026-10-22|21:30|Maleta en Joy City',
+  '2026-10-22|22:10|Hotel Aqua Suhe NO.1',
   '2026-10-23|09:45|Shanghai Disneyland',
   '2026-10-23|22:50|Hotel Aqua Suhe NO.1',
-  '2026-10-24|10:45|Estación de Shanghái',
-  '2026-10-24|12:50|Estación de Nankín',
-  '2026-10-24|13:15|Comida junto a Jiming Temple',
-  '2026-10-24|14:00|Museo Paleontológico de Nankín',
-  '2026-10-24|16:40|Paseo junto a Jiming Temple',
-  '2026-10-24|17:35|Estación de Nankín',
-  '2026-10-24|19:40|Estación de Shanghái',
-  '2026-10-24|20:00|Hotel Aqua Suhe NO.1',
+  '2026-10-24|09:40|Zhujiajiao: jardín Kezhi, barca y puente Fangsheng',
+  '2026-10-24|12:15|Comida en Caoxi Renjia',
+  '2026-10-24|13:05|Templo del Dios de la Ciudad y correos Qing',
+  '2026-10-24|14:50|Jardín Yuyuan',
+  '2026-10-24|16:20|Bazar de Yuyuan y Old Street',
+  '2026-10-24|19:40|Hotel Aqua Suhe NO.1',
+  '2026-10-24|20:45|Cena de Sichuan en Four Seasons Cuisine',
+  '2026-10-24|22:15|Speak Low',
+  '2026-10-24|24:00|Hush (INS Land)',
+  '2026-10-24|26:30|Hotel Aqua Suhe NO.1',
   '2026-10-25|11:45|Museo de Historia Natural de Shanghái',
-  '2026-10-25|14:20|Comida en el n.º 98 de Wukang Road',
-  '2026-10-25|15:25|Wukang Road y Wukang Mansion',
-  '2026-10-25|16:05|13DEMARZO Café',
-  '2026-10-25|17:05|CUBIC3: -86°C Dirty',
-  '2026-10-25|17:35|Hinichijou (Bear Paw Café)',
-  '2026-10-25|18:40|Lujiazui de noche',
-  '2026-10-25|19:25|Torre Perla Oriental',
-  '2026-10-25|21:40|Hotel Aqua Suhe NO.1',
-  '2026-10-26|07:15|Hotel Aqua Suhe NO.1',
+  '2026-10-25|14:15|Templo y pagoda de Longhua, con fideos',
+  '2026-10-25|15:35|13DEMARZO Café y Anfu Road',
+  '2026-10-25|16:25|Wukang Road y Wukang Mansion',
+  '2026-10-25|17:05|Hinichijou (Bear Paw Café)',
+  '2026-10-25|17:20|CUBIC3: -86°C Dirty',
+  '2026-10-25|18:30|Bufé de cena en Yi Café (Pudong Shangri-La)',
+  '2026-10-25|20:35|Pasarela de Lujiazui de noche',
+  '2026-10-25|21:00|Shanghai Tower: mirador de la planta 118',
+  '2026-10-25|22:15|Hotel Aqua Suhe NO.1',
+  '2026-10-26|07:00|Hotel Aqua Suhe NO.1',
   '2026-10-26|09:05|Aeropuerto de Pudong (PVG), T1',
 ];
 const TEXTOS_HEREDADOS = [
-  'Museo de Historia Natural (domingo 25): reservar la entrada (no venden en taquilla).',
-  'Miércoles 21: confirmar la última entrada de la noria Sky Ring y hasta qué hora sirve Top Banana Market.',
-  'Tren y museo: comprobar 12306, elegir estaciones y horarios reales y hacer la reserva nominal del museo.',
+  'Museo de Historia Natural (domingo 25): las entradas salen el domingo 18 a las 09:00 de China (las 03:00 en España), con el pasaporte, en el miniprograma «上海科技馆自然博物馆天文馆门票». No hay taquilla y los fines de semana se agotan.',
+  'Jueves 22, Hangzhou: reservar ya Lingyin (miniprograma «杭州灵隐飞来峰» en WeChat, con los dos pasaportes, turno de mañana; la reserva para el jueves ya está abierta) y comprar los trenes G255 (上海南站 09:07) y G1386 (杭州东站 19:01).',
+  'Antes del jueves 22: probar en WeChat el miniprograma «美味不用等» (o la cuenta «四季民福» → «排队取号»), buscar «四季民福 静安大悦城» y comprobar que deja coger número sin teléfono chino. El jueves, hacia las 16:30, coger número para dos (los pasos, en la ficha de la cena).',
+  'Sábado 24: reservar mesa para dos a las 20:45 en Four Seasons Cuisine (四吉饭店), al 021 6244 0086 o que llame el hotel.',
   'Disneyland (viernes 23, día de Halloween): comprar la entrada y consultar el horario del día.',
-  'Equipaje: verificar la franquicia de los cuatro vuelos antes de comprar la maleta.',
-  'Domingo noche: decidir cena giratoria en la Perla o solo vistas; reservar solo tras ver el precio final.',
-  'Jueves noche: mirar la programación y la entrada de Hush/INS para el 22.',
+  'Equipaje: añadir por internet una maleta facturada en el Vueling VY1542 (Barcelona–Málaga, martes 27 a las 06:50), que la tarifa no la incluye. Y decidir dónde pasar la noche en Barcelona (llegada a las 23:05 del lunes).',
+  'Domingo 25: reservar el bufé del Yi Café (Pudong Shangri-La) para dos a las 18:30 en la web de reservas del Shangri-La (o al +86 21 2828 6888); 487 ¥ con todo. Comprar la entrada de la Shanghai Tower (180 ¥) por internet.',
+  'Sábado noche: mirar la programación y la entrada de Hush/INS para el 24.',
 ];
 
 describe('identidades persistentes', () => {
-  test('las 133 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
+  test('las 172 entidades tienen literales opacos únicos y un contrato de solo lectura', () => {
     const subs = paradas.flatMap(({ p }) => p.subparadas ?? []);
     const pendientes = itinerario.pendientes ?? [];
-    expect(paradas).toHaveLength(41);
-    expect(subs).toHaveLength(84);
-    expect(pendientes).toHaveLength(7);
+    expect(paradas).toHaveLength(46);
+    expect(subs).toHaveLength(117);
+    expect(pendientes).toHaveLength(8);
     const ids = [itinerario.id, ...paradas.map(({ p }) => p.id), ...subs.map((s) => s.id), ...pendientes.map((p) => p.id)];
     for (const id of ids) expect(id).toMatch(/^[a-f0-9]{16}$/);
-    expect(new Set(ids).size).toBe(133);
+    expect(new Set(ids).size).toBe(172);
     // Cada identidad está escrita en los datos, no calculada a partir del contenido ni del orden.
     const fuente = readFileSync(new URL('../src/datos/itinerario.ts', import.meta.url), 'utf8');
-    const literales = [...fuente.matchAll(/\bid: '([a-f0-9]{16})'/g)].map((m) => m[1]);
-    expect(literales).toHaveLength(133);
+    // Las activas, antes del bloque de retiradas; las retiradas, después y solo ellas.
+    const [plan, historia] = fuente.split('\n  retiradas: {\n');
+    expect(historia).toBeDefined();
+    const literales = [...plan.matchAll(/\bid: '([a-f0-9]{16})'/g)].map((m) => m[1]);
+    expect(literales).toHaveLength(172);
     expect(literales.sort()).toEqual([...ids].sort());
+    const retiradas = itinerario.retiradas!;
+    const historicas = [...retiradas.paradas!, ...retiradas.subparadas!, ...retiradas.pendientes!].map((r) => r.id);
+    expect([...historia.matchAll(/\bid: '([a-f0-9]{16})'/g)].map((m) => m[1]).sort()).toEqual([...historicas].sort());
     expectTypeOf<Pick<Itinerario, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
     expectTypeOf<Pick<Parada, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
     expectTypeOf<Pick<Subparada, 'id'>>().toEqualTypeOf<{ readonly id: string }>();
@@ -131,14 +146,14 @@ describe('identidades persistentes', () => {
     }
     expect(cambiado.paradas[0].id).toBe(0);
     expect(cambiado.paradas[0].p.id).toBe(modelo.paradas.at(-1)!.p.id);
-    expect(modelo.paradas.at(-1)!.id).toBe(40);
+    expect(modelo.paradas.at(-1)!.id).toBe(45);
     // Con tres sitios hay al menos dos del mismo grupo (seguros u opcionales): invertirlos cambia su índice.
     const conSubs = cambiado.paradas.find((p) => p.subs.length > 2)!;
     const original = modelo.paradas.find((p) => p.p.id === conSubs.p.id)!;
     expect(conSubs.subs.some((s) => original.subs.find((o) => o.s.id === s.s.id)!.i !== s.i)).toBe(true);
     for (const t of cambiado.tramos) expect(t.id).toBe(t.hasta.id);
     expect(cambiado.listaPendientes.map((p) => p.id)).toEqual(modelo.listaPendientes.map((p) => p.id).reverse());
-    expect(cambiado.pendientes).toEqual(Array(7).fill('Otro texto'));
+    expect(cambiado.pendientes).toEqual(Array(8).fill('Otro texto'));
   });
 
   test('conserva exactamente las claves y los textos heredados en su orden original', () => {
@@ -154,6 +169,47 @@ describe('identidades persistentes', () => {
     const sinPendientes = construirModelo(copia);
     expect(sinPendientes.listaPendientes).toEqual([]);
     expect(sinPendientes.pendientes).toEqual([]);
+  });
+});
+
+describe('identidades retiradas del piloto publicado', () => {
+  // El delta exacto del plan desplegado (f6835e7) frente al de main: 34 tuplas tipadas, no un itinerario viejo.
+  const PARADAS = ['ead714086b3cf925', '731c8fe4a629bd50', 'c80e3471f9ab562d', '9df146a2e730cb58', '452ea1cf8d93706b',
+    'f827b609ca351d4e', 'db65f821a4c0739e', '710ca6d32e98bf45', 'f379b024eac5168d', 'b102e9c64a8d753f', '509cf2e3bd847a16',
+    '8fa17c35de2064b9', '246cb0f8a91d7e53', 'ca85e71b0639df24', '7d30ba49c2e8651f', 'ed261f7c904ab835', '35c09ed7ab681f42',
+    '683dc450ef9a172b'];
+  const SUBPARADAS = [['6b1ad38f925e704c', '4c72f1a5eb306d98'], ['6b1ad38f925e704c', 'e517a8d9c46b023f'],
+    ['6b1ad38f925e704c', 'b86f3c205da9714e'], ['6b1ad38f925e704c', '17a9de486f30cb52'], ['731c8fe4a629bd50', 'd80c7e5ab391f264'],
+    ['731c8fe4a629bd50', '5639b1df20e7ac84'], ['731c8fe4a629bd50', 'a3f0682ce9157bd4'], ['731c8fe4a629bd50', '79ce2405bd8a631f'],
+    ['c80e3471f9ab562d', 'eb6438fa172dc905'], ['c80e3471f9ab562d', '0d92ca85b37e164f'], ['35c09ed7ab681f42', '1d794a6fe5b032c8'],
+    ['35c09ed7ab681f42', 'a02cf835b1697de4']];
+  const PENDIENTES = ['38f76ad0e1bc5492', 'd57b9016ce42a83f', '095cbe73a24f681d', 'b1f8074a6d3c92e5'];
+  const retiradas = itinerario.retiradas!;
+  test('son exactamente las 34 tuplas, con su relación padre–sitio y su nombre de entonces', () => {
+    expect(retiradas.paradas!.map((p) => p.id)).toEqual(PARADAS);
+    expect(retiradas.subparadas!.map((s) => [s.paradaId, s.id])).toEqual(SUBPARADAS);
+    expect(retiradas.pendientes!.map((p) => p.id)).toEqual(PENDIENTES);
+    for (const r of [...retiradas.paradas!, ...retiradas.subparadas!]) expect(r.nombre.trim()).not.toBe('');
+    expect(() => crearProgreso(itinerario)).not.toThrow();
+  });
+  test('nada retirado sigue activo; Top Banana es un sitio de Siji Minfu y, aparte, la parada antigua', () => {
+    const ids = identidades(itinerario);
+    for (const id of PARADAS) expect(ids.paradas.activas.has(id)).toBe(false);
+    for (const id of PENDIENTES) expect(ids.pendientes.activas.has(id)).toBe(false);
+    const siji = paradas.find(({ p }) => p.subparadas?.some((s) => s.id === '731c8fe4a629bd50'))!.p;
+    expect(siji.nombre).toContain('Siji Minfu');
+    expect(ids.destino(siji.id, '731c8fe4a629bd50')).toBe('activo');
+    expect(ids.destino('731c8fe4a629bd50')).toBe('retirado');
+    expect(ids.destino('731c8fe4a629bd50', 'd80c7e5ab391f264')).toBe('retirado');
+    expect(ids.destino('6b1ad38f925e704c', '4c72f1a5eb306d98')).toBe('retirado');
+    expect(ids.destino('6b1ad38f925e704c')).toBe('activo');
+  });
+  test('las dos acciones nuevas tienen ID propio y no heredan el de la acción anterior', () => {
+    const textos = new Map((itinerario.pendientes ?? []).map((p) => [p.id, p.texto]));
+    expect(textos.get('8ae36e07e90c6233')).toContain('Yi Café');
+    expect(textos.get('b059fb349a2744a7')).toContain('VY1542');
+    expect(textos.has('095cbe73a24f681d')).toBe(false);
+    expect(textos.has('b1f8074a6d3c92e5')).toBe(false);
   });
 });
 

@@ -1,6 +1,6 @@
 import type { Itinerario } from './tipos';
-import { copiarMetadatos, crearCapturaFoto, esDestinoFoto, esFotoBorrada, tamanoBlob, tipoBlob, type CapturaFoto,
-  type DestinoFoto, type MetadatosFoto } from './fotos';
+import { copiarMetadatos, crearCapturaFoto, esDestinoActivo, esDestinoFoto, esFotoBorrada, tamanoBlob, tipoBlob,
+  type CapturaFoto, type DestinoFoto, type MetadatosFoto } from './fotos';
 import { abrirFotosLocal, type FotosLocal } from './fotos-local';
 import { LIMITES_IMAGEN, crearMiniatura, inspeccionarImagen, type InspeccionImagen, type MiniaturaImagen,
   type MotorMiniatura } from './fotos-imagen';
@@ -75,6 +75,8 @@ export interface FotosInterfaz {
   abrir(): Promise<void>;
   cuenta(destino: DestinoFoto): number;
   entradas(destino: DestinoFoto): readonly EntradaFoto[];
+  /** Destinos que ya no están en el plan (retirados, por su tupla exacta) con fotos guardadas en este móvil. */
+  destinosRetirados?(): readonly DestinoFoto[];
   /** Destino a la vista: lee sus vistas previas y prepara las pendientes, en serie. */
   abrirVisita(destino: DestinoFoto): void;
   /** Cancela lo pendiente de esa visita y revoca sus URLs. */
@@ -449,6 +451,11 @@ export function crearFotosInterfaz(dependencias: DependenciasFotos): FotosInterf
       return n;
     },
     entradas,
+    destinosRetirados() {
+      const retirados = new Map<ClaveDestino, DestinoFoto>();
+      for (const m of indice.values()) if (!esDestinoActivo(plan, m.destino)) retirados.set(claveDestino(m.destino), m.destino);
+      return [...retirados.entries()].sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0)).map(([, d]) => d);
+    },
     abrirVisita(destino) {
       const clave = claveDestino(destino);
       cerrarVisitaClave(clave);
@@ -613,6 +620,9 @@ export interface FotosUi {
   readonly respaldoActivo: boolean;
   /** Monta «Fotos del viaje» en su sección de «Todo»; sin composición no hace nada. */
   montarFotosViaje(contenedor: HTMLElement): void;
+  /** «Sitios que ya no están en el plan» en «Todo»: el bloque «Fotos» de cada destino retirado con fotos en este móvil,
+   * sin captura. Con o sin composición (también en la web publicada): solo lee metadata local, sin red. Vacía, oculta. */
+  montarRetiradas(contenedor: HTMLElement): void;
   /** Bloque «Fotos» (solo atributos con IDs del plan y texto escapado) para incrustar en la ficha. */
   html(destino: DestinoFoto): string;
   /** Delegación de clics: devuelve true si el clic era de fotos (va antes que los manejadores de fila). */
@@ -651,6 +661,7 @@ const ICONO_CAMARA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h
 const ICONO_CERRAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>';
 const NOTA = 'Se guardan solo en este móvil y funcionan sin conexión. Por ahora no se comparten con el otro móvil ni tienen copia de seguridad.';
 const NOTA_RESPALDO = 'Se guardan en este móvil y funcionan sin conexión. Puedes respaldar cada foto en el servidor del viaje desde su visor.';
+const NOTA_RETIRADA = 'Este sitio ya no está en el plan: sus fotos siguen guardadas en este móvil, pero no se pueden añadir nuevas.';
 const CONFIRMAR_BORRADO = '¿Borrar esta foto de este móvil? Se borran el original y su vista previa; no se puede deshacer.';
 
 function elemento<K extends keyof HTMLElementTagNameMap>(tag: K, clase?: string, texto?: string): HTMLElementTagNameMap[K] {
@@ -691,6 +702,8 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     // Un 401 de las compartidas suelta también las candidatas del catálogo global (y lo pendiente del visor).
     alPerderSesion: () => perderSesionUi('remotas') });
   let seccion: SeccionFotosViaje | null = null;
+  /** Sección de sitios retirados de «Todo» y la lista de destinos que pinta (solo se sustituye si cambia). */
+  let retiradas: { contenedor: HTMLElement; firma: string } | null = null;
 
   function alCambiar(clave: ClaveDestino | null) {
     for (const [c, bloque] of abiertos) {
@@ -699,6 +712,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
         else cerrarAbierto(c);
       }
     }
+    pintarRetiradas();
     pintarCuentas();
     if (visorFoto) actualizarVisor();
     // Al abrirse (o fallar) las fotos de este móvil, «Fotos del viaje» ya puede leer su estado local.
@@ -747,6 +761,25 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     });
     addEventListener('pagehide', () => { remotas.suspender(); remotas.soltarVistas(); });
     addEventListener('pageshow', () => { if (document.visibilityState !== 'hidden') remotas.reanudar(); });
+  }
+
+  // ----- Sitios que ya no están en el plan («Todo») -----
+  function pintarRetiradas() {
+    if (!retiradas) return;
+    const c = retiradas.contenedor;
+    if (!c.isConnected) { retiradas = null; return; }
+    const destinos = controlador.fase === 'lista' ? controlador.destinosRetirados?.() ?? [] : [];
+    const firma = destinos.map(claveDestino).join('|');
+    if (firma === retiradas.firma) return;
+    retiradas.firma = firma;
+    const conFoco = document.activeElement instanceof HTMLElement && c.contains(document.activeElement);
+    // Un bloque abierto que desaparece se cierra de verdad (consultas, vistas y URLs) antes de sustituir la sección.
+    for (const [clave, bloque] of [...abiertos]) if (c.contains(bloque)) cerrarAbierto(clave);
+    c.hidden = destinos.length === 0;
+    c.innerHTML = destinos.length ? `<h3 tabindex="-1">Sitios que ya no están en el plan</h3>
+      <p class="cifras">Fotos de este móvil de paradas o sitios que ya no están en el plan. Siguen guardadas aquí y se ven como siempre; no se pueden añadir nuevas.</p>
+      <ul class="lista-retiradas">${destinos.map((d) => `<li><p class="retirada-nombre">${escapar(nombreDe(d))}</p>${html(d)}</li>`).join('')}</ul>` : '';
+    if (conFoco) c.querySelector<HTMLElement>('h3')?.focus();
   }
 
   // ----- Bloque y panel -----
@@ -805,9 +838,14 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     const anadir = panel.querySelector<HTMLButtonElement>('[data-fotos-anadir]')!;
     const nombre = nombreDe(destino);
     const fase = controlador.fase;
+    // Un sitio que ya no está en el plan conserva sus fotos (visor, original, borrar) pero no admite nuevas.
+    const activo = esDestinoActivo(plan, destino);
     // Sin base abierta no hay nada que añadir: la acción no aparece (ni engaña con un botón muerto).
     const acciones = panel.querySelector<HTMLElement>('.fotos-acciones')!;
-    acciones.hidden = fase !== 'lista';
+    acciones.hidden = fase !== 'lista' || !activo;
+    const nota = panel.querySelector<HTMLElement>('.fotos-nota')!;
+    const textoNota = activo ? (respaldo ? NOTA_RESPALDO : NOTA) : NOTA_RETIRADA;
+    if (nota.textContent !== textoNota) nota.textContent = textoNota;
     panel.querySelector('[data-fotos-camara]')!.setAttribute('aria-label', `Tomar foto para «${nombre}»`);
     anadir.setAttribute('aria-label', `Elegir de la galería una foto para «${nombre}»`);
 
@@ -868,7 +906,8 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       const igual = [...panel.querySelectorAll<HTMLElement>('button, a')].find((b) => huella(b) === buscada);
       // «Ver más» que ya no hace falta: el foco pasa a la última compartida, si la hay.
       const ultima = [...panel.querySelectorAll<HTMLElement>('[data-foto-remota]')].pop();
-      (igual ?? (foco.hasAttribute('data-remotas-mas') ? ultima : undefined) ?? anadir).focus();
+      const resguardo = activo ? anadir : bloque.querySelector<HTMLElement>('[data-fotos-alternar]');
+      (igual ?? (foco.hasAttribute('data-remotas-mas') ? ultima : undefined) ?? resguardo)?.focus();
     }
   }
 
@@ -1034,7 +1073,8 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
   function elegir(bloque: HTMLElement, origen: 'camara' | 'galeria') {
     const clave = bloque.dataset.fotosDestino ?? '';
     const destino = destinoDeClave(plan, clave);
-    if (!destino) return;
+    // Fotos nuevas solo en destinos del plan actual: uno retirado no tiene «Tomar foto» ni galería.
+    if (!destino || !esDestinoActivo(plan, destino)) return;
     if (controlador.fase !== 'lista') {
       mensajes.set(clave, controlador.fase === 'fallo' ? 'Primero hay que abrir las fotos de este móvil (Reintentar).' : 'Aún se están abriendo las fotos de este móvil.');
       alCambiar(clave);
@@ -1560,8 +1600,11 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
         return;
       }
       if (r === 'borrada') {
-        // La miniatura ya no existe: el foco va a «Elegir de la galería» de su bloque.
-        abridor = datos?.bloque?.querySelector<HTMLElement>('[data-fotos-anadir]') ?? abridor;
+        // La miniatura ya no existe: el foco va a «Elegir de la galería» de su bloque (o, en un sitio retirado, que no
+        // tiene galería, a su botón «Fotos»).
+        abridor = (datos && esDestinoActivo(plan, datos.destino)
+          ? datos.bloque?.querySelector<HTMLElement>('[data-fotos-anadir]')
+          : datos?.bloque?.querySelector<HTMLElement>('[data-fotos-alternar]')) ?? abridor;
         cerrarVisor();
         // Tras cerrar el visor (fuera del modal), para que la línea de estado se anuncie.
         if (datos) {
@@ -1585,6 +1628,13 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
         fotos: () => controlador.fase });
       seccion.montar(contenedor);
       // Solo metadata local (0 red), como al abrir un bloque «Fotos»: el estado de cada respaldo vive en este móvil.
+      if (controlador.fase === 'cerrada') void controlador.abrir();
+    },
+    montarRetiradas(contenedor) {
+      retiradas = { contenedor, firma: '\0' };
+      pintarRetiradas();
+      pintarCuentas();
+      // Solo metadata local (0 red): saber si hay fotos de sitios retirados no lee originales ni vistas previas.
       if (controlador.fase === 'cerrada') void controlador.abrir();
     },
     html,

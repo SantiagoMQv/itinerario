@@ -1,6 +1,6 @@
 # Guía para agentes
 
-Web para móvil (PWA estática) con el itinerario de un viaje a Shanghái y Nankín del 21 al 26 de octubre de 2026. Se publica en GitHub Pages desde `main`: <https://santiagomqv.github.io/itinerario/>. Se usa sobre todo en el móvil, en directo durante el viaje.
+Web para móvil (PWA estática) con el itinerario de un viaje a Shanghái (con excursión a Hangzhou) del 21 al 26 de octubre de 2026. Se publica en GitHub Pages desde `main`: <https://santiagomqv.github.io/itinerario/>. Se usa sobre todo en el móvil, en directo durante el viaje.
 
 ## Idioma
 
@@ -14,8 +14,9 @@ Todo en español: la interfaz, los comentarios, los nombres del código (`parada
 | `src/tipos.ts` | Formato del itinerario, con un comentario por campo. |
 | `src/modelo.ts` | Convierte el plan en horas absolutas, tramos y avisos de incoherencias. |
 | `src/main.ts` | Interfaz, como fábrica `arrancarItinerario(composición)` (importarla no arranca nada): panel (hoja de tres alturas en móvil), «ahora», lista, fichas, marcas, tarjeta del taxi. |
-| `src/publica.ts` | Entrada de la web publicada: arranca la interfaz con respaldo y portabilidad a `null` (apagados). |
-| `src/entrada-piloto.ts` | Entrada del piloto privado, todavía sin usar (ningún HTML la carga): `arrancarPiloto(perfil, origen)` valida perfil, origen y plan real antes de llamar a `arrancarItinerario`. No activa nada en la web publicada. |
+| `src/identidades.ts` | Catálogo único de identidades: las activas del plan y las `retiradas` (tuplas tipadas) para leer lo guardado antes. Lo usan el progreso (app y servidor) y las fotos. |
+| `src/publica.ts` | Entrada de la web publicada: arranca la interfaz con respaldo y portabilidad a `null` (apagados) y sin cliente de progreso: las marcas se quedan en el móvil y no hay ninguna petición. |
+| `src/entrada-piloto.ts` | Entrada del piloto privado, todavía sin usar (ningún HTML la carga): `arrancarPiloto(perfil, origen)` valida perfil, origen y plan real antes de llamar a `arrancarItinerario`, con un cliente de progreso explícito. No activa nada en la web publicada. |
 | `src/preparar-piloto.ts` | Comprobación previa del piloto (perfil, origen exacto, plan real) sin la app: la usan la entrada del piloto y el montaje privado. |
 | `src/privada.ts`, `src/privada.css`, `vite.config.privado.ts`, `scripts/build-privado.mjs` | Montaje privado LOCAL con perfil explícito (`npm run build:privado`): perfil y salida nueva fuera del repositorio; nunca toca `dist/` ni la web publicada. Si la preparación falla en la página, solo informa (sin arrancar la app). |
 | `src/mapa.ts` | Mapa (MapLibre + OpenFreeMap), marcadores, cámara. |
@@ -29,7 +30,8 @@ Todo en español: la interfaz, los comentarios, los nombres del código (`parada
 - **Coordenadas WGS-84**, las de OpenStreetMap o el GPS. Nunca las de Amap, Baidu o Google China (GCJ-02): van desplazadas unos 500 m. Se guardan en las constantes `C` (y `D` para Disneyland) como `[lat, lng]`, con un comentario si la posición es aproximada.
 - **Nombre en chino** (`local`, `direccionLocal`): es lo que se enseña al taxista. Que lleve caracteres chinos.
 - **Horas** en hora de China, `"HH:MM"`; pasada la medianoche del mismo día de plan se escribe `"24:30"`. Cada parada empieza después de la anterior y los trayectos tienen que caber en el hueco (las pruebas lo comprueban).
-- **Las marcas del usuario** («Hecha», «Saltar»…) se guardan en su móvil con la clave `fecha|hora|nombre`. Cambiar la hora o el nombre de una parada que ya se ha marcado pierde esa marca: durante el viaje, evitarlo salvo que se pida.
+- **Identidades**: el viaje, cada parada, sitio de dentro y pendiente llevan un `id` literal (16 hex) escrito en los datos, nunca calculado. Las marcas, casillas y fotos se guardan por ese ID, así que cambiar hora, nombre o día no pierde nada (la clave `fecha|hora|nombre` solo sirve para importar una vez lo de la versión anterior).
+- **Un ID publicado no se borra ni se reutiliza**: para quitar algo, sale del plan y su tupla tipada pasa a `retiradas` (con su nombre de entonces y, si es un sitio de dentro, su parada); si una parada pasa a sitio (o al revés) se queda su ID activo con el tipo nuevo y la tupla antigua va a `retiradas`. Si una tarea cambia de acción de verdad, lleva un ID nuevo y el viejo pasa a `retiradas`. Así lo guardado antes se sigue leyendo (y sus fotos se ven) sin volver al plan.
 - **`corto`**: nombre corto con artículo («el Bund») para botones como «Saltar el Bund». Hasta 16 caracteres.
 - **Subparadas**: sitios dentro de una parada, a menos de 2 km. Seguras por defecto; `opcional: true` para «si da tiempo». Sin `lat`/`lng` están en la misma parada.
 - Los datos investigados (horarios, precios, direcciones) se contrastan con fuentes y se enlazan en `enlaces` cuando importan para decidir.

@@ -1,4 +1,4 @@
-import { aplicarOperacion, cancelarPendiente } from './progreso';
+import { aplicarOperacion, aplicarOperacionGuardada, cancelarPendiente } from './progreso';
 import type { EstadoProgreso, Operacion } from './progreso';
 import { campos, densa, esOperacion, esInstantaneaProgreso, iguales } from './progreso-validacion';
 import type { InstantaneaProgreso } from './progreso-validacion';
@@ -162,7 +162,7 @@ function lecturas(op: Operacion, estado: EstadoProgreso): string[] {
   return claves;
 }
 
-function proyectar(plan: Itinerario, cola: Cola): { proyeccion: Proyeccion; autores: Map<string, string> } {
+function proyectar(plan: Itinerario, cola: Cola, aplicar = aplicarOperacion): { proyeccion: Proyeccion; autores: Map<string, string> } {
   let estado = capturar(cola.confirmado.estado);
   const autores = new Map<string, string>();
   const listas = new Set<string>();
@@ -178,7 +178,7 @@ function proyectar(plan: Itinerario, cola: Cola): { proyeccion: Proyeccion; auto
       entradas.push({ operacionId, tipo: 'bloqueada', motivo: 'Una intención causal no se pudo proyectar' });
       continue;
     }
-    const r = aplicarOperacion(plan, estado, e.operacion);
+    const r = aplicar(plan, estado, e.operacion);
     if (r.tipo === 'conflicto' || r.tipo === 'invalida') {
       entradas.push({ operacionId, tipo: r.tipo, motivo: r.motivo });
       continue;
@@ -218,6 +218,16 @@ export function iniciarCola(plan: Itinerario, confirmado: unknown, intenciones: 
 export function proyectarCola(plan: Itinerario, valor: unknown): ResultadoCola {
   if (!validarCola(plan, valor)) return invalida('Cola inválida');
   return salida(plan, capturar(valor), 'proyectada');
+}
+/**
+ * SOLO integridad de una raíz ya guardada (progreso-local): reproduce la MISMA cola como se proyectó al guardarla,
+ * cuando sus retiradas conocidas aún eran del plan. No sirve para operar, elegir envíos ni acusar: la proyección
+ * efectiva es siempre la de proyectarCola.
+ */
+export function proyectarColaGuardada(plan: Itinerario, valor: unknown): ResultadoCola {
+  if (!validarCola(plan, valor)) return invalida('Cola inválida');
+  const cola = capturar(valor);
+  return { tipo: 'proyectada', cola, proyeccion: proyectar(plan, cola, aplicarOperacionGuardada).proyeccion };
 }
 export function agregarIntencion(plan: Itinerario, valor: unknown, operacion: unknown): ResultadoCola {
   if (!validarCola(plan, valor) || !esOperacion(operacion)) return invalida('Cola u operación inválida');

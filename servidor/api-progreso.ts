@@ -1,4 +1,5 @@
 import type { Itinerario } from '../src/tipos';
+import { identidades } from '../src/identidades';
 import { aplicarOperacion, type Operacion } from '../src/progreso';
 import { campos, iguales } from '../src/progreso-validacion';
 import { serializarProgreso } from '../src/progreso-json';
@@ -85,8 +86,9 @@ const sinSesion = () => {
  */
 export function crearControladorProgreso(configuracion: ConfiguracionProgreso): ControladorProgreso {
   const { plan, autenticar, repositorio } = configuracion;
-  const paradas = new Set(plan.dias.flatMap((dia) => dia.paradas.map((p) => p.id)));
-  const pendientes = new Set((plan.pendientes ?? []).map((p) => p.id));
+  // Conocidas (activas y retiradas del mismo viaje): el replay de lo ya aceptado conserva su acuse y una nueva
+  // sobre una retirada llega al almacén, que la rechaza y lo deja persistido. Lo desconocido sigue en 400.
+  const { paradas: { conocidas: paradas }, pendientes: { conocidas: pendientes } } = identidades(plan);
   const operacionValida = (op: Operacion): boolean => {
     if (!identidad(op.id) || !identidad(op.dispositivoId)) return false;
     if (op.tipo === 'parada') return paradas.has(op.paradaId);

@@ -9,8 +9,8 @@ import { crearCapturaFoto, esFotoBorrada, type DestinoFoto } from '../src/fotos'
 import { TROZO_IDENTIDAD, claveDestino, crearFotosInterfaz, destinoDeClave, type FotosInterfaz } from '../src/fotos-interfaz';
 import { copiarOriginalRespaldo } from '../src/fotos-respaldo';
 
-const PARADA = 'c80e3471f9ab562d';
-const SUB = 'eb6438fa172dc905';
+const PARADA = 'a42b37ab706683e8';
+const SUB = 'b07561d988f62b72';
 const parada: DestinoFoto = { tipo: 'parada', viajeId: itinerario.id, paradaId: PARADA };
 const sub: DestinoFoto = { tipo: 'subparada', viajeId: itinerario.id, paradaId: PARADA, subparadaId: SUB };
 const otra: DestinoFoto = { tipo: 'parada', viajeId: itinerario.id, paradaId: itinerario.dias[0].paradas[0].id };

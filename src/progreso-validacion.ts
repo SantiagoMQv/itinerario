@@ -1,5 +1,6 @@
 import type { EstadoProgreso, Operacion } from './progreso';
 import type { Itinerario } from './tipos';
+import { identidades, type Identidades } from './identidades';
 
 /**
  * Secuencia de lectura del servidor, no reloj causal ni precondición de entidad.
@@ -76,12 +77,15 @@ function diccionario(v: unknown, prueba: (id: string, valor: unknown) => boolean
 /**
  * Valida estructura y catálogo, no autenticidad de firmas ni historia completa.
  * Los IDs del plan son persistentes: las subparadas no tienen progreso propio.
+ * Lo guardado puede nombrar paradas y pendientes retirados del mismo viaje (`plan.retiradas`): se leen tal cual.
  * No compara horaReal con ninguna revisión; tampoco interpreta la firma opaca.
  */
 export function esEstadoProgreso(plan: Itinerario, v: unknown): v is EstadoProgreso {
   if (!campos(v, ['viajeId', 'paradas', 'pendientes', 'aqui', 'operaciones']) || v.viajeId !== plan.id) return false;
-  const paradas = new Set(plan.dias.flatMap((dia) => dia.paradas.map((p) => p.id)));
-  const pendientes = new Set((plan.pendientes ?? []).map((p) => p.id));
+  let catalogo: Identidades;
+  try { catalogo = identidades(plan); } catch { return false; }
+  const paradas = catalogo.paradas.conocidas;
+  const pendientes = catalogo.pendientes.conocidas;
   const aquiConocido = (aqui: unknown): boolean => registroAqui(aqui)
     && plano(aqui) && (aqui.paradaId === null || paradas.has(aqui.paradaId as string));
   if (!diccionario(v.paradas, (id, valor) => paradas.has(id) && registroParada(valor))

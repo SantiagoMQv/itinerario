@@ -1511,7 +1511,7 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
 
 test.describe('publicada (respaldo: null)', () => {
   const HORA = '2026-10-22T13:30:00+08:00';
-  const PARADA = 'c80e3471f9ab562d'; // Middle Huaihai Road: TX Huaihai
+  const PARADA = 'a42b37ab706683e8'; // Lingyin y Feilai Feng (día 22, Hangzhou)
   const opcionesMovil = { baseURL: 'http://localhost:4173', locale: 'es-ES', viewport: { width: 390, height: 844 },
     deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' as const };
 
@@ -1532,8 +1532,8 @@ test.describe('publicada (respaldo: null)', () => {
       await expect(page.locator('#contenido')).not.toBeEmpty();
 
       // Ficha, panel «Fotos» y visor: el texto de siempre y ningún bloque de respaldo.
-      await page.locator('#contenido li.parada .fila', { hasText: 'TX Huaihai' }).click();
-      await expect(page.locator('#contenido li.parada.abierta', { hasText: 'TX Huaihai' })).toBeVisible();
+      await page.locator('#contenido li.parada .fila', { hasText: 'Lingyin' }).click();
+      await expect(page.locator('#contenido li.parada.abierta', { hasText: 'Lingyin' })).toBeVisible();
       const b = page.locator(`[data-fotos-destino="p:${PARADA}"]`);
       const alternar = b.locator('[data-fotos-alternar]');
       await alternar.scrollIntoViewIfNeeded();
@@ -1559,7 +1559,9 @@ test.describe('publicada (respaldo: null)', () => {
 
       // «Todo»: no existe «Fotos del viaje» ni, por tanto, «Respaldar pendientes».
       await page.locator('#dias [data-dia="todo"]').click();
-      await expect(page.locator('#compartido')).toHaveCount(1);
+      // «Todo» pintado (sus pendientes) y, en la publicada, sin «Compartido»: ni cliente de progreso ni red.
+      await expect(page.locator('#pendientes')).toBeVisible();
+      await expect(page.locator('#compartido')).toHaveCount(0);
       await expect(page.locator('#fotos-viaje')).toHaveCount(0);
       await expect(page.getByText('Fotos del viaje')).toHaveCount(0);
       await expect(page.getByText('Respaldar pendientes')).toHaveCount(0);

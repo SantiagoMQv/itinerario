@@ -18,6 +18,7 @@ import {
   trayectosApretados,
 } from './modelo';
 import type { DestinoFoto } from './fotos';
+import { identidades } from './identidades';
 import { crearFotosUi } from './fotos-interfaz';
 import type { ComposicionRespaldoFotos } from './fotos-respaldo-interfaz';
 import { descargaAnterior, descargarMapas, registrarServiceWorker } from './offline';
@@ -27,11 +28,16 @@ import { capturarLegado, crearProgresoInterfaz, identidadDispositivo, resumenCom
 import type { ResultadoAccion, ResultadoDeshacer, ResumenCompartido } from './progreso-interfaz';
 import type { Enlace, Gasto, Transporte } from './tipos';
 
-/** Lo único que cambia de una entrada a otra; la web publicada (src/publica.ts) pasa las dos a null. */
+/** Lo único que cambia de una entrada a otra; la web publicada (src/publica.ts) pasa las dos a null y no da cliente
+ * de progreso. */
 export interface ComposicionItinerario {
   readonly respaldo: ComposicionRespaldoFotos | null;
   readonly portabilidad: ComposicionPortabilidad | null;
+  /** Cliente del progreso compartido (/api/progreso), solo en el piloto. Ausente o null: las marcas y casillas se
+   * quedan en este móvil y nada se envía ni se consulta. */
+  readonly progreso?: ComposicionProgreso | null;
 }
+export interface ComposicionProgreso { readonly http: (url: string, opciones: RequestInit) => Promise<Response> }
 
 /** Una sola vez por página, aunque el primer arranque fallara a medias: nunca se reinicia ni se reintenta solo. */
 let arrancada = false;
@@ -41,8 +47,10 @@ export function arrancarItinerario(composicion: ComposicionItinerario): void {
 // Se consume antes de leer la composición: un getter que volviera a arrancar ya choca con la guarda.
 if (arrancada) throw new Error('La app ya se arrancó en esta página.');
 arrancada = true;
-// Las dos composiciones se leen una sola vez, antes de inicializar nada.
-const { respaldo, portabilidad } = composicion;
+// Las composiciones se leen una sola vez, antes de inicializar nada.
+const { respaldo, portabilidad, progreso: clienteProgreso = null } = composicion;
+const httpProgreso = clienteProgreso === null ? null : clienteProgreso.http;
+if (httpProgreso !== null && typeof httpProgreso !== 'function') throw new Error('Cliente de progreso inválido.');
 
 const modelo = construirModelo(itinerario);
 const ultimoHotel = [...modelo.paradas].reverse().find((p) => p.p.categoria === 'hotel') ?? null;
@@ -128,11 +136,15 @@ const estado = {
 
 // ---------- Fotos (solo en este móvil) ----------
 
-/** Nombre de la parada o del sitio de dentro, para títulos y nombres accesibles de sus fotos. */
+/** Activas y retiradas del plan (tuplas tipadas): una sola verdad para rotular lo guardado. */
+const catalogo = identidades(itinerario);
+/** Nombre de la parada o del sitio de dentro, para títulos y nombres accesibles de sus fotos. Un destino retirado
+ * conserva su nombre de entonces, por su tupla exacta (la parada antigua de Top Banana no es su sitio actual). */
 function nombreFotos(d: DestinoFoto): string {
   const p = modelo.paradas.find((x) => x.p.id === d.paradaId);
-  if (!p) return 'esta parada';
-  return d.tipo === 'parada' ? p.p.nombre : (p.subs.find((x) => x.s.id === d.subparadaId)?.s.nombre ?? p.p.nombre);
+  const sub = d.tipo === 'subparada' ? p?.subs.find((x) => x.s.id === d.subparadaId) : undefined;
+  if (p && (d.tipo === 'parada' || sub)) return sub ? sub.s.nombre : p.p.nombre;
+  return catalogo.nombreRetirado(d.paradaId, d.tipo === 'subparada' ? d.subparadaId : undefined) ?? 'esta parada';
 }
 const fotosUi = crearFotosUi({
   plan: itinerario,
@@ -188,11 +200,12 @@ let marcador = leer<boolean>(CLAVE_MARCADOR, false);
 /** Cambia cuando cambian las marcas de la raíz durable: repinta «ahora», la lista y el mapa. */
 let versionMarcas = 0;
 
-// ---------- Progreso compartido: IndexedDB en el móvil y /api/progreso ----------
+// ---------- Progreso: IndexedDB en el móvil y, solo en el piloto, /api/progreso ----------
 
 // Las marcas y las casillas viven en una raíz de IndexedDB por viaje (src/progreso-local.ts), con
 // las paradas y casillas por su ID persistente. Las claves anteriores de localStorage («marcas»,
 // «marcas-hora», «pendientes-hechos») se leen tal cual una vez para importarlas y nunca se tocan.
+// Sin cliente de progreso (la web publicada) no hay transporte: ninguna petición, ni al abrir ni al marcar.
 const almacenLocal = (): Storage | null => {
   try {
     return localStorage;
@@ -206,7 +219,7 @@ const progreso = crearProgresoInterfaz({
   dispositivoId: dispositivo.id,
   entradasLegadas: capturarLegado(almacenLocal()),
   uuid: uuidAleatorio,
-  http: (url, opciones) => fetch(url, opciones),
+  http: httpProgreso,
   alCambiar: () => alCambiarProgreso(),
 });
 
@@ -303,7 +316,8 @@ async function puedeMarcar(): Promise<boolean> {
   if (marcador) return true;
   return preguntar(
     '¿Llevar el viaje en este móvil?',
-    'Hasta ahora este móvil sigue el plan en silencio. Si marcas aquí, pasará a llevar el viaje: guardará lo que marques, lo compartirá con el otro móvil al sincronizar y preguntará «¿Sigues en…?» cuando se acabe la hora de un sitio. Para solo mirar, mejor no marcar.',
+    `Hasta ahora este móvil sigue el plan en silencio. Si marcas aquí, pasará a llevar el viaje: guardará lo que marques${
+      progreso.compartido ? ', lo compartirá con el otro móvil al sincronizar' : ''} y preguntará «¿Sigues en…?» cuando se acabe la hora de un sitio. Para solo mirar, mejor no marcar.`,
     'Sí, marcar aquí',
     'Cancelar',
   );
@@ -1750,12 +1764,14 @@ function pintarResumen() {
                   <span>${esc(t.texto)}</span></label></li>`,
               )
               .join('')}</ul>
-            <p class="cifras">Las casillas y las paradas marcadas se guardan en este móvil y se comparten con el otro al sincronizar.</p>
+            <p class="cifras">Las casillas y las paradas marcadas se guardan en este móvil${
+              progreso.compartido ? ' y se comparten con el otro al sincronizar' : ''}.</p>
           </section>`
         : ''
     }
-    <section class="seccion compartido" id="compartido">${htmlCompartido()}</section>
+    ${progreso.compartido ? `<section class="seccion compartido" id="compartido">${htmlCompartido()}</section>` : ''}
     ${fotosUi.respaldoActivo ? '<section class="seccion fotos-viaje" id="fotos-viaje" data-fotos-viaje></section>' : ''}
+    <section class="seccion fotos-retiradas" id="fotos-retiradas" data-fotos-retiradas hidden></section>
     ${portabilidadUi ? '<section class="seccion copia-movil" id="copia-movil" data-copia-movil></section>' : ''}
     ${modelo.secciones
       .map(
@@ -1771,6 +1787,9 @@ function pintarResumen() {
   // Solo existe con la composición del respaldo (la web publicada no la tiene). Pintar no consulta nada.
   const fotosViaje = el.contenido.querySelector<HTMLElement>('[data-fotos-viaje]');
   if (fotosViaje) fotosUi.montarFotosViaje(fotosViaje);
+  // Fotos de este móvil de sitios que ya no están en el plan: con y sin composición, solo metadata local.
+  const retiradas = el.contenido.querySelector<HTMLElement>('[data-fotos-retiradas]');
+  if (retiradas) fotosUi.montarRetiradas(retiradas);
   // Solo con la composición de portabilidad (la web publicada no la tiene). Pintar no lee ni abre nada.
   const copia = el.contenido.querySelector<HTMLElement>('[data-copia-movil]');
   if (copia) portabilidadUi?.montar(copia);
@@ -2237,7 +2256,7 @@ let ultimoAvisoRed = '';
  */
 function pintarRed() {
   const enLinea = navigator.onLine !== false;
-  const resumen = resumenCompartido(progreso.vista, enLinea);
+  const resumen = resumenCompartido(progreso.vista, enLinea, progreso.compartido);
   const previa = descargaAnterior();
   const texto = resumen.pildora ?? (enLinea ? null : `Sin conexión · ${previa ? 'mapas guardados' : 'sin mapas guardados'}`);
   const antes = !el.red.hidden;
@@ -2257,7 +2276,7 @@ addEventListener('online', () => {
 });
 addEventListener('offline', pintarRed);
 el.red.addEventListener('click', () => {
-  const resumen = resumenCompartido(progreso.vista, navigator.onLine !== false);
+  const resumen = resumenCompartido(progreso.vista, navigator.onLine !== false, progreso.compartido);
   if (resumen.pildora === null) return aviso(textoSinRed(), 9000);
   aviso(resumen.detalle, 9000, accionCompartida(resumen.accion));
 });
@@ -2316,7 +2335,7 @@ function pintarPendientes() {
 /** Qué cambio es, en palabras del cuaderno. */
 function describirOperacion(op: Operacion): string {
   if (op.tipo === 'parada') {
-    const nombre = paradaPorId.get(op.paradaId)?.p.nombre ?? 'Una parada';
+    const nombre = paradaPorId.get(op.paradaId)?.p.nombre ?? catalogo.nombreRetirado(op.paradaId) ?? 'Una parada';
     return `«${nombre}» ${op.marca ? `como ${NOMBRE_MARCA[op.marca]}` : 'según el plan'}`;
   }
   if (op.tipo === 'pendiente') {
@@ -2329,7 +2348,7 @@ function describirOperacion(op: Operacion): string {
 
 function htmlCompartido(): string {
   const v = progreso.vista;
-  const resumen = resumenCompartido(v, navigator.onLine !== false);
+  const resumen = resumenCompartido(v, navigator.onLine !== false, progreso.compartido);
   const rechazadas = v.raiz?.cola.filter((e) => e.rechazo && !e.resolucion) ?? [];
   const atascadas = v.atascadas.flatMap((a) => {
     const entrada = v.raiz?.cola.find((e) => e.operacion.id === a.operacionId);

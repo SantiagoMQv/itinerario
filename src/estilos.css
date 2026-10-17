@@ -2305,6 +2305,44 @@ body.vista-todo .lista {
   display: none;
 }
 
+/* «Sitios que ya no están en el plan» en «Todo»: el mismo bloque «Fotos» de las fichas, con el nombre de entonces
+   encima; una fila por destino, separadas por el filo de siempre. */
+.fotos-retiradas .lista-retiradas {
+  margin: 0 0 8px;
+  padding-left: 0;
+  list-style: none;
+}
+.fotos-retiradas .lista-retiradas li + li {
+  margin-top: 0;
+}
+.lista-retiradas li {
+  padding: 10px 0;
+  border-top: 1px solid var(--borde);
+}
+.retirada-nombre {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.24;
+  font-variation-settings: 'wdth' 92;
+}
+.lista-retiradas .fotos {
+  margin-top: 6px;
+}
+/* Dentro de la sección, el bloque se ve como en la ficha: sin la sangría ni los márgenes de las listas de «Todo». */
+.fotos-retiradas .fotos ul {
+  margin-bottom: 0;
+  padding-left: 0;
+  font-size: inherit;
+  line-height: inherit;
+}
+.fotos-retiradas .fotos .fotos-sesiones {
+  margin-top: 8px;
+}
+.fotos-retiradas .fotos li + li {
+  margin-top: 0;
+}
+
 /* «Fotos del viaje» en «Todo» (solo con la composición del respaldo): este móvil y, a un toque, el servidor. */
 .fotos-viaje h4 {
   margin: 16px 0 4px;

@@ -8,10 +8,11 @@ import { crearProgreso } from '../src/progreso';
 import type { InstantaneaProgreso } from '../src/progreso-validacion';
 import { crearControladorProgreso, type ControladorProgreso } from '../servidor/api-progreso';
 import { crearAlmacenProgreso, type DecisionHistorica } from '../servidor/almacen-progreso';
+import { compilarAppConProgreso, servirAppConProgreso } from './app-con-progreso';
 
 const HORA = '2026-10-22T13:30:00+08:00';
-const PARADA = 'c80e3471f9ab562d'; // Middle Huaihai Road: TX Huaihai
-const SUB = 'eb6438fa172dc905'; // Pane, dentro de esa parada
+const PARADA = 'a42b37ab706683e8'; // Lingyin y Feilai Feng (día 22, Hangzhou)
+const SUB = 'b07561d988f62b72'; // Esculturas de Feilai Feng y el Buda risueño, dentro de esa parada
 const BASE_FOTOS = `itinerario-fotos:${encodeURIComponent(itinerario.id)}`;
 const opcionesMovil = { baseURL: 'http://localhost:4173', locale: 'es-ES', viewport: { width: 390, height: 844 },
   deviceScaleFactor: 2, isMobile: true, hasTouch: true, serviceWorkers: 'block' as const };
@@ -58,7 +59,7 @@ async function movilSinRed(browser: Browser, extra: { viewport?: { width: number
 }
 
 /** Abre la ficha de la parada en la lista (la hoja sube) y devuelve su li. */
-async function abrirFicha(page: Page, nombre = 'TX Huaihai') {
+async function abrirFicha(page: Page, nombre = 'Lingyin') {
   const fila = page.locator('#contenido li.parada .fila', { hasText: nombre });
   await fila.click();
   const li = page.locator('#contenido li.parada.abierta', { hasText: nombre });
@@ -147,8 +148,8 @@ test.describe('fotos locales en la interfaz del viaje', () => {
     await anadir(page, parada, { name: 'tienda.webp', mimeType: 'image/webp', buffer: webp });
     await expect(parada.locator('[data-foto-id] img')).toHaveCount(2);
 
-    // Subparada «Pane», dentro de la misma ficha.
-    await page.locator('#contenido li.parada.abierta .sub-fila', { hasText: 'Pane' }).click();
+    // Subparada «Esculturas de Feilai Feng…», dentro de la misma ficha.
+    await page.locator('#contenido li.parada.abierta .sub-fila', { hasText: 'Esculturas' }).click();
     const sub = await abrirFotos(page, `s:${PARADA}:${SUB}`);
     const jpeg = await imagen(page, 'image/jpeg', 40, 30);
     await anadir(page, sub, { name: 'pane.jpg', mimeType: 'image/jpeg', buffer: jpeg });
@@ -381,7 +382,7 @@ test.describe('fotos locales en la interfaz del viaje', () => {
     const visor = page.locator('#visor-foto');
     await expect(visor).toBeVisible();
     await expect(visor.locator('[data-visor-cerrar]')).toBeFocused();
-    await expect(visor).toContainText('TX Huaihai');
+    await expect(visor).toContainText('Lingyin');
     await expect(visor.locator('.visor-pesos')).toContainText('Original');
     // Las acciones son botones de al menos 44 px.
     for (const accion of await visor.locator('button:visible').all()) {
@@ -668,7 +669,10 @@ test.describe('fotos locales en la interfaz del viaje', () => {
     expect(errores).toEqual([]);
   });
 
+  // Compartir el progreso es del piloto: la app real con su cliente de progreso explícito (la web publicada no lo tiene).
   test('dos móviles: el progreso se comparte, las fotos no; ninguna foto viaja por la red', async ({ browser }) => {
+    test.setTimeout(180_000);
+    await compilarAppConProgreso();
     let actual: InstantaneaProgreso = { revisionServidor: 0, estado: crearProgreso(itinerario) };
     const decisiones = new Map<string, DecisionHistorica>();
     const cuerpos: string[] = [];
@@ -703,6 +707,7 @@ test.describe('fotos locales en la interfaz del viaje', () => {
       contexto.on('request', (r) => { const u = new URL(r.url()); if (u.hostname === 'localhost' && !/\.(js|css|woff2|png|svg|webmanifest)$/.test(u.pathname) && u.pathname !== '/' && u.pathname !== '/api/progreso') otras.push(u.pathname); });
       await contexto.route(/^https?:\/\/(?!localhost)/, (r) => r.abort());
       await contexto.route((url) => url.pathname === '/api/progreso', atender);
+      await servirAppConProgreso(contexto);
       await contexto.addInitScript(() => { if (localStorage.getItem('marcador') === null) localStorage.setItem('marcador', 'true'); });
       const page = await contexto.newPage();
       await abrirApp(page);
@@ -803,11 +808,11 @@ test.describe('fotos: tomar foto o elegir de la galería', () => {
     await abrirFicha(page);
     const parada = await abrirFotos(page, `p:${PARADA}`);
     await expect(camara(parada)).toBeVisible();
-    await page.locator('#contenido li.parada.abierta .sub-fila', { hasText: 'Pane' }).click();
+    await page.locator('#contenido li.parada.abierta .sub-fila', { hasText: 'Esculturas' }).click();
     const sub = await abrirFotos(page, `s:${PARADA}:${SUB}`);
     const png = await imagen(page, 'image/png');
     const archivo = { name: 'misma.png', mimeType: 'image/png', buffer: png };
-    // La cámara se abre desde la parada y se cancela; después, la galería desde Pane.
+    // La cámara se abre desde la parada y se cancela; después, la galería desde las esculturas.
     const cancelada = await abrirDesde(page, camara(parada));
     expect(cancelada.pedido).toEqual(PIDE_CAMARA);
     await cancelada.elegido.setFiles([]);
@@ -878,7 +883,7 @@ test.describe('fotos: tomar foto o elegir de la galería', () => {
         await abrirFicha(page);
         const parada = await abrirFotos(page, `p:${PARADA}`);
         await expect(camara(parada)).toBeVisible();
-        await page.locator('#contenido li.parada.abierta .sub-fila', { hasText: 'Pane' }).click();
+        await page.locator('#contenido li.parada.abierta .sub-fila', { hasText: 'Esculturas' }).click();
         const sub = await abrirFotos(page, `s:${PARADA}:${SUB}`);
         for (const b of [sub, parada]) {
           const nombre = await nombreDelDestino(b);
@@ -993,11 +998,11 @@ const medirFoco = (boton: Locator) => boton.evaluate((e) => {
 test.describe('fotos: acciones con la hoja alta y las píldoras del pie', () => {
   for (const [ancho, alto] of [[360, 640], [390, 844]] as const) {
     for (const tema of ['claro', 'oscuro'] as const) {
-      test(`oclusión de acciones bajo píldoras: Pane a ${ancho}×${alto} ${tema === 'claro' ? 'de día' : 'de noche'}, cámara y galería a la vista, 44 px al dedo y foco sin tapar`, async ({ browser }) => {
+      test(`oclusión de acciones bajo píldoras: las esculturas a ${ancho}×${alto} ${tema === 'claro' ? 'de día' : 'de noche'}, cámara y galería a la vista, 44 px al dedo y foco sin tapar`, async ({ browser }) => {
         const { page, errores } = await movilSinRed(browser, { viewport: { width: ancho, height: alto }, colorScheme: tema === 'oscuro' ? 'dark' : 'light' });
         await abrirFicha(page);
         await hojaAsentada(page);
-        await page.locator('#contenido li.parada.abierta .sub-fila', { hasText: 'Pane' }).click();
+        await page.locator('#contenido li.parada.abierta .sub-fila', { hasText: 'Esculturas' }).click();
         const sub = bloque(page, `s:${PARADA}:${SUB}`);
         const alternar = sub.locator('[data-fotos-alternar]');
         await alternar.scrollIntoViewIfNeeded();
@@ -1102,7 +1107,7 @@ test.describe('fotos: la lista y las píldoras del pie con la hoja alta', () => 
     await expect(page.locator('#red')).toContainText('Sin conexión');
     await expect.poll(() => pildorasDelPie(page)).toMatchObject({ visibles: ['btn-mapa', 'btn-hotel', 'red'], filas: 2, cuadra: true, aire: true });
     await hojaAsentada(page);
-    await page.locator('#contenido li.parada.abierta .sub-fila', { hasText: 'Pane' }).click();
+    await page.locator('#contenido li.parada.abierta .sub-fila', { hasText: 'Esculturas' }).click();
     const sub = bloque(page, `s:${PARADA}:${SUB}`);
     const alternar = sub.locator('[data-fotos-alternar]');
     await alternar.scrollIntoViewIfNeeded();
@@ -1140,15 +1145,15 @@ test.describe('fotos: plegar la ficha cierra su «Fotos»', () => {
       const { contexto, page, errores } = await movilSinRed(browser);
       try {
         const ficha = await abrirFicha(page);
-        if (caso === 'sitio') await ficha.locator('.sub-fila', { hasText: 'Pane' }).click();
+        if (caso === 'sitio') await ficha.locator('.sub-fila', { hasText: 'Esculturas' }).click();
         const clave = caso === 'sitio' ? `s:${PARADA}:${SUB}` : `p:${PARADA}`;
         const b = await abrirFotos(page, clave);
         await anadir(page, b, { name: 'plegar.png', mimeType: 'image/png', buffer: await imagen(page, 'image/png') });
         await expect(b.locator('[data-foto-id] img')).toHaveCount(1);
         expect(await urlsVivas(page)).toBe(1);
         if (caso === 'parada') await ficha.locator('.fila').click();
-        else if (caso === 'sitio') await ficha.locator('.sub-fila', { hasText: 'Pane' }).click();
-        else await page.locator('#contenido li.parada:not(.origen) .fila').filter({ hasNotText: 'TX Huaihai' }).first().click();
+        else if (caso === 'sitio') await ficha.locator('.sub-fila', { hasText: 'Esculturas' }).click();
+        else await page.locator('#contenido li.parada:not(.origen) .fila').filter({ hasNotText: 'Lingyin' }).first().click();
         await expect(b.locator('[data-fotos-alternar]')).toHaveAttribute('aria-expanded', 'false');
         await expect(b.locator('.fotos-panel')).toBeHidden();
         await expect.poll(() => urlsVivas(page)).toBe(0);

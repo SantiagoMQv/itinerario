@@ -386,12 +386,12 @@ const inventarioCaches = (page: Page) => page.evaluate(async () => {
   }
   return salida.sort();
 });
-/** Abre la ficha de TX Huaihai y su bloque «Fotos» (la app compilada, en el día del 22). */
-async function fotosDeHuaihai(page: Page) {
+/** Abre la ficha de Lingyin y su bloque «Fotos» (la app compilada, en el día del 22). */
+async function fotosDeLingyin(page: Page) {
   await expect(page.locator('#contenido')).not.toBeEmpty();
-  await page.locator('#contenido li.parada .fila', { hasText: 'TX Huaihai' }).click();
-  await expect(page.locator('#contenido li.parada.abierta', { hasText: 'TX Huaihai' })).toBeVisible();
-  const bloque = page.locator('[data-fotos-destino="p:c80e3471f9ab562d"]');
+  await page.locator('#contenido li.parada .fila', { hasText: 'Lingyin' }).click();
+  await expect(page.locator('#contenido li.parada.abierta', { hasText: 'Lingyin' })).toBeVisible();
+  const bloque = page.locator('[data-fotos-destino="p:a42b37ab706683e8"]');
   await bloque.locator('[data-fotos-alternar]').scrollIntoViewIfNeeded();
   await bloque.locator('[data-fotos-alternar]').click();
   await expect(bloque.locator('[data-fotos-anadir]')).toBeVisible();
@@ -408,7 +408,7 @@ test('fotos locales: se guardan desde la ficha, se ven sin conexión y nunca ent
   expect(preparada.length).toBeGreaterThan(0);
 
   await page.reload();
-  const bloque = await fotosDeHuaihai(page);
+  const bloque = await fotosDeLingyin(page);
   const png = Buffer.from(await page.evaluate(async () => {
     const c = document.createElement('canvas'); c.width = 24; c.height = 36;
     const g = c.getContext('2d')!; g.fillStyle = '#2453d1'; g.fillRect(0, 0, 24, 36);
@@ -424,7 +424,7 @@ test('fotos locales: se guardan desde la ficha, se ven sin conexión y nunca ent
   // Sin red: la app sale de la copia preparada y la foto, de IndexedDB.
   await desconectar(context);
   expect((await page.reload())!.status()).toBe(200);
-  const sinRed = await fotosDeHuaihai(page);
+  const sinRed = await fotosDeLingyin(page);
   const img = sinRed.locator('[data-foto-id] img');
   await expect(img).toHaveCount(1);
   await expect(img).toHaveJSProperty('complete', true);

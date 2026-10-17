@@ -41,7 +41,8 @@ function explicarConfiguracionInvalida(error: unknown): void {
 
 let composicion: ComposicionItinerario | null = null;
 try {
-  composicion = prepararPiloto(datos, location.origin);
+  // El piloto comparte el progreso con su servidor: cliente explícito, mismo origen (nunca en la web publicada).
+  composicion = { ...prepararPiloto(datos, location.origin), progreso: { http: (url, opciones) => fetch(url, opciones) } };
 } catch (error) {
   explicarConfiguracionInvalida(error);
 }

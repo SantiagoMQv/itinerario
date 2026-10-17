@@ -1,6 +1,6 @@
-import { aplicarOperacion, crearProgreso, importarLegado } from './progreso';
+import { aplicarOperacion, aplicarOperacionGuardada, crearProgreso, importarLegado } from './progreso';
 import { campos, densa, esOperacion, esEstadoProgreso, iguales } from './progreso-validacion';
-import { iniciarCola, agregarIntencion, proyectarCola, recibirInstantanea, marcarEnviada, cancelarIntencion, recibirAcuse, recibirRechazo, resolverRechazo } from './progreso-cola';
+import { iniciarCola, agregarIntencion, proyectarCola, proyectarColaGuardada, recibirInstantanea, marcarEnviada, cancelarIntencion, recibirAcuse, recibirRechazo, resolverRechazo } from './progreso-cola';
 import type { Cola, EntradaCola, ResultadoCola, AcusePersistido, RechazoPersistido } from './progreso-cola';
 import type { InstantaneaProgreso } from './progreso-validacion';
 import type { EntradasLegadas, EstadoProgreso, Operacion, OperacionPendiente, RecuperacionLegada, ResultadoOperacion } from './progreso';
@@ -68,7 +68,8 @@ function validarV1(plan: Itinerario, valor: unknown): RegistroV1 {
       if (!campos(entrada, ['operacion', 'dependeDe']) || !esOperacion(entrada.operacion)
         || !iguales(entrada.dependeDe, ids)) throw new Error();
       const operacion = entrada.operacion;
-      const resultado = aplicarOperacion(plan, estado, operacion);
+      // Solo validar lo guardado: con las reglas de cuando se guardó (sus retiradas aún eran del plan).
+      const resultado = aplicarOperacionGuardada(plan, estado, operacion);
       if (resultado.tipo !== 'aplicada' && resultado.tipo !== 'sin-cambio') throw new Error();
       estado = resultado.estado;
       ids.push(operacion.id);
@@ -119,7 +120,11 @@ function validar(plan: Itinerario, valor: unknown, formato: 2 | 3 = 3): Registro
       || !valor.cola.every((e) => campos(e, ['operacion', 'dependeDe', 'enviada'])))) throw new Error();
     const raiz = valor as unknown as RegistroLocal;
     const resultado = proyectarCola(plan, comoCola(raiz));
-    if (!resultado.cola || !resultado.proyeccion || !iguales(valor.estado, resultado.proyeccion.estado)) throw new Error();
+    if (!resultado.cola || !resultado.proyeccion) throw new Error();
+    // Guardada con un plan anterior del mismo viaje: su proyección se hizo cuando sus retiradas aún eran del plan.
+    // Vale solo si es EXACTAMENTE esa reproducción; la que usa la app sigue siendo la estricta y no se reescribe nada.
+    if (!iguales(valor.estado, resultado.proyeccion.estado)
+      && !iguales(valor.estado, proyectarColaGuardada(plan, comoCola(raiz)).proyeccion?.estado)) throw new Error();
     if (!historiaCoherente(resultado.cola)) throw new Error();
     validarLegado(valor);
     // El helper materializa el dominio; el legado conserva su clon estructurado, no se normaliza.

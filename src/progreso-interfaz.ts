@@ -91,7 +91,9 @@ export interface OpcionesInterfaz {
   readonly dispositivoId: string;
   /** Captura de capturarLegado: solo se usa si todavía no existe la raíz de este viaje. */
   readonly entradasLegadas: EntradasLegadas;
-  readonly http: ConfiguracionTransporteProgreso['http'];
+  /** Cliente del progreso compartido, solo con una composición explícita (el piloto). null: solo este móvil, sin
+   * transporte ni ninguna petición (la web publicada). */
+  readonly http: ConfiguracionTransporteProgreso['http'] | null;
   readonly fabrica?: IDBFactory | null;
   readonly nombre?: string;
   readonly uuid?: () => string;
@@ -100,6 +102,8 @@ export interface OpcionesInterfaz {
 }
 export interface ProgresoInterfaz {
   readonly vista: VistaProgreso;
+  /** Hay cliente de progreso compartido; si no, lo marcado se queda en este móvil y nada se envía. */
+  readonly compartido: boolean;
   /** Abre (o reabre tras un fallo) lo guardado en este móvil. Nunca crea una raíz vacía sobre una rota. */
   abrir(): Promise<void>;
   /** `horaReal`: minutos de China, metadato de la marca, nunca orden ni precondición. */
@@ -178,9 +182,10 @@ export function crearProgresoInterfaz(opciones: OpcionesInterfaz): ProgresoInter
         if (gen !== generacion || vista.fase === 'cerrada') { abierto.cerrar(); return; }
         local = abierto;
         await leerDurable(gen);
-        transporte = crearTransporteProgreso({ plan, local, http, timeoutMs: opciones.timeoutMs,
-          alCambiar: (estado) => { if (gen === generacion) publicar({ transporte: estado }); } });
-        publicar({ fase: 'lista', transporte: transporte.estado });
+        // Sin cliente (web publicada) no hay transporte: ni GET al abrir ni POST tras marcar.
+        transporte = http ? crearTransporteProgreso({ plan, local, http, timeoutMs: opciones.timeoutMs,
+          alCambiar: (estado) => { if (gen === generacion) publicar({ transporte: estado }); } }) : undefined;
+        publicar({ fase: 'lista', transporte: transporte?.estado ?? null });
       } catch {
         // Sin respaldo en localStorage ni raíz nueva sobre una rota: fallo visible y reintento explícito.
         local?.cerrar();
@@ -254,6 +259,7 @@ export function crearProgresoInterfaz(opciones: OpcionesInterfaz): ProgresoInter
 
   return {
     get vista() { return vista; },
+    compartido: http !== null,
     abrir,
     marcarParada: async (paradaId, marca, horaReal) => despues(await accion(async (almacen) => {
       const { estado } = await almacen.leer();
@@ -330,7 +336,7 @@ export interface ResumenCompartido {
  * algo: un acuse prueba que el servidor lo guardó, no que el compañero lo haya recibido.
  * `enLinea` es solo un indicio (navigator.onLine), nunca una prueba de conexión.
  */
-export function resumenCompartido(v: VistaProgreso, enLinea: boolean): ResumenCompartido {
+export function resumenCompartido(v: VistaProgreso, enLinea: boolean, compartido = true): ResumenCompartido {
   const t = v.transporte;
   const ocupado = t?.tipo === 'sincronizando';
   if (v.fase === 'abriendo') return { pildora: null, detalle: 'Abriendo lo marcado en este móvil…', accion: null, ocupado: true };
@@ -339,6 +345,8 @@ export function resumenCompartido(v: VistaProgreso, enLinea: boolean): ResumenCo
     return { pildora: 'Marcas sin abrir', accion: 'reintentar', ocupado: false,
       detalle: 'No se pudo abrir lo marcado en este móvil. El itinerario, el mapa y la tarjeta del taxi siguen funcionando, pero no se puede marcar hasta abrirlo.' };
   }
+  // Sin cliente de progreso no hay nada que enviar ni pedir: lo guardado aquí es todo lo que hay.
+  if (!compartido) return { pildora: null, accion: null, ocupado: false, detalle: 'Lo marcado se guarda solo en este móvil.' };
   const cola = v.raiz.cola;
   const rechazadas = cola.filter((e) => e.rechazo && !e.resolucion).length;
   const sinConfirmar = cola.filter((e) => e.enviada && !e.rechazo).length;

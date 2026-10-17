@@ -1,4 +1,5 @@
 import type { Itinerario } from './tipos';
+import { identidades } from './identidades';
 
 /** IDs del plan, nunca índices visuales del modelo. */
 export type DestinoFoto = { readonly tipo: 'parada'; readonly viajeId: string; readonly paradaId: string }
@@ -40,17 +41,25 @@ const entero = (v: unknown): v is number => typeof v === 'number' && Number.isSa
 const bytes = (v: unknown): v is number => entero(v) && v >= 0;
 // Techo técnico de representación de campos, no una restricción de cantidad/peso de fotos.
 const texto = (v: unknown): v is string => typeof v === 'string' && v.length <= 65536;
+/** Destino conocido de ESTE viaje por su tupla exacta: activo o retirado (`plan.retiradas`). Lo guardado con un
+ * destino retirado se sigue leyendo, listando, respaldando y copiando tal cual; nunca se le cambia el destino. */
 export function esDestinoFoto(plan: Itinerario, valor: unknown): valor is DestinoFoto {
+  return estadoDestino(plan, valor) !== null;
+}
+/** Solo los destinos del plan actual admiten fotos nuevas (cámara o galería). */
+export function esDestinoActivo(plan: Itinerario, valor: unknown): valor is DestinoFoto {
+  return estadoDestino(plan, valor) === 'activo';
+}
+function estadoDestino(plan: Itinerario, valor: unknown): 'activo' | 'retirado' | null {
   try {
-    if (!camposFoto(valor, ['tipo', 'viajeId', 'paradaId'])
-      && !camposFoto(valor, ['tipo', 'viajeId', 'paradaId', 'subparadaId'])) return false;
-    if (valor.viajeId !== plan.id || typeof valor.paradaId !== 'string') return false;
-    const padre = plan.dias.flatMap((d) => d.paradas).find((p) => p.id === valor.paradaId);
-    if (!padre) return false;
-    return valor.tipo === 'parada' ? camposFoto(valor, ['tipo', 'viajeId', 'paradaId'])
-      : valor.tipo === 'subparada' && camposFoto(valor, ['tipo', 'viajeId', 'paradaId', 'subparadaId'])
-        && !!padre.subparadas?.some((s) => s.id === valor.subparadaId);
-  } catch { return false; }
+    if (camposFoto(valor, ['tipo', 'viajeId', 'paradaId'])) {
+      if (valor.tipo !== 'parada' || valor.viajeId !== plan.id || typeof valor.paradaId !== 'string') return null;
+      return identidades(plan).destino(valor.paradaId);
+    }
+    if (!camposFoto(valor, ['tipo', 'viajeId', 'paradaId', 'subparadaId']) || valor.tipo !== 'subparada'
+      || valor.viajeId !== plan.id || typeof valor.paradaId !== 'string' || typeof valor.subparadaId !== 'string') return null;
+    return identidades(plan).destino(valor.paradaId, valor.subparadaId);
+  } catch { return null; }
 }
 export function esEstadoMiniatura(valor: unknown): valor is EstadoMiniatura {
   try {
@@ -112,7 +121,7 @@ function uuidSeguro(): string {
 /** Crear UNA vez por intento. Ante escritura incierta conservar captura/ID; nunca regenerar automáticamente. */
 export function crearCapturaFoto(plan: Itinerario, destino: DestinoFoto, archivo: File, incorporada: number,
   opciones: { uuid?: () => string } = {}): CapturaFoto {
-  if (!esDestinoFoto(plan, destino) || !entero(incorporada)) throw new Error('Destino o fecha inválidos');
+  if (!esDestinoActivo(plan, destino) || !entero(incorporada)) throw new Error('Destino o fecha inválidos');
   const nombre = Object.getOwnPropertyDescriptor(File.prototype, 'name')!.get!.call(archivo) as string;
   const ultimaModificacion = Object.getOwnPropertyDescriptor(File.prototype, 'lastModified')!.get!.call(archivo) as number;
   const metadatos = copiarMetadatos(plan, { formato: 1, fotoId: (opciones.uuid ?? uuidSeguro)(), destino,
