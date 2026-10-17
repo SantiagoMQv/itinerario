@@ -1,5 +1,5 @@
 import type { Itinerario } from './tipos';
-import { camposFoto, esIdFoto } from './fotos';
+import { camposFoto, esIdFoto, esDestinoFoto, type DestinoFoto } from './fotos';
 import { deserializarSolicitudRespaldo, serializarSolicitudRespaldo } from './fotos-protocolo';
 import { copiarPlanFotos } from '../servidor/multipart-fotos';
 
@@ -7,6 +7,18 @@ export const MAX_FILAS_LISTADO_FOTOS = 8;
 export const MAX_BYTES_CURSOR_LISTADO_FOTOS = 1024;
 export const MAX_PROFUNDIDAD_JSON_LISTADO_FOTOS = 16;
 export const MAX_NODOS_JSON_LISTADO_FOTOS = 256;
+/** Cotas adicionales independientes del cursor global anterior. */
+export const MAX_BYTES_DESTINO_LISTADO_FOTOS = 1024;
+export const MAX_BYTES_CURSOR_LISTADO_FOTOS_DESTINO = 2048;
+export const MAX_CARACTERES_QUERY_LISTADO_FOTOS_DESTINO = 9240;
+export interface CursorListadoFotosDestino extends CursorListadoFotos {
+  readonly tipo: 'cursor-respaldos-destino';
+  readonly destino: DestinoFoto;
+}
+export interface PaginaListadoFotosDestino extends Omit<PaginaListadoFotos, 'tipo'> {
+  readonly tipo: 'listado-respaldos-destino';
+  readonly destino: DestinoFoto;
+}
 /** Posición unsigned, no autorización ni snapshot: cada página requiere sesión viva. */
 export interface CursorListadoFotos {
   readonly version: 1;
@@ -163,5 +175,68 @@ export function deserializarPaginaListadoFotos(plan: Itinerario, texto: unknown,
   const fijo = copiarPlanFotos(plan);
   const p = pagina(fijo, leerJsonListadoAcotado(texto, maxBytes), maxFilas);
   if (renderPagina(p) !== texto) return fallar();
+  return p;
+}
+
+function destinoListado(plan: Itinerario, valor: unknown): DestinoFoto {
+  if (!esDestinoFoto(plan, valor)) return fallar();
+  const d: DestinoFoto = valor.tipo === 'parada'
+    ? { tipo: 'parada', viajeId: valor.viajeId, paradaId: valor.paradaId }
+    : { tipo: 'subparada', viajeId: valor.viajeId, paradaId: valor.paradaId, subparadaId: valor.subparadaId };
+  acotar(JSON.stringify(d), MAX_BYTES_DESTINO_LISTADO_FOTOS);
+  return Object.freeze(d);
+}
+export function serializarDestinoListadoFotos(plan: Itinerario, valor: unknown): string {
+  return JSON.stringify(destinoListado(plan, valor));
+}
+export function deserializarDestinoListadoFotos(plan: Itinerario, texto: unknown): DestinoFoto {
+  const d = destinoListado(plan, leerJsonListadoAcotado(texto, MAX_BYTES_DESTINO_LISTADO_FOTOS));
+  if (JSON.stringify(d) !== texto) return fallar();
+  return d;
+}
+function cursorDestino(plan: Itinerario, valor: unknown): CursorListadoFotosDestino {
+  if (!camposFoto(valor, ['version', 'tipo', 'viajeId', 'destino', 'despuesDe', 'hasta'])
+    || valor.tipo !== 'cursor-respaldos-destino') return fallar();
+  const posicion = cursor(plan, { version: valor.version, viajeId: valor.viajeId,
+    despuesDe: valor.despuesDe, hasta: valor.hasta });
+  const destino = destinoListado(plan, valor.destino);
+  return Object.freeze({ version: 1, tipo: 'cursor-respaldos-destino', viajeId: posicion.viajeId,
+    destino, despuesDe: posicion.despuesDe, hasta: posicion.hasta });
+}
+export function serializarCursorListadoFotosDestino(plan: Itinerario, valor: unknown): string {
+  return acotar(JSON.stringify(cursorDestino(plan, valor)), MAX_BYTES_CURSOR_LISTADO_FOTOS_DESTINO);
+}
+export function deserializarCursorListadoFotosDestino(plan: Itinerario, texto: unknown): CursorListadoFotosDestino {
+  const c = cursorDestino(plan, leerJsonListadoAcotado(texto, MAX_BYTES_CURSOR_LISTADO_FOTOS_DESTINO));
+  if (JSON.stringify(c) !== texto) return fallar();
+  return c;
+}
+function paginaDestino(plan: Itinerario, valor: unknown, maxFilas: number): PaginaListadoFotosDestino {
+  if (!camposFoto(valor, ['version', 'tipo', 'viajeId', 'destino', 'solicitudesIniciales', 'continuacion'])
+    || valor.tipo !== 'listado-respaldos-destino') return fallar();
+  const destino = destinoListado(plan, valor.destino);
+  const clave = JSON.stringify(destino);
+  const c = valor.continuacion === null ? null : deserializarCursorListadoFotosDestino(plan, valor.continuacion);
+  if (c !== null && JSON.stringify(c.destino) !== clave) return fallar();
+  // El codec anterior conserva sus campos, orden, INITIAL y reglas de keyset intactos.
+  const base = pagina(plan, { version: valor.version, tipo: 'listado-respaldos', viajeId: valor.viajeId,
+    solicitudesIniciales: valor.solicitudesIniciales, continuacion: c === null ? null : renderCursor(c) }, maxFilas);
+  for (const inicial of base.solicitudesIniciales) {
+    const s = deserializarSolicitudRespaldo(plan, inicial);
+    if (serializarDestinoListadoFotos(plan, s.original.destino) !== clave) return fallar();
+  }
+  return Object.freeze({ version: 1, tipo: 'listado-respaldos-destino', viajeId: base.viajeId,
+    destino, solicitudesIniciales: base.solicitudesIniciales, continuacion: valor.continuacion as string | null });
+}
+export function copiarPaginaListadoFotosDestino(plan: Itinerario, valor: unknown, maxFilas: number): PaginaListadoFotosDestino {
+  return paginaDestino(copiarPlanFotos(plan), valor, maxFilas);
+}
+export function serializarPaginaListadoFotosDestino(plan: Itinerario, valor: unknown, maxFilas: number, maxBytes: number): string {
+  return acotar(JSON.stringify(paginaDestino(copiarPlanFotos(plan), valor, maxFilas)), maxBytes);
+}
+export function deserializarPaginaListadoFotosDestino(plan: Itinerario, texto: unknown, maxFilas: number,
+  maxBytes: number): PaginaListadoFotosDestino {
+  const p = paginaDestino(copiarPlanFotos(plan), leerJsonListadoAcotado(texto, maxBytes), maxFilas);
+  if (JSON.stringify(p) !== texto) return fallar();
   return p;
 }

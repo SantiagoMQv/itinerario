@@ -1,7 +1,8 @@
 import type { Itinerario } from './tipos';
 import { camposFoto, copiarMetadatos, tamanoBlob, tipoBlob } from './fotos';
 import { comprobarIdentidadFoto, type LecturasIdentidadFoto } from './fotos-identidad';
-import type { RespaldoFotosLocal } from './fotos-respaldo-local';
+import { copiarCondicionesEnvio, ErrorAdmisionRespaldo, type CondicionesEnvio,
+  type RespaldoFotosLocal } from './fotos-respaldo-local';
 import { copiarEntradaRespaldo, copiarOriginalRespaldo, copiarReferenciaRespaldo, mismosOriginalesRespaldo,
   type EntradaRespaldo, type ReferenciaRespaldo } from './fotos-respaldo';
 import { MAX_BYTES_JSON_RESPALDO, deserializarReciboRespaldo, reciboCorrespondeASolicitud,
@@ -22,6 +23,9 @@ export interface OpcionesTransporteFotos {
   readonly fetch?: typeof fetch | null;
   /** Política de producto opcional, finita y no negativa; no es techo de resolución/megapíxeles. */
   readonly maxBytesOriginal?: number;
+  /** Plazo del POST y de la lectura de su acuse, entero positivo en ms (la composición pasa el de su cliente).
+   * Al vencer se aborta: no prueba ausencia remota y, si ya salió, queda incierto. Omitido: sin plazo propio. */
+  readonly plazoMs?: number;
 }
 export interface EstimacionTransporteFotos {
   readonly bytesOriginal: number;
@@ -33,8 +37,10 @@ export interface EstimacionTransporteFotos {
 export interface TransporteFotos {
   /** Acción explícita solo de metadata; no lee PhotoDB ni red, no reserva ni prepara operaciones. */
   estimar(referencia: ReferenciaRespaldo): EstimacionTransporteFotos;
-  /** Envía solo una referencia ya preparada y no pausada. No programa ni reintenta automáticamente. */
-  subir(referencia: ReferenciaRespaldo): Promise<EntradaRespaldo>;
+  /** Envía solo una referencia ya preparada y no pausada. No programa ni reintenta automáticamente.
+   * Con `soloPreparada` (el lote), solo si sigue preparada sin envío: se exige en el reclamo durable, no en una
+   * lectura previa; si no, rechaza «sin-envio» con causa «admision» y no hace POST. */
+  subir(referencia: ReferenciaRespaldo, condiciones?: CondicionesEnvio): Promise<EntradaRespaldo>;
   /** Única acción que quita pausa durable; conserva operación y payload originales. */
   reintentar(referencia: ReferenciaRespaldo): Promise<EntradaRespaldo>;
   /** Invalida primero la carga local y aborta; espera intención durable, no rollback remoto. */
@@ -47,16 +53,23 @@ export interface TransporteFotos {
 /** sin-envio describe solo esta invocación antes de hallar testigo, no ausencia remota.
  * detenida tampoco revoca IO/confirmación ya iniciados. Consultar siempre el ledger durable. */
 export class ErrorTransporteFotos extends Error {
-  constructor(mensaje: string, readonly estado: 'sin-envio' | 'incierta' | 'detenida') {
+  /** `causa`, cuando importa a quien llama: 401 del endpoint exacto («sin-sesion»), plazo vencido («plazo») o
+   * una operación que ya no estaba preparada sin envío cuando el lote fue a reclamarla («admision»). */
+  constructor(mensaje: string, readonly estado: 'sin-envio' | 'incierta' | 'detenida',
+    readonly causa?: 'sin-sesion' | 'plazo' | 'admision') {
     super(mensaje); this.name = 'ErrorTransporteFotos';
   }
 }
 interface Carga {
   readonly ref: ReferenciaRespaldo;
+  /** Condición del lote: solo una operación preparada sin envío ni pausa. */
+  readonly soloPreparada: boolean;
   readonly controlador: AbortController;
   detenida: boolean;
   /** Conservador: puede existir testigo durable incluso si el puerto pierde su respuesta. */
   marcadorIniciado: boolean;
+  /** Venció el plazo del POST (y por eso se abortó). */
+  vencida?: boolean;
 }
 
 /** Biblioteca manual, sin UI, eventos globales, singleton, apertura de DB ni IO en constructor.
@@ -72,7 +85,7 @@ interface Carga {
  * GET manual protegido queda diferido: este módulo NO completa T6 ni descarga originales. */
 export function crearTransporteFotos(opciones: OpcionesTransporteFotos): TransporteFotos {
   const obligatorias = ['plan', 'origen', 'fuente', 'ledger'];
-  const opcionales = ['fetch', 'maxBytesOriginal'];
+  const opcionales = ['fetch', 'maxBytesOriginal', 'plazoMs'];
   const claves = typeof opciones === 'object' && opciones !== null ? Reflect.ownKeys(opciones) : [];
   if (claves.some((k) => typeof k !== 'string' || ![...obligatorias, ...opcionales].includes(k))
     || !obligatorias.every((k) => claves.includes(k))
@@ -88,6 +101,10 @@ export function crearTransporteFotos(opciones: OpcionesTransporteFotos): Transpo
   const limite = opciones.maxBytesOriginal;
   if (limite !== undefined && (typeof limite !== 'number' || !Number.isFinite(limite) || limite < 0)) {
     throw new Error('Límite de original inválido');
+  }
+  const plazoMs = opciones.plazoMs;
+  if (plazoMs !== undefined && (!Number.isSafeInteger(plazoMs) || plazoMs < 1 || plazoMs > 2147483647)) {
+    throw new Error('Plazo de envío inválido');
   }
   const fuente = opciones.fuente; const ledger = opciones.ledger;
   const httpInyectado = typeof opciones.fetch === 'function';
@@ -122,6 +139,26 @@ export function crearTransporteFotos(opciones: OpcionesTransporteFotos): Transpo
       throw new Error('Referencia cambiada, pausada, bloqueada o ya respaldada');
     }
     return e;
+  }
+  const admisionRechazada = () => new ErrorTransporteFotos(
+    'La operación ya no está preparada sin envío; el lote no la envía', 'sin-envio', 'admision');
+  /** Antes del reclamo: con la condición del lote, solo una preparada sin envío (corta antes de leer bytes). */
+  function comprobarPrevia(valor: unknown, c: Carga): EntradaRespaldo {
+    if (!c.soloPreparada) return comprobarEntrada(valor, c.ref);
+    let e: EntradaRespaldo;
+    try { e = comprobarEntrada(valor, c.ref); } catch { throw admisionRechazada(); }
+    if (e.fase !== 'preparado' || e.enviada) throw admisionRechazada();
+    return e;
+  }
+  /** El reclamo durable: la condición se comprueba DENTRO de su transacción (no basta una lectura anterior). */
+  async function reclamar(c: Carga, ledgerPropio: RespaldoFotosLocal): Promise<EntradaRespaldo> {
+    try {
+      return await esperar(c, c.soloPreparada ? ledgerPropio.marcarEnviada(c.ref, { soloPreparada: true })
+        : ledgerPropio.marcarEnviada(c.ref));
+    } catch (e) {
+      if (e instanceof ErrorAdmisionRespaldo) throw admisionRechazada();
+      throw e;
+    }
   }
   async function esperar<T>(c: Carga, promesa: Promise<T>, liberar?: (valor: T) => Promise<void>): Promise<T> {
     try {
@@ -159,6 +196,7 @@ export function crearTransporteFotos(opciones: OpcionesTransporteFotos): Transpo
     // Se acota lo leído antes de text/parse; no se promete límite de chunk/heap interno del navegador.
   }
   async function ejecutar(c: Carga, retry: boolean): Promise<EntradaRespaldo> {
+    let plazo: ReturnType<typeof setTimeout> | null = null;
     try {
       if (!fuente || !ledger || typeof enviar !== 'function') throw new Error('Fuente, ledger o fetch no disponibles');
       vigente(c); presupuesto(c.ref);
@@ -170,7 +208,7 @@ export function crearTransporteFotos(opciones: OpcionesTransporteFotos): Transpo
       if (retry) {
         if (anterior.fase === 'bloqueada' || anterior.fase === 'respaldada') throw new Error('Estado no reintentable');
         comprobarEntrada(await esperar(c, ledger.reintentar(c.ref)), c.ref);
-      } else comprobarEntrada(anterior, c.ref);
+      } else comprobarPrevia(anterior, c);
       const metadata = copiarMetadatos(plan, await esperar(c, fuente.leerMetadatos(c.ref.fotoId)));
       if (!mismosOriginalesRespaldo(plan, copiarOriginalRespaldo(plan, metadata), c.ref.original)) {
         throw new Error('Metadata original cambió');
@@ -185,22 +223,32 @@ export function crearTransporteFotos(opciones: OpcionesTransporteFotos): Transpo
       };
       const identidad = await esperar(c, comprobarIdentidadFoto(plan, lecturas, metadata, original));
       if (identidad.tipo !== 'misma') throw new Error('Original no atestado contra fuente viva');
-      comprobarEntrada(await esperar(c, ledger.leer(c.ref.fotoId)), c.ref);
+      comprobarPrevia(await esperar(c, ledger.leer(c.ref.fotoId)), c);
       const cuerpo = new FormData();
       cuerpo.append('solicitud', serializarSolicitudRespaldo(plan, solicitud(c.ref)));
       // Slice nativo cambia solo MIME del wrapper, sin arrayBuffer, reencode ni copia persistida.
       const binario = Blob.prototype.slice.call(original, 0, metadata.bytesOriginal, 'application/octet-stream') as Blob;
       cuerpo.append('original', binario, 'original');
       c.marcadorIniciado = true;
-      comprobarEntrada(await esperar(c, ledger.marcarEnviada(c.ref)), c.ref);
+      // Desde aquí el marcador es propio: las lecturas siguientes aceptan la «enviada» que acaba de escribir.
+      comprobarEntrada(await reclamar(c, ledger), c.ref);
       // Última lectura antes de IO, detecta pausa de otra instancia ya completada (no garantía distribuida).
       comprobarEntrada(await esperar(c, ledger.leer(c.ref.fotoId)), c.ref); vigente(c);
+      // Plazo finito del POST y de su acuse: al vencer se aborta; el ownership sigue hasta que asiente.
+      if (plazoMs !== undefined) plazo = setTimeout(() => { c.vencida = true; detener(c); }, plazoMs);
       const respuesta = await esperar(c, enviar(endpoint, { method: 'POST', body: cuerpo,
         headers: { Accept: 'application/json' }, credentials: 'same-origin', cache: 'no-store',
         redirect: 'error', signal: c.controlador.signal }), async (r) => {
         // Puertos inyectados pueden ignorar abort: liberar cuerpo tardío sin procesarlo como ACK.
         if (r instanceof Response) await r.body?.cancel().catch(() => {});
       });
+      const propia = respuesta instanceof Response && !respuesta.redirected
+        && (respuesta.url === '' ? httpInyectado : respuesta.url === endpoint);
+      if (propia && respuesta.status === 401) {
+        // Sesión no válida en el endpoint exacto: tipado para quien llama; si ya había salido, sigue incierto.
+        await esperar(c, respuesta.body?.cancel() ?? Promise.resolve());
+        throw new ErrorTransporteFotos('Sin sesión válida para el respaldo', c.marcadorIniciado ? 'incierta' : 'sin-envio', 'sin-sesion');
+      }
       if (!(respuesta instanceof Response) || ![200, 201].includes(respuesta.status)
         || respuesta.redirected || (respuesta.url === '' ? !httpInyectado : respuesta.url !== endpoint)
         || respuesta.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json'
@@ -209,6 +257,8 @@ export function crearTransporteFotos(opciones: OpcionesTransporteFotos): Transpo
         throw new Error('Respuesta HTTP no admisible como acuse');
       }
       const texto = await esperar(c, textoAcotado(respuesta, c));
+      // El acuse ya está leído: el plazo no corta la confirmación durable local.
+      if (plazo !== null) { clearTimeout(plazo); plazo = null; }
       const recibo = deserializarReciboRespaldo(plan, texto); vigente(c);
       // Política explícita: toda contradicción se rechaza SIN ACK; no bloquea otro job ni llama
       // confirmarRecibo con un payload contradictorio. Conserva enviada incierta y pruebas previas.
@@ -219,27 +269,35 @@ export function crearTransporteFotos(opciones: OpcionesTransporteFotos): Transpo
         || !reciboCorrespondeASolicitud(plan, solicitud(c.ref), confirmada.recibo)) throw new Error('Confirmación durable no corresponde');
       return confirmada;
     } catch (e) {
+      if (c.vencida && !cerrada) {
+        throw new ErrorTransporteFotos('Plazo de envío agotado; abortar no demuestra ausencia remota',
+          c.marcadorIniciado ? 'incierta' : 'sin-envio', 'plazo');
+      }
       if (e instanceof ErrorTransporteFotos) throw e;
       throw new ErrorTransporteFotos(e instanceof Error ? e.message : 'Fallo de transporte',
         c.marcadorIniciado ? 'incierta' : 'sin-envio');
-    } finally { if (activa === c) activa = null; }
+    } finally {
+      if (plazo !== null) clearTimeout(plazo);
+      if (activa === c) activa = null;
+    }
   }
-  function iniciar(valor: ReferenciaRespaldo, retry: boolean): Promise<EntradaRespaldo> {
+  function iniciar(valor: ReferenciaRespaldo, retry: boolean, condiciones?: unknown): Promise<EntradaRespaldo> {
     // Captura y exclusión ANTES del primer await; errores siempre devueltos como rechazo.
     try {
       abierta();
       if (activa) throw new ErrorTransporteFotos('Ya hay una carga activa en esta instancia', 'sin-envio');
       const ref = copiarReferenciaRespaldo(plan, valor);
+      const { soloPreparada } = copiarCondicionesEnvio(condiciones);
       if ([...pausasPendientes].some((pausa) => misma(pausa, ref))) {
         throw new ErrorTransporteFotos('Hay una intención de pausa pendiente', 'sin-envio');
       }
-      const c: Carga = { ref, controlador: new AbortController(), detenida: false, marcadorIniciado: false };
+      const c: Carga = { ref, soloPreparada, controlador: new AbortController(), detenida: false, marcadorIniciado: false };
       activa = c; return ejecutar(c, retry);
     } catch (e) { return Promise.reject(e); }
   }
   return {
     estimar(valor) { abierta(); return presupuesto(copiarReferenciaRespaldo(plan, valor)); },
-    subir: (ref) => iniciar(ref, false), reintentar: (ref) => iniciar(ref, true),
+    subir: (ref, condiciones) => iniciar(ref, false, condiciones), reintentar: (ref) => iniciar(ref, true),
     async pausar(valor) {
       abierta(); const ref = copiarReferenciaRespaldo(plan, valor);
       if (!ledger) throw new Error('Ledger no disponible');

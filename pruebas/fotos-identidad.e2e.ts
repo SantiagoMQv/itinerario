@@ -70,6 +70,11 @@ test('Chromium: commit/reopen, colisión B bajo UUID A, miniatura mutable y esqu
       const t = db.transaction(nombre).objectStore(nombre);
       esquemaFotos.estructuras.push({ keyPath: t.keyPath, autoIncrement: t.autoIncrement, indices: Array.from(t.indexNames) });
     }
+    // Guardadas con la biblioteca sin vía: ninguna marca de procedencia.
+    const marcas = await new Promise<number>((ok, no) => {
+      const n = db.transaction('procedencias').objectStore('procedencias').count();
+      n.onsuccess = () => ok(n.result); n.onerror = () => no(n.error);
+    });
     db.close();
     const progresoDespues = await avance.leer(); avance.cerrar();
     const esquemaProgreso = await new Promise<{ version: number; tablas: string[] }>((ok, no) => {
@@ -84,15 +89,15 @@ test('Chromium: commit/reopen, colisión B bajo UUID A, miniatura mutable y esqu
     try { await reabierta.guardarOriginal(captura); } catch { resurreccionRechazada = true; }
     reabierta.cerrar();
     return { misma, otra, rechazoB, rechazoA, intacto, derivada: derivada.tipo,
-      miniatura: derivada.metadatos.miniatura.tipo, esquemaFotos, esquemaProgreso,
+      miniatura: derivada.metadatos.miniatura.tipo, esquemaFotos, marcas, esquemaProgreso,
       progresoAntes, progresoDespues, cacheAntes, cacheDespues: await caches.keys(),
       prefAntes, prefDespues: localStorage.getItem('movil-que-marca'), borrada: borrada.tipo,
       originalBorrado, resurreccionRechazada };
   });
   expect(r).toMatchObject({ misma: 'misma', otra: 'otra', rechazoB: true, rechazoA: true, intacto: 'iguales',
     derivada: 'misma', miniatura: 'lista', borrada: 'borrada', originalBorrado: true, resurreccionRechazada: true,
-    esquemaFotos: { version: 1, tablas: ['metadatos', 'miniaturas', 'originales'],
-      estructuras: Array(3).fill({ keyPath: null, autoIncrement: false, indices: [] }) },
+    esquemaFotos: { version: 2, tablas: ['metadatos', 'miniaturas', 'originales', 'procedencias'],
+      estructuras: Array(4).fill({ keyPath: null, autoIncrement: false, indices: [] }) }, marcas: 0,
     esquemaProgreso: { version: 1, tablas: ['viajes'] } });
   expect(r.progresoDespues).toEqual(r.progresoAntes);
   expect(r.progresoDespues.formato).toBe(3);

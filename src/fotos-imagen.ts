@@ -124,8 +124,10 @@ function lienzoNativo(ancho: number, alto: number): LienzoMiniatura {
     png: () => new Promise((ok, no) => lienzo.toBlob((b) => b ? ok(b) : no(new Error('toBlob no produjo PNG')), 'image/png')),
     liberar: () => { lienzo.width = 0; lienzo.height = 0; } };
 }
-/** Instancia lazy: generar solo al abrir la sección, DESPUÉS de guardar el original.
- * Serializa decode y canvas, incluso tras error/noop/abort. No hay latch de promesa resuelta.
+/** Instancia lazy: generar solo al abrir la sección, DESPUÉS de guardar el original; o, para una foto compartida
+ * (fotos-remotas), con el original recibido en memoria y sin guardarlo: el PNG resultante es su vista temporal.
+ * Serializa decode y canvas, incluso tras error/noop/abort. No hay latch de promesa resuelta. Un abort no
+ * interrumpe un decode en curso: se comprueba al terminar y el resultado se descarta.
  * No crea ObjectURLs, elementos img, red ni IO durante importación. */
 export function crearMiniatura(opciones: OpcionesMiniatura = {}): MotorMiniatura {
   let cerrado = false;

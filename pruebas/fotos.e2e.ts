@@ -44,8 +44,8 @@ async function abrirApp(page: Page) {
   await page.goto('/');
   await expect(page.locator('#contenido')).not.toBeEmpty();
 }
-async function movilSinRed(browser: Browser) {
-  const contexto = await browser.newContext(opcionesMovil);
+async function movilSinRed(browser: Browser, extra: { viewport?: { width: number; height: number }; colorScheme?: 'light' | 'dark' } = {}) {
+  const contexto = await browser.newContext({ ...opcionesMovil, ...extra });
   await contexto.route(/^https?:\/\/(?!localhost)/, (r) => r.abort());
   await contexto.route((url) => url.pathname === '/api/progreso', (r) => r.abort());
   await instrumentar(contexto);
@@ -552,7 +552,7 @@ test.describe('fotos locales en la interfaz del viaje', () => {
     const base = await enBase(page);
     expect(base.filter((g) => !g.borrada).map((g) => [g.nombre, g.original])).toEqual([['b.png', Array.from(bytesB)]]);
 
-    // Control: en su mismo visor, el borrado cierra el visor y el foco va a «Añadir foto».
+    // Control: en su mismo visor, el borrado cierra el visor y el foco va a «Elegir de la galería».
     await armar(page, 'commit');
     await visor.locator('[data-visor-borrar]').click();
     await visor.locator('[data-visor-confirmar]').click();
@@ -727,4 +727,438 @@ test.describe('fotos locales en la interfaz del viaje', () => {
     expect(cuerpos.every((c) => !/fotoId|solo-aqui|data:|blob:|image\/png/.test(c))).toBe(true);
     expect(otras).toEqual([]);
   });
+});
+
+// «Tomar foto» y «Elegir de la galería»: el mismo selector de archivos, con la pista de cámara trasera solo en la
+// primera. Archivos sintéticos: no prueba una cámara, un carrete ni una galería físicos.
+const camara = (b: Locator) => b.locator('[data-fotos-camara]');
+const galeria = (b: Locator) => b.locator('[data-fotos-anadir]');
+const PIDE_CAMARA = { tipo: 'file', accept: 'image/*', multiple: false, capture: 'environment' as string | null, archivos: 0 };
+const PIDE_GALERIA = { ...PIDE_CAMARA, capture: null };
+/** Abre el selector desde un botón y anota lo que pedía el input al abrirse. */
+async function abrirDesde(page: Page, boton: Locator) {
+  const selector = page.waitForEvent('filechooser');
+  await boton.click();
+  const elegido = await selector;
+  const pedido = await elegido.element().evaluate((e) => {
+    const i = e as HTMLInputElement;
+    return { tipo: i.type, accept: i.accept, multiple: i.multiple, capture: i.getAttribute('capture'), archivos: i.files?.length ?? 0 };
+  });
+  return { elegido, pedido };
+}
+const nombreDelDestino = async (b: Locator) =>
+  /«(.+)»/.exec((await b.locator('[data-fotos-alternar] .sr').textContent()) ?? '')?.[1] ?? '';
+/** Lo que se ve y lo que se toca de las acciones, medido en el navegador (elementFromPoint), no supuesto. */
+const medirAcciones = (b: Locator) => b.locator('.fotos-acciones').evaluate((acciones) => {
+  acciones.scrollIntoView({ block: 'center' });
+  const botones = [...acciones.querySelectorAll('button')];
+  const rects = botones.map((e) => e.getBoundingClientRect());
+  const toca = (e: Element, x: number, y: number) => document.elementFromPoint(x, y)?.closest('button') === e;
+  // Zona al dedo: píxeles que, por el centro del botón, lo devuelven al tocar (con su zona ampliada).
+  const zona = (e: Element, r: DOMRect) => {
+    let alAlto = 0; let alAncho = 0;
+    for (let y = Math.floor(r.top) - 20; y < r.bottom + 20; y++) if (toca(e, r.left + r.width / 2, y + 0.5)) alAlto++;
+    for (let x = Math.floor(r.left) - 20; x < r.right + 20; x++) if (toca(e, x + 0.5, r.top + r.height / 2)) alAncho++;
+    return { alAlto, alAncho };
+  };
+  const dentro = (e: Element, r: DOMRect) => {
+    const rango = document.createRange(); rango.selectNodeContents(e);
+    const t = rango.getBoundingClientRect();
+    return t.left >= r.left && t.right <= r.right && t.top >= r.top && t.bottom <= r.bottom;
+  };
+  const cruzan = (a: DOMRect, c: DOMRect) => a.left < c.right && c.left < a.right && a.top < c.bottom && c.top < a.bottom;
+  return {
+    pagina: document.documentElement.scrollWidth,
+    contenedorDesborda: acciones.scrollWidth > acciones.clientWidth,
+    seSolapan: rects.length === 2 && cruzan(rects[0], rects[1]),
+    botones: botones.map((e, i) => ({ ...zona(e, rects[i]), textoDentro: dentro(e, rects[i]), izquierda: rects[i].left,
+      derecha: rects[i].right, letra: parseFloat(getComputedStyle(e).fontSize) })),
+  };
+});
+
+test.describe('fotos: tomar foto o elegir de la galería', () => {
+  test('cámara y galería: dos acciones con su destino y la pista de cámara solo en «Tomar foto»', async ({ browser }) => {
+    const { page, errores } = await movilSinRed(browser);
+    await abrirFicha(page);
+    const b = await abrirFotos(page, `p:${PARADA}`);
+    await expect(b.getByRole('button', { name: /^Tomar foto para «.+»$/ })).toBeVisible();
+    const nombre = await nombreDelDestino(b);
+    await expect(b.locator('.fotos-acciones button')).toHaveText(['Tomar foto', 'Elegir de la galería']);
+    await expect(camara(b)).toHaveAccessibleName(`Tomar foto para «${nombre}»`);
+    await expect(galeria(b)).toHaveAccessibleName(`Elegir de la galería una foto para «${nombre}»`);
+    // Alternando, la pista no se queda puesta en la galería ni falta al volver a la cámara.
+    for (const [boton, pide] of [[camara(b), PIDE_CAMARA], [galeria(b), PIDE_GALERIA], [camara(b), PIDE_CAMARA], [galeria(b), PIDE_GALERIA]] as const) {
+      const { elegido, pedido } = await abrirDesde(page, boton);
+      expect(pedido).toEqual(pide);
+      await elegido.setFiles([]);
+    }
+    await expect(page.locator('input[type="file"]')).toHaveCount(1);
+    await page.waitForTimeout(300);
+    expect(await enBase(page)).toEqual([]);
+    expect(errores).toEqual([]);
+  });
+
+  test('cámara y galería: cancelar la cámara no arrastra destino ni archivo; el mismo archivo otra vez es otra foto', async ({ browser }) => {
+    const { page, errores } = await movilSinRed(browser);
+    await abrirFicha(page);
+    const parada = await abrirFotos(page, `p:${PARADA}`);
+    await expect(camara(parada)).toBeVisible();
+    await page.locator('#contenido li.parada.abierta .sub-fila', { hasText: 'Pane' }).click();
+    const sub = await abrirFotos(page, `s:${PARADA}:${SUB}`);
+    const png = await imagen(page, 'image/png');
+    const archivo = { name: 'misma.png', mimeType: 'image/png', buffer: png };
+    // La cámara se abre desde la parada y se cancela; después, la galería desde Pane.
+    const cancelada = await abrirDesde(page, camara(parada));
+    expect(cancelada.pedido).toEqual(PIDE_CAMARA);
+    await cancelada.elegido.setFiles([]);
+    const desdeGaleria = await abrirDesde(page, galeria(sub));
+    expect(desdeGaleria.pedido).toEqual(PIDE_GALERIA);
+    await desdeGaleria.elegido.setFiles([archivo]);
+    await expect(sub.locator('[data-foto-id]')).toHaveCount(1);
+    await expect(parada.locator('[data-foto-id]')).toHaveCount(0);
+    // El mismo archivo otra vez, por cada camino: otra foto cada vez.
+    let n = 1;
+    for (const boton of [camara(sub), galeria(sub)]) {
+      const { elegido } = await abrirDesde(page, boton);
+      await elegido.setFiles([archivo]);
+      await expect(sub.locator('[data-foto-id]')).toHaveCount(++n);
+    }
+    await expect(parada.locator('[data-foto-id]')).toHaveCount(0);
+    const guardadas = await enBase(page);
+    expect(new Set(guardadas.map((g) => g.id)).size).toBe(3);
+    for (const g of guardadas) {
+      expect(g.destino).toEqual({ tipo: 'subparada', viajeId: itinerario.id, paradaId: PARADA, subparadaId: SUB });
+      expect(g.original).toEqual(Array.from(png));
+    }
+    expect(errores).toEqual([]);
+  });
+
+  test('cámara y galería: la foto de la cámara se guarda entera en su destino aunque cambie el día, sin respaldo solo', async ({ browser }) => {
+    const { page, errores } = await movilSinRed(browser);
+    const respaldos: string[] = [];
+    page.on('request', (r) => { if (new URL(r.url()).pathname.startsWith('/api/fotos')) respaldos.push(r.url()); });
+    await abrirFicha(page);
+    const b = await abrirFotos(page, `p:${PARADA}`);
+    await expect(camara(b)).toBeVisible();
+    const jpeg = await imagen(page, 'image/jpeg', 40, 30);
+    // Con la cámara abierta se cambia de día: la foto va a la parada desde la que se abrió.
+    const { elegido } = await abrirDesde(page, camara(b));
+    await page.locator('.pestana').nth(1).click();
+    await expect(page.locator('#contenido')).toContainText('Aeropuerto');
+    await elegido.setFiles([{ name: 'camara.jpg', mimeType: 'image/jpeg', buffer: jpeg }]);
+    await expect.poll(async () => (await enBase(page)).length).toBe(1);
+    const [guardada] = await enBase(page);
+    expect(guardada.destino).toEqual({ tipo: 'parada', viajeId: itinerario.id, paradaId: PARADA });
+    expect(guardada).toMatchObject({ nombre: 'camara.jpg', mime: 'image/jpeg', bytes: jpeg.length, original: Array.from(jpeg) });
+
+    // Se guardó sin estar a la vista: su vista previa se prepara al volver a abrir sus fotos.
+    await page.locator('#btn-ahora').click();
+    await abrirFicha(page);
+    const otra = await abrirFotos(page, `p:${PARADA}`);
+    await expect(otra.locator('[data-foto-id] img')).toHaveCount(1);
+    await expect.poll(async () => (await enBase(page)).map((g) => g.miniatura)).toEqual(['lista']);
+    // Al borrarla, el foco vuelve a una acción que sigue ahí.
+    await otra.locator('[data-foto-id]').click();
+    const visor = page.locator('#visor-foto');
+    await expect(visor).toBeVisible();
+    await visor.locator('[data-visor-borrar]').click();
+    await visor.locator('[data-visor-confirmar]').click();
+    await expect(visor).toBeHidden();
+    await expect(galeria(otra)).toBeFocused();
+    await expect(camara(otra)).toBeVisible();
+    expect(respaldos).toEqual([]);
+    expect(errores).toEqual([]);
+  });
+
+  for (const [ancho, alto] of [[390, 844], [360, 640]] as const) {
+    for (const tema of ['claro', 'oscuro'] as const) {
+      test(`cámara y galería: ${ancho}×${alto} ${tema === 'claro' ? 'de día' : 'de noche'}, legibles, sin solaparse, 44 px al dedo y foco visible`, async ({ browser }) => {
+        const { page, errores } = await movilSinRed(browser, { viewport: { width: ancho, height: alto }, colorScheme: tema === 'oscuro' ? 'dark' : 'light' });
+        await expect(page.locator('html')).toHaveAttribute('data-tema', tema);
+        await abrirFicha(page);
+        const parada = await abrirFotos(page, `p:${PARADA}`);
+        await expect(camara(parada)).toBeVisible();
+        await page.locator('#contenido li.parada.abierta .sub-fila', { hasText: 'Pane' }).click();
+        const sub = await abrirFotos(page, `s:${PARADA}:${SUB}`);
+        for (const b of [sub, parada]) {
+          const nombre = await nombreDelDestino(b);
+          await expect(camara(b)).toHaveAccessibleName(`Tomar foto para «${nombre}»`);
+          await expect(galeria(b)).toHaveAccessibleName(`Elegir de la galería una foto para «${nombre}»`);
+          const m = await medirAcciones(b);
+          expect(m.botones).toHaveLength(2);
+          expect(m.pagina, 'sin desplazamiento horizontal').toBeLessThanOrEqual(ancho);
+          expect(m.contenedorDesborda).toBe(false);
+          expect(m.seSolapan).toBe(false);
+          for (const boton of m.botones) {
+            expect(boton.textoDentro).toBe(true);
+            expect(boton.letra).toBeGreaterThanOrEqual(14);
+            expect(boton.izquierda).toBeGreaterThanOrEqual(0);
+            expect(boton.derecha).toBeLessThanOrEqual(ancho);
+            expect(boton.alAlto, 'zona al dedo, en alto').toBeGreaterThanOrEqual(44);
+            expect(boton.alAncho, 'zona al dedo, en ancho').toBeGreaterThanOrEqual(44);
+          }
+        }
+        // Con teclado, desde «Fotos» de la parada: Tab llega a «Tomar foto» y después a «Elegir de la galería».
+        await parada.locator('[data-fotos-alternar]').focus();
+        for (const [i, boton] of [camara(parada), galeria(parada)].entries()) {
+          await page.keyboard.press('Tab');
+          await expect(boton).toBeFocused();
+          // Chromium calcula 2 px para los 2,5 px declarados: se exige un contorno sólido de 2 px o más y con color.
+          expect(await boton.evaluate((e) => {
+            const s = getComputedStyle(e);
+            return { visible: e.matches(':focus-visible'), estilo: s.outlineStyle, grueso: parseFloat(s.outlineWidth) >= 2,
+              transparente: s.outlineColor === 'rgba(0, 0, 0, 0)' };
+          })).toEqual({ visible: true, estilo: 'solid', grueso: true, transparente: false });
+          if (i === 0) {
+            await boton.evaluate((e) => e.scrollIntoView({ block: 'center' }));
+            await page.screenshot({ path: test.info().outputPath(`camara-${ancho}x${alto}-${tema}.png`) });
+          }
+        }
+        expect(errores).toEqual([]);
+      });
+    }
+  }
+});
+
+// Con la hoja alta, las píldoras del pie («Mapa», «Hotel») flotan sobre la lista. Se mide la pose a la que se llega
+// con los pasos normales (abrir, Tab y Shift+Tab, desplazar solo si no se ve), sin recentrar nada para medir.
+/** Fuentes cargadas, hoja alta asentada en el propio body y tres fotogramas seguidos con la misma geometría. */
+async function hojaAsentada(page: Page) {
+  await page.evaluate(() => document.fonts.ready.then(() => undefined));
+  await expect(page.locator('body')).toHaveAttribute('data-hoja', 'alta');
+  // waitForFunction no espera promesas: el predicado es síncrono y se evalúa en cada fotograma.
+  await page.evaluate(() => { Object.assign(window, { __geometria: '', __iguales: 0 }); });
+  await page.waitForFunction(() => {
+    const w = window as unknown as { __geometria: string; __iguales: number };
+    const p = document.getElementById('panel')!.getBoundingClientRect();
+    const c = document.getElementById('contenido')!;
+    const q = document.getElementById('pildoras')!.getBoundingClientRect();
+    const foto = [p.top, p.height, c.scrollTop, c.clientHeight, q.top, q.height].join('|');
+    w.__iguales = foto === w.__geometria ? w.__iguales + 1 : 0;
+    w.__geometria = foto;
+    return w.__iguales >= 2;
+  });
+}
+/** Hit-testing nativo: quién recibe el toque en los 44×44 centrales de cada acción y sobre su texto. */
+const medirOclusion = (b: Locator) => b.evaluate((bloque) => {
+  const quien = (h: Element | null) => (h ? h.closest('[id]')?.id || h.tagName.toLowerCase() : 'fuera de la pantalla');
+  const medir = (e: Element) => {
+    const r = e.getBoundingClientRect();
+    const x = r.x + r.width / 2; const y = r.y + r.height / 2;
+    const tapan = new Set<string>();
+    let grilla = 0;
+    for (let i = 0; i < 44; i++) for (let j = 0; j < 44; j++) {
+      const h = document.elementFromPoint(x - 21.5 + i, y - 21.5 + j);
+      if (h && (h === e || e.contains(h))) grilla++; else tapan.add(quien(h));
+    }
+    let puntos = 0; let aciertos = 0;
+    const textos = document.createTreeWalker(e, NodeFilter.SHOW_TEXT);
+    for (let t = textos.nextNode(); t; t = textos.nextNode()) {
+      if (!t.textContent?.trim()) continue;
+      const rango = document.createRange(); rango.selectNodeContents(t);
+      for (const c of rango.getClientRects()) for (let px = c.left + 2; px <= c.right - 2; px += 4) {
+        puntos++;
+        const h = document.elementFromPoint(px, c.top + c.height / 2);
+        if (h && (h === e || e.contains(h))) aciertos++; else tapan.add(quien(h));
+      }
+    }
+    return { y: r.y, alto: r.height, grilla, texto: { puntos, aciertos }, tapan: [...tapan].sort(),
+      dentro: r.left >= 0 && r.top >= 0 && r.right <= innerWidth && r.bottom <= innerHeight };
+  };
+  return { desplazamiento: document.getElementById('contenido')!.scrollTop,
+    camara: medir(bloque.querySelector('[data-fotos-camara]')!), galeria: medir(bloque.querySelector('[data-fotos-anadir]')!) };
+});
+/**
+ * El contorno de foco se pinta a 2 px del botón, pero no es zona de toque: a 3 px puede quedar fuera de la zona
+ * ampliada del botón. Ahí vale el propio botón, algo suyo o un antepasado de verdad (en cuyo papel se pinta el
+ * contorno); un hermano, una píldora o lo que esté encima lo tapa.
+ */
+const medirFoco = (boton: Locator) => boton.evaluate((e) => {
+  const quien = (h: Element | null) => (h ? h.closest('[id]')?.id || h.tagName.toLowerCase() : 'fuera de la pantalla');
+  const r = e.getBoundingClientRect(); const s = getComputedStyle(e);
+  const puntos: [number, number][] = [];
+  for (let x = r.left + 4; x <= r.right - 4; x += 6) puntos.push([x, r.top - 3], [x, r.bottom + 3]);
+  for (let y = r.top + 4; y <= r.bottom - 4; y += 6) puntos.push([r.left - 3, y], [r.right + 3, y]);
+  const tapan = new Set<string>();
+  let tapados = 0;
+  for (const [x, y] of puntos) {
+    const h = document.elementFromPoint(x, y);
+    if (!(h && (h === e || e.contains(h) || h.contains(e)))) { tapados++; tapan.add(quien(h)); }
+  }
+  return { enfocado: document.activeElement === e, visible: e.matches(':focus-visible'), estilo: s.outlineStyle,
+    grueso: parseFloat(s.outlineWidth) >= 2, transparente: s.outlineColor === 'transparent' || /^rgba\(.*,\s*0\)$/.test(s.outlineColor),
+    anillo: puntos.length, tapados, tapan: [...tapan].sort() };
+});
+
+test.describe('fotos: acciones con la hoja alta y las píldoras del pie', () => {
+  for (const [ancho, alto] of [[360, 640], [390, 844]] as const) {
+    for (const tema of ['claro', 'oscuro'] as const) {
+      test(`oclusión de acciones bajo píldoras: Pane a ${ancho}×${alto} ${tema === 'claro' ? 'de día' : 'de noche'}, cámara y galería a la vista, 44 px al dedo y foco sin tapar`, async ({ browser }) => {
+        const { page, errores } = await movilSinRed(browser, { viewport: { width: ancho, height: alto }, colorScheme: tema === 'oscuro' ? 'dark' : 'light' });
+        await abrirFicha(page);
+        await hojaAsentada(page);
+        await page.locator('#contenido li.parada.abierta .sub-fila', { hasText: 'Pane' }).click();
+        const sub = bloque(page, `s:${PARADA}:${SUB}`);
+        const alternar = sub.locator('[data-fotos-alternar]');
+        await alternar.scrollIntoViewIfNeeded();
+        await alternar.click();
+        await expect(alternar).toHaveAttribute('aria-expanded', 'true');
+        await expect(camara(sub)).toBeVisible();
+        await expect(galeria(sub)).toBeVisible();
+        await camara(sub).focus();
+        await page.keyboard.press('Tab');
+        await page.keyboard.press('Shift+Tab');
+        await galeria(sub).scrollIntoViewIfNeeded();
+        await hojaAsentada(page);
+        // La captura va antes de cualquier comprobación: es la evidencia de la pose medida.
+        await page.screenshot({ path: test.info().outputPath(`pildoras-subparada-${ancho}x${alto}-${tema}.png`) });
+
+        const pose = await medirOclusion(sub);
+        const focoCamara = await medirFoco(camara(sub));
+        await page.keyboard.press('Tab');
+        await hojaAsentada(page);
+        const focoGaleria = await medirFoco(galeria(sub));
+        const alEnfocarGaleria = (await medirOclusion(sub)).desplazamiento - pose.desplazamiento;
+        // Aparte, y sin contarlo como acierto: si desplazar más a mano dejaría la galería libre.
+        const recuperacion: Record<string, { grilla: number; tapan: string[] }> = {};
+        for (const [paso, cuanto] of [['120 px más', 120], ['hasta el final', -1]] as const) {
+          await page.locator('#contenido').evaluate((c, d) => { if (d < 0) c.scrollTop = c.scrollHeight; else c.scrollBy(0, d); }, cuanto);
+          const { galeria: g } = await medirOclusion(sub);
+          recuperacion[paso] = { grilla: g.grilla, tapan: g.tapan };
+        }
+        const medidas = { caso: `${ancho}x${alto}-${tema}`, pose, focoCamara, focoGaleria, alEnfocarGaleria, recuperacion };
+        const { mkdir, writeFile } = await import('node:fs/promises');
+        await mkdir(test.info().outputDir, { recursive: true });
+        await writeFile(test.info().outputPath(`medidas-${ancho}x${alto}-${tema}.json`), JSON.stringify(medidas, null, 2));
+        test.info().annotations.push({ type: 'recuperación con más desplazamiento (no cuenta como acierto)', description: JSON.stringify(recuperacion) });
+
+        for (const nombre of ['camara', 'galeria'] as const) {
+          const m = pose[nombre];
+          expect(m.grilla, `${nombre}: los 44×44 centrales al dedo (lo tapan: ${m.tapan.join(', ') || 'nada'})`).toBe(1936);
+          expect(m.texto.puntos).toBeGreaterThan(0);
+          expect(m.texto.aciertos, `${nombre}: su texto se ve entero`).toBe(m.texto.puntos);
+          expect(m.dentro, `${nombre}: dentro de la pantalla`).toBe(true);
+        }
+        for (const [nombre, foco] of [['camara', focoCamara], ['galeria', focoGaleria]] as const) {
+          expect(foco.transparente, `${nombre}: el contorno de foco tiene color`).toBe(false);
+          expect(foco, `${nombre}: foco visible y sin tapar (lo tapan: ${foco.tapan.join(', ') || 'nada'})`)
+            .toMatchObject({ enfocado: true, visible: true, estilo: 'solid', grueso: true, tapados: 0 });
+        }
+        expect(errores).toEqual([]);
+      });
+    }
+  }
+});
+
+/** Las píldoras del pie que se ven, en cuántas filas, si --alto-pildoras es su alto real y si la lista acaba encima. */
+const pildorasDelPie = (page: Page) => page.evaluate(() => {
+  const q = document.getElementById('pildoras')!;
+  const botones = [...q.querySelectorAll<HTMLElement>(':scope > button')].filter((b) => b.getClientRects().length > 0);
+  const caja = q.getBoundingClientRect();
+  const lista = document.getElementById('contenido')!.getBoundingClientRect();
+  return { visibles: botones.map((b) => b.id), filas: new Set(botones.map((b) => Math.round(b.getBoundingClientRect().top))).size,
+    cuadra: getComputedStyle(document.documentElement).getPropertyValue('--alto-pildoras').trim() === `${Math.ceil(caja.height)}px`,
+    aire: caja.top - lista.bottom >= 7.5 };
+});
+
+test.describe('fotos: la lista y las píldoras del pie con la hoja alta', () => {
+  test('píldoras y foco: con teclado, lo enfocado en la lista queda entero por encima de las píldoras (360×640 de noche)', async ({ browser }) => {
+    const { page, errores } = await movilSinRed(browser, { viewport: { width: 360, height: 640 }, colorScheme: 'dark' });
+    await abrirFicha(page);
+    await hojaAsentada(page);
+    await page.locator('#contenido li.parada.abierta .fila').focus();
+    const pasos: { quien: string; dentro: boolean; cruza: boolean; tapado: boolean }[] = [];
+    for (let i = 0; i < 16; i++) {
+      await page.keyboard.press('Tab');
+      await hojaAsentada(page);
+      const paso = await page.evaluate(() => {
+        const e = document.activeElement as HTMLElement | null;
+        const c = document.getElementById('contenido')!;
+        if (!e || !c.contains(e)) return null;
+        const r = e.getBoundingClientRect(); const cr = c.getBoundingClientRect();
+        const pildoras = [...document.querySelectorAll<HTMLElement>('#pildoras > button')].filter((b) => b.getClientRects().length > 0)
+          .map((b) => b.getBoundingClientRect());
+        const h = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+        return { quien: (e.getAttribute('aria-label') ?? e.textContent ?? e.tagName).trim().slice(0, 40),
+          dentro: r.top >= cr.top - 0.5 && r.bottom <= cr.bottom + 0.5,
+          cruza: pildoras.some((p) => r.left < p.right && p.left < r.right && r.top < p.bottom && p.top < r.bottom),
+          tapado: !!h?.closest('#pildoras') };
+      });
+      if (paso) pasos.push(paso);
+    }
+    expect(pasos.length).toBeGreaterThanOrEqual(10);
+    for (const p of pasos) expect(p, p.quien).toMatchObject({ dentro: true, cruza: false, tapado: false });
+    expect(errores).toEqual([]);
+  });
+
+  test('píldoras y foco: sin conexión pasan a dos filas, la lista sigue acabando encima y con conexión vuelven a una (360×640)', async ({ browser }) => {
+    const { contexto, page, errores } = await movilSinRed(browser, { viewport: { width: 360, height: 640 } });
+    await abrirFicha(page);
+    await hojaAsentada(page);
+    await expect.poll(() => pildorasDelPie(page)).toMatchObject({ filas: 1, cuadra: true, aire: true });
+
+    // Sin conexión de verdad (no un estado fabricado): aparece la píldora de la conexión y no cabe en la fila.
+    await contexto.setOffline(true);
+    await expect(page.locator('#red')).toContainText('Sin conexión');
+    await expect.poll(() => pildorasDelPie(page)).toMatchObject({ visibles: ['btn-mapa', 'btn-hotel', 'red'], filas: 2, cuadra: true, aire: true });
+    await hojaAsentada(page);
+    await page.locator('#contenido li.parada.abierta .sub-fila', { hasText: 'Pane' }).click();
+    const sub = bloque(page, `s:${PARADA}:${SUB}`);
+    const alternar = sub.locator('[data-fotos-alternar]');
+    await alternar.scrollIntoViewIfNeeded();
+    await alternar.click();
+    await expect(alternar).toHaveAttribute('aria-expanded', 'true');
+    await camara(sub).focus();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
+    await galeria(sub).scrollIntoViewIfNeeded();
+    await hojaAsentada(page);
+    await page.screenshot({ path: test.info().outputPath('pildoras-dos-filas-360x640-claro.png') });
+    const pose = await medirOclusion(sub);
+    const foco = await medirFoco(camara(sub));
+    for (const nombre of ['camara', 'galeria'] as const) {
+      expect(pose[nombre].grilla, `${nombre}: los 44×44 centrales al dedo (lo tapan: ${pose[nombre].tapan.join(', ') || 'nada'})`).toBe(1936);
+      expect(pose[nombre].texto.aciertos, `${nombre}: su texto se ve entero`).toBe(pose[nombre].texto.puntos);
+    }
+    expect(foco, `cámara: foco visible y sin tapar (lo tapan: ${foco.tapan.join(', ') || 'nada'})`)
+      .toMatchObject({ enfocado: true, visible: true, estilo: 'solid', grueso: true, transparente: false, tapados: 0 });
+
+    await contexto.setOffline(false);
+    await expect(page.locator('#red')).toBeHidden();
+    await expect.poll(() => pildorasDelPie(page)).toMatchObject({ visibles: ['btn-mapa', 'btn-hotel'], filas: 1, cuadra: true, aire: true });
+    expect(errores).toEqual([]);
+  });
+});
+
+// Ciclo de vida en la app de verdad (main.ts): plegar la ficha, plegar un sitio de dentro o abrir otra ficha del mismo
+// día cierra su «Fotos» de verdad (y, con la composición del respaldo, sus compartidas). Aquí, la web publicada: lo
+// observable son el bloque plegado y las URLs de sus vistas previas soltadas; las fotos siguen en este móvil.
+test.describe('fotos: plegar la ficha cierra su «Fotos»', () => {
+  const urlsVivas = (page: Page) => page.evaluate(() => (window as unknown as { __urlsVivas: () => number }).__urlsVivas());
+  for (const caso of ['parada', 'sitio', 'otra ficha'] as const) {
+    test(`plegar · ${caso}: el bloque se pliega, suelta sus vistas previas y la foto sigue en este móvil`, async ({ browser }) => {
+      const { contexto, page, errores } = await movilSinRed(browser);
+      try {
+        const ficha = await abrirFicha(page);
+        if (caso === 'sitio') await ficha.locator('.sub-fila', { hasText: 'Pane' }).click();
+        const clave = caso === 'sitio' ? `s:${PARADA}:${SUB}` : `p:${PARADA}`;
+        const b = await abrirFotos(page, clave);
+        await anadir(page, b, { name: 'plegar.png', mimeType: 'image/png', buffer: await imagen(page, 'image/png') });
+        await expect(b.locator('[data-foto-id] img')).toHaveCount(1);
+        expect(await urlsVivas(page)).toBe(1);
+        if (caso === 'parada') await ficha.locator('.fila').click();
+        else if (caso === 'sitio') await ficha.locator('.sub-fila', { hasText: 'Pane' }).click();
+        else await page.locator('#contenido li.parada:not(.origen) .fila').filter({ hasNotText: 'TX Huaihai' }).first().click();
+        await expect(b.locator('[data-fotos-alternar]')).toHaveAttribute('aria-expanded', 'false');
+        await expect(b.locator('.fotos-panel')).toBeHidden();
+        await expect.poll(() => urlsVivas(page)).toBe(0);
+        // Nada se borró: sigue en este móvil y se ve al volver a abrir.
+        expect(await enBase(page)).toHaveLength(1);
+        await expect(b.locator('.fotos-cuenta')).toHaveText(/·\s*1/);
+        expect(errores).toEqual([]);
+      } finally {
+        await contexto.close();
+      }
+    });
+  }
 });

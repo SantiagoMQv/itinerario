@@ -40,6 +40,40 @@ function barrera() {
 }
 afterEach(() => { vi.useRealTimers(); vi.restoreAllMocks(); });
 
+describe('Consulta de destino autenticada y aditiva', () => {
+  const destino = { tipo: 'parada', viajeId: plan.id, paradaId: plan.dias[0].paradas[0].id };
+  const consulta = '?destino=' + encodeURIComponent(JSON.stringify(destino));
+  it('destino válido devuelve envelope exacto y autentica de nuevo', async () => {
+    const f = preparar(); const r = await f.api.atender(solicitar(consulta));
+    expect(r.status).toBe(200);
+    expect(await r.json()).toEqual({ version: 1, tipo: 'listado-respaldos-destino', viajeId: plan.id,
+      destino, solicitudesIniciales: [], continuacion: null });
+    expect(f.autenticar).toHaveBeenCalledTimes(2);
+    expect(f.ejecutar.mock.calls[0][0]).toBe('SELECT itinerario.listar_fotos_confirmadas_destino($1, $2, $3, $4, $5, $6, $7, $8) AS resultado');
+    expect(f.ejecutar.mock.calls[0][1][7]).toBe(JSON.stringify(destino));
+  });
+  it.each([consulta + '&otro=1', consulta + '&destino=x', '?destino={}',
+    '?destino=' + encodeURIComponent(JSON.stringify({ ...destino, viajeId: 'otro' })),
+    '?destino=' + encodeURIComponent(JSON.stringify({ ...destino, tipo: 'subparada', subparadaId: 'inexistente' })),
+    consulta + '&continuacion=' + encodeURIComponent(continuacion),
+    '?destino=' + encodeURIComponent(JSON.stringify(destino) + ' '),
+    '?destino=' + encodeURIComponent(JSON.stringify(destino).replace('"tipo"', '"tipo":"parada","tipo"')),
+  ])('rechaza mezcla, extras, destino ajeno o no canónico: %s', async (q) => {
+    const f = preparar(); await privada(await f.api.atender(solicitar(q)), 400);
+    expect(f.ejecutar).not.toHaveBeenCalled();
+  });
+  it('sesión inválida antecede incluso destino mal formado', async () => {
+    const f = preparar(); f.autenticar.mockResolvedValue(null);
+    await privada(await f.api.atender(solicitar('?destino=%FF')), 401);
+    expect(f.ejecutar).not.toHaveBeenCalled();
+  });
+  it('destino válido no publica después de revocación fresca', async () => {
+    const f = preparar(); f.autenticar.mockResolvedValueOnce({ ...sesion }).mockResolvedValueOnce(null);
+    await privada(await f.api.atender(solicitar(consulta)), 401);
+    expect(f.ejecutar).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('Listado HTTP privado, frontera con E1 cerrado', () => {
   it('fábrica y enlace congelados sin auth, SQL, hashing ni azar', () => {
     const azar = vi.spyOn(crypto, 'getRandomValues'); const digest = vi.spyOn(crypto.subtle, 'digest');

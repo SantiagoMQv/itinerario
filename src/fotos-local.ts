@@ -4,6 +4,7 @@ import { camposFoto, copiarMetadatos, esFotoBorrada, esIdFoto, esEstadoMiniatura
 
 import { capturarBasePortable, codificarJsonFiel, copiarLimitesPortables, copiarPlanPortable, validarBasePortable, type BasePortable, type LimitesPortables, type PuertoAperturaPortable } from './portabilidad';
 import { compararOriginalesFoto, comprobarIdentidadFoto, mismosMetadatosOriginal } from './fotos-identidad';
+import { copiarOriginalRespaldo, mismosOriginalesRespaldo, type OriginalRespaldo } from './fotos-respaldo';
 
 export interface ObservacionRestauracionFoto {
   readonly fotoId: string;
@@ -111,14 +112,17 @@ export function crearRestauradorFotosPortable(planEntrada: Itinerario, limitesEn
       const terminar = (transaccion: ResultadoRestauracionFotos['transaccion']) => {
         if (terminada) return; terminada = true; db.close(); ok({ transaccion, conflicto });
       };
-      try { tx = db.transaction(tablas, 'readwrite'); comprobarEsquemaFotos(db, tx); }
+      // En v2 la TX también mira «procedencias»: una importada nunca hereda una marca huérfana.
+      const conMarcas = db.objectStoreNames.contains(PROCEDENCIAS);
+      try { tx = db.transaction(conMarcas ? almacenes : tablas, 'readwrite'); comprobarEsquemaFotos(db, tx); }
       catch { terminar('incierta'); return; }
       db.onversionchange = () => { db.close(); };
       db.onclose = () => terminar('incierta');
       tx.oncomplete = () => terminar('confirmada');
       tx.onabort = () => terminar('abortada');
       const fresco: BasePortable = { presente: true, tablas: Object.fromEntries(tablas.map((t) => [t, []])) };
-      let pendientes = tablas.length; let registrosFrescos = 0; let bytesFrescos = 0;
+      const marcas = new Set<IDBValidKey>();
+      let pendientes = tablas.length + (conMarcas ? 1 : 0); let registrosFrescos = 0; let bytesFrescos = 0;
       const abortar = (esConflicto = true) => { conflicto ||= esConflicto; try { tx.abort(); } catch { terminar('incierta'); } };
       function aplicar() {
         let escribiendo = false;
@@ -139,6 +143,8 @@ export function crearRestauradorFotosPortable(planEntrada: Itinerario, limitesEn
             }
           }
           const nuevas = new Set(esperada.tablas.metadatos.filter((r) => !previos.has(r.clave)).map((r) => r.clave));
+          // Marca sin foto (corrupción): no se adopta para una importada; aborta como conflicto.
+          if ([...nuevas].some((id) => marcas.has(id))) throw new Error('Marca de procedencia huérfana');
           preparar({ presente: true, tablas: Object.fromEntries(tablas.map((tabla) => [tabla,
             [...fresco.tablas[tabla], ...esperada.tablas[tabla].filter((r) => nuevas.has(r.clave))]])) });
           escribiendo = true;
@@ -152,6 +158,15 @@ export function crearRestauradorFotosPortable(planEntrada: Itinerario, limitesEn
             }
           }
         } catch { abortar(!escribiendo); }
+      }
+      if (conMarcas) {
+        // Solo claves: la importación no lee, copia ni crea marcas.
+        const req = tx.objectStore(PROCEDENCIAS).openKeyCursor();
+        req.onsuccess = () => {
+          const cursor = req.result;
+          if (!cursor) { if (--pendientes === 0) aplicar(); return; }
+          marcas.add(cursor.primaryKey); cursor.continue();
+        };
       }
       for (const tabla of tablas) {
         const req = tx.objectStore(tabla).openCursor();
@@ -215,6 +230,9 @@ export function crearRestauradorFotosPortable(planEntrada: Itinerario, limitesEn
 }
 
 export interface OpcionesFotosLocal { readonly fabrica?: IDBFactory | null; readonly nombre?: string }
+/** Vía de entrada positiva y durable: la foto se añadió en ESTE móvil con la cámara o la galería de la app.
+ * Dice cómo entró, no quién la hizo ni con qué dispositivo. */
+export type ViaProcedencia = 'camara-galeria';
 export interface FotosLocal {
   /** Cursor exclusivo de metadata; excluye tombstones y falla visiblemente ante desconocidos. */
   listar(): Promise<MetadatosFoto[]>;
@@ -222,8 +240,15 @@ export interface FotosLocal {
   leerOriginal(fotoId: string): Promise<Blob | null>;
   leerMiniatura(fotoId: string): Promise<Blob | null>;
   /** Confirmación local al terminar TX, nunca acuse remoto. Colisión siempre es error:
-   * aun tras respuesta perdida, no regenerar ID ni afirmar idempotencia sin comprobar identidad. */
-  guardarOriginal(captura: CapturaFoto): Promise<ResultadoFoto>;
+   * aun tras respuesta perdida, no regenerar ID ni afirmar idempotencia sin comprobar identidad.
+   * `via` SOLO la pasa la interfaz al guardar lo elegido con la cámara o la galería: escribe la marca de procedencia
+   * en la MISMA transacción que la metadata y el original. Sin `via` (descargas, importaciones, llamadores antiguos)
+   * nunca hay marca. Una marca huérfana previa con ese ID se rechaza, no se adopta. */
+  guardarOriginal(captura: CapturaFoto, via?: ViaProcedencia): Promise<ResultadoFoto>;
+  /** Procedencia positiva de una foto VIVA, leída junto a su metadata y ligada a su identidad ORIGINAL (no a su
+   * miniatura). null: sin marca, marca mal formada o de otra identidad, foto borrada o ausente. Nunca se infiere ni
+   * se repara. Opcional: un puerto que no la ofrece nunca hace elegible nada. */
+  leerProcedencia?(fotoId: string): Promise<ViaProcedencia | null>;
   guardarMiniatura(fotoId: string, blob: Blob, ancho: number, alto: number): Promise<ResultadoFoto>;
   /** Si también falla esta escritura, el motivo solo existe en la sesión; lo durable sigue
    * pendiente. No prometer recuperar el File al cerrar la visita si guardarOriginal falló. */
@@ -233,15 +258,38 @@ export interface FotosLocal {
   /** Libera conexión. No cancela las transacciones que ya comenzaron. */
   cerrar(): void;
 }
+/** Las TRES tablas portables (formato de exportación, intacto). */
 const tablas = ['metadatos', 'originales', 'miniaturas'];
+/** Cuarto almacén físico de la v2: marcas de procedencia positiva, clave fotoId. Nunca se exporta. */
+const PROCEDENCIAS = 'procedencias';
+const almacenes = [...tablas, PROCEDENCIAS];
+const VERSION_FOTOS = 2;
+function estructuraSimple(t: IDBObjectStore): boolean {
+  return t.keyPath === null && !t.autoIncrement && t.indexNames.length === 0;
+}
+/** Layout exacto aceptado: v1 (tres almacenes) o v2 (los tres más «procedencias»). Comprueba la estructura de los
+ * almacenes que cubre la transacción: la exportación usa solo las tres tablas y no exige «procedencias» en ella. */
 function comprobarEsquemaFotos(db: IDBDatabase, tx?: IDBTransaction): void {
-  if (db.version !== 1 || db.objectStoreNames.length !== tablas.length
-    || tablas.some((t) => !db.objectStoreNames.contains(t))) throw new Error('Esquema de fotos no soportado');
-  const transaccion = tx ?? db.transaction(tablas);
-  for (const nombre of tablas) {
-    const t = transaccion.objectStore(nombre);
-    if (t.keyPath !== null || t.autoIncrement || t.indexNames.length) throw new Error('Esquema de fotos no soportado');
+  const v1 = db.version === 1 && db.objectStoreNames.length === tablas.length
+    && tablas.every((t) => db.objectStoreNames.contains(t));
+  const v2 = db.version === VERSION_FOTOS && db.objectStoreNames.length === almacenes.length
+    && almacenes.every((t) => db.objectStoreNames.contains(t));
+  if (!v1 && !v2) throw new Error('Esquema de fotos no soportado');
+  const transaccion = tx ?? db.transaction(v2 ? almacenes : tablas);
+  for (const nombre of Array.from(transaccion.objectStoreNames)) {
+    if (!estructuraSimple(transaccion.objectStore(nombre))) throw new Error('Esquema de fotos no soportado');
   }
+}
+interface MarcaProcedencia { readonly version: 1; readonly via: ViaProcedencia; readonly original: OriginalRespaldo }
+/** La marca solo lleva la vía y la identidad ORIGINAL (sin bytes, dispositivo, autor, operación ni acuse). */
+function crearMarca(plan: Itinerario, m: MetadatosFoto, via: ViaProcedencia): MarcaProcedencia {
+  return { version: 1, via, original: copiarOriginalRespaldo(plan, m) };
+}
+function marcaDe(plan: Itinerario, valor: unknown, m: MetadatosFoto): ViaProcedencia | null {
+  try {
+    if (!camposFoto(valor, ['version', 'via', 'original']) || valor.version !== 1 || valor.via !== 'camara-galeria') return null;
+    return mismosOriginalesRespaldo(plan, valor.original, copiarOriginalRespaldo(plan, m)) ? 'camara-galeria' : null;
+  } catch { return null; }
 }
 function validarRelacionFoto(m: MetadatosFoto | FotoBorrada | null, original: unknown, miniatura: unknown): void {
   const viva = m && !esFotoBorrada(m) ? m : null;
@@ -288,27 +336,45 @@ export async function capturarFotosLocal(planEntrada: Itinerario, limites: Limit
   return capturarBasePortable(fabrica, nombre, tablas, limites, comprobarEsquemaFotos,
     (base) => validarFotosPortables(plan, base));
 }
+/** Abre la PhotoDB en v2. Desde v1 SOLO si su esquema es exactamente el de v1: crea «procedencias» vacía sin leer
+ * ni reescribir filas, originales, miniaturas ni tombstones. Cualquier otro esquema o una versión futura se
+ * rechazan sin reset, renombre ni downgrade (la actualización se aborta y la base queda como estaba). Si el llamador
+ * ya recibió «bloqueada», un onupgradeneeded tardío ABORTA la actualización: nada migra a sus espaldas. */
 function abrirBase(fabrica: PuertoAperturaPortable, nombre: string): Promise<IDBDatabase> {
   return new Promise((ok, no) => {
     let terminada = false;
-    const s = fabrica.open(nombre, 1);
+    let errorEsquema: unknown = null;
+    const s = fabrica.open(nombre, VERSION_FOTOS);
     s.onupgradeneeded = (e) => {
-      if (e.oldVersion === 0) tablas.forEach((t) => s.result.createObjectStore(t));
+      const actualizacion = s.transaction;
+      if (terminada) { actualizacion?.abort(); return; }
+      try {
+        const db = s.result;
+        if (e.oldVersion === 0) { almacenes.forEach((t) => db.createObjectStore(t)); return; }
+        if (e.oldVersion !== 1 || !actualizacion || db.objectStoreNames.length !== tablas.length
+          || tablas.some((t) => !db.objectStoreNames.contains(t))
+          || tablas.some((t) => !estructuraSimple(actualizacion.objectStore(t)))) throw new Error('Esquema de fotos no soportado');
+        db.createObjectStore(PROCEDENCIAS);
+      } catch (error) {
+        errorEsquema = error;
+        try { actualizacion?.abort(); } catch { /* ya abortada */ }
+      }
     };
     s.onblocked = () => { terminada = true; no(new Error('Apertura de fotos bloqueada; cerrar otras conexiones y reintentar')); };
-    s.onerror = () => { terminada = true; no(s.error); };
+    s.onerror = () => { if (terminada) return; terminada = true; no(errorEsquema ?? s.error); };
     s.onsuccess = () => {
       const db = s.result;
       if (terminada) { db.close(); return; }
       terminada = true;
       try {
+        if (db.version !== VERSION_FOTOS) throw new Error('Esquema de fotos no soportado');
         comprobarEsquemaFotos(db);
         ok(db);
       } catch (e) { db.close(); no(e); }
     };
   });
 }
-/** Base propia v1, claves explícitas fotoId y sin índices: listar no necesita leer Blobs.
+/** Base propia v2 (v1 + «procedencias»), claves explícitas fotoId y sin índices: listar no necesita leer Blobs.
  * Una transacción confirmada no garantiza protección frente a evicción/cierre del navegador.
  * Sin red, caches, progreso, migraciones ni limpieza de registros desconocidos. */
 export async function abrirFotosLocal(plan: Itinerario, opciones: OpcionesFotosLocal = {}): Promise<FotosLocal> {
@@ -420,21 +486,36 @@ export async function abrirFotosLocal(plan: Itinerario, opciones: OpcionesFotosL
     leerMetadatos: async (id) => leer(id, ['metadatos'], (m, _tx, terminar) => terminar(m)),
     leerOriginal: async (id) => leerBlob(id, 'originales'),
     leerMiniatura: async (id) => leerBlob(id, 'miniaturas'),
-    guardarOriginal: async (captura) => {
+    guardarOriginal: async (captura, via) => {
+      // Argumentos copiados y validados ANTES del primer await, marca incluida.
+      if (via !== undefined && via !== 'camara-galeria') throw new Error('Vía de procedencia inválida');
       if (!camposFoto(captura, ['metadatos', 'original'])) throw new Error('Captura inválida');
       const m = copiarMetadatos(copiaPlan, captura.metadatos);
       const original = captura.original;
       if (m.miniatura.tipo !== 'pendiente' || tamanoBlob(original) !== m.bytesOriginal
         || tipoBlob(original) !== m.mimeDeclarado) throw new Error('Original incompatible con metadata');
-      return leer(m.fotoId, tablas, (anterior, tx, terminar, fallar) => {
+      const marca = via ? crearMarca(copiaPlan, m, via) : null;
+      return leer(m.fotoId, almacenes, (anterior, tx, terminar, fallar) => {
         if (anterior) throw new Error('Colisión de identidad de foto; no se sobrescribe ni se presume idempotencia');
         conBlobs(tx, m.fotoId, anterior, () => {
-          tx.objectStore('originales').add(original, m.fotoId);
-          tx.objectStore('metadatos').add(m, m.fotoId);
-          terminar({ tipo: 'guardada', metadatos: m });
+          const previa = tx.objectStore(PROCEDENCIAS).get(m.fotoId);
+          previa.onsuccess = () => {
+            try {
+              if (previa.result !== undefined) throw new Error('Marca de procedencia huérfana; no se adopta');
+              tx.objectStore('originales').add(original, m.fotoId);
+              tx.objectStore('metadatos').add(m, m.fotoId);
+              if (marca) tx.objectStore(PROCEDENCIAS).add(marca, m.fotoId);
+              terminar({ tipo: 'guardada', metadatos: m });
+            } catch (e) { fallar(e); }
+          };
         }, fallar);
       }, 'readwrite');
     },
+    leerProcedencia: async (id) => leer(id, ['metadatos', PROCEDENCIAS], (m, tx, terminar, fallar) => {
+      if (!m || esFotoBorrada(m)) { terminar(null); return; }
+      const marca = tx.objectStore(PROCEDENCIAS).get(id);
+      marca.onsuccess = () => { try { terminar(marcaDe(copiaPlan, marca.result, m)); } catch (e) { fallar(e); } };
+    }),
     guardarMiniatura: async (id, blob, ancho, alto) => {
       const estado: EstadoMiniatura = { tipo: 'lista', bytes: tamanoBlob(blob), ancho, alto, mime: 'image/png' };
       if (tipoBlob(blob) !== 'image/png') throw new Error('Miniatura debe ser PNG');
@@ -447,10 +528,12 @@ export async function abrirFotosLocal(plan: Itinerario, opciones: OpcionesFotosL
       if (!esEstadoMiniatura(estado)) throw new Error('Estado de miniatura inválido');
       return modificarMiniatura(id, estado);
     },
-    borrarLocal: async (id) => leer(id, tablas, (m, tx, terminar, fallar) => {
+    borrarLocal: async (id) => leer(id, almacenes, (m, tx, terminar, fallar) => {
       if (!m) throw new Error('Foto desconocida; no se inventa tombstone');
       conBlobs(tx, id, m, () => {
+        // La marca de procedencia se va con los bytes, sin interpretarla ni reparar nada.
         tx.objectStore('originales').delete(id); tx.objectStore('miniaturas').delete(id);
+        tx.objectStore(PROCEDENCIAS).delete(id);
         tx.objectStore('metadatos').put({ formato: 1, tipo: 'borrada', fotoId: id } satisfies FotoBorrada, id);
         terminar({ tipo: 'borrada', fotoId: id });
       }, fallar);

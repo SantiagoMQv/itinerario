@@ -1,7 +1,9 @@
 import type { Itinerario } from '../src/tipos';
-import { camposFoto, esIdFoto } from '../src/fotos';
+import { camposFoto, esIdFoto, type DestinoFoto } from '../src/fotos';
 import { deserializarSolicitudRespaldo, serializarSolicitudRespaldo } from '../src/fotos-protocolo';
-import { leerJsonListadoAcotado, type CursorListadoFotos, type PaginaListadoFotos } from '../src/fotos-listado-protocolo';
+import { leerJsonListadoAcotado, serializarDestinoListadoFotos, deserializarDestinoListadoFotos,
+  deserializarCursorListadoFotosDestino, serializarCursorListadoFotosDestino,
+  type CursorListadoFotos, type PaginaListadoFotos, type PaginaListadoFotosDestino } from '../src/fotos-listado-protocolo';
 import { copiarPlanFotos, crearVigenciaFotos } from './multipart-fotos';
 import { clavePrivadaFotos } from './almacen-fotos';
 import type { EjecutorSql } from './contratos';
@@ -24,12 +26,17 @@ export interface CotasListadoFotos {
 }
 export type ResultadoListadoFotos = { readonly tipo: 'pagina'; readonly pagina: PaginaListadoFotos; readonly textoCanonico: string }
   | { readonly tipo: 'sin-sesion' };
+export type ResultadoListadoFotosDestino = { readonly tipo: 'pagina'; readonly pagina: PaginaListadoFotosDestino;
+  readonly textoCanonico: string } | { readonly tipo: 'sin-sesion' };
 export interface RepositorioListadoFotos {
   listar(huella: string, viajeId: string, continuacion: string | null, signal: AbortSignal): Promise<ResultadoListadoFotos>;
+  listarDestino(huella: string, viajeId: string, destino: DestinoFoto, continuacion: string | null,
+    signal: AbortSignal): Promise<ResultadoListadoFotosDestino>;
 }
 const ERROR = 'No se pudo comprobar el listado de fotos.';
 const fallar = (): never => { const e = new Error(ERROR); delete e.stack; throw e; };
 const SQL = 'SELECT itinerario.listar_fotos_confirmadas($1, $2, $3, $4, $5, $6, $7) AS resultado';
+const SQL_DESTINO = 'SELECT itinerario.listar_fotos_confirmadas_destino($1, $2, $3, $4, $5, $6, $7, $8) AS resultado';
 const claves = ['maxFilas', 'maxOperacionesPorFoto', 'maxBytesSql', 'maxBytesRespuesta', 'maxBytesRetenidos', 'plazoMs'];
 const M = 65536;
 const C = 396490;
@@ -77,6 +84,15 @@ export function calcularCotasListadoFotos(n: number, k: number): CotasListadoFot
     multiplicar(32 * candidatas, M), multiplicar(6, bytesRespuesta), 1048576);
   return Object.freeze({ candidatas, operacionesPreflight: multiplicar(candidatas, sumar(k, 1)),
     pruebas: candidatas, bytesSql, bytesRespuesta, bytesRetenidos });
+}
+/** P_destino = P_global + q(1024) + q(2048) - q(1024) = P_global + 12290.
+ * El SQL conserva S; R añade 6 deltaP y 64KiB para destino/cursor/query acotados.
+ * La frontera HTTP cobra además sus 6P. No es una cota del scan SQL. */
+export function calcularCotasListadoFotosDestino(n: number, k: number): CotasListadoFotos {
+  const base = calcularCotasListadoFotos(n, k);
+  const extra = q(2048);
+  return Object.freeze({ ...base, bytesRespuesta: sumar(base.bytesRespuesta, extra),
+    bytesRetenidos: sumar(base.bytesRetenidos, multiplicar(6, extra), 65536) });
 }
 function textoUtf8(texto: unknown, limite: number): string {
   if (typeof texto !== 'string' || texto.length > limite) return fallar();
@@ -132,17 +148,26 @@ export function crearRepositorioListadoFotosSql(configuracion: {
     if (renderCursor(c) !== texto) return fallar();
     return c;
   }
-  return Object.freeze({ async listar(huella: string, viajeId: string, continuacion: string | null,
-    signal: AbortSignal): Promise<ResultadoListadoFotos> {
+  async function listarInterno(huella: string, viajeId: string, continuacion: string | null,
+    signal: AbortSignal, solicitado: DestinoFoto | null): Promise<ResultadoListadoFotos | ResultadoListadoFotosDestino> {
     let vigencia: ReturnType<typeof crearVigenciaFotos> | undefined;
     try {
       if (typeof huella !== 'string' || !/^[a-f0-9]{64}$/.test(huella) || viajeId !== plan.id) return fallar();
-      const cursor = capturarCursor(continuacion);
-      const parametros = Object.freeze([huella, viajeId, cursor?.despuesDe ?? null, cursor?.hasta ?? null,
-        presupuesto.maxFilas, presupuesto.maxOperacionesPorFoto, cotas.bytesSql]);
+      const claveDestino = solicitado === null ? null : serializarDestinoListadoFotos(plan, solicitado);
+      const destino = claveDestino === null ? null : deserializarDestinoListadoFotos(plan, claveDestino);
+      const efectivas = destino === null ? cotas : calcularCotasListadoFotosDestino(presupuesto.maxFilas, presupuesto.maxOperacionesPorFoto);
+      if (presupuesto.maxBytesRespuesta < efectivas.bytesRespuesta || presupuesto.maxBytesRetenidos < efectivas.bytesRetenidos) return fallar();
+      const cursor = destino === null ? capturarCursor(continuacion)
+        : continuacion === null ? null : deserializarCursorListadoFotosDestino(plan, continuacion);
+      if (cursor !== null && 'destino' in cursor
+        && serializarDestinoListadoFotos(plan, cursor.destino) !== claveDestino) return fallar();
+      const valores = [huella, viajeId, cursor?.despuesDe ?? null, cursor?.hasta ?? null,
+        presupuesto.maxFilas, presupuesto.maxOperacionesPorFoto, cotas.bytesSql];
+      if (claveDestino !== null) valores.push(claveDestino);
+      const parametros = Object.freeze(valores);
       vigencia = crearVigenciaFotos(signal, presupuesto.plazoMs);
       vigencia.comprobar();
-      const resultado: unknown = await vigencia.esperar(() => ejecutar(SQL, parametros), true);
+      const resultado: unknown = await vigencia.esperar(() => ejecutar(destino === null ? SQL : SQL_DESTINO, parametros), true);
       vigencia.comprobar();
       if (!camposFoto(resultado, ['filas'])) return fallar();
       const filas = arrayPropio(resultado.filas, 1);
@@ -170,12 +195,23 @@ export function crearRepositorioListadoFotosSql(configuracion: {
         const texto = textoUtf8(consulta.reserva.solicitudCanonica, M);
         const s = deserializarSolicitudRespaldo(plan, texto);
         if (serializarSolicitudRespaldo(plan, s) !== texto || s.fotoId !== candidata.fotoId
-          || consulta.reserva.claveObjeto !== clavePrivadaFotos(plan.id, s.fotoId, consulta.reserva.reservaId)) return fallar();
+          || consulta.reserva.claveObjeto !== clavePrivadaFotos(plan.id, s.fotoId, consulta.reserva.reservaId)
+          || (claveDestino !== null && serializarDestinoListadoFotos(plan, s.original.destino) !== claveDestino)) return fallar();
         anterior = candidata.fotoId;
         if (i < presupuesto.maxFilas) { iniciales.push(texto); ultimaPublicada = candidata.fotoId; }
       }
       const siguiente = candidatas.length > presupuesto.maxFilas;
       if (siguiente && (ultimaPublicada === null || interno.hasta === null || !(ultimaPublicada < interno.hasta))) return fallar();
+      if (destino !== null) {
+        const continuacionDestino = siguiente ? serializarCursorListadoFotosDestino(plan, { version: 1,
+          tipo: 'cursor-respaldos-destino', viajeId: plan.id, destino,
+          despuesDe: ultimaPublicada!, hasta: interno.hasta as string }) : null;
+        const pagina: PaginaListadoFotosDestino = Object.freeze({ version: 1, tipo: 'listado-respaldos-destino',
+          viajeId: plan.id, destino, solicitudesIniciales: Object.freeze(iniciales), continuacion: continuacionDestino });
+        const textoCanonico = textoUtf8(JSON.stringify(pagina), efectivas.bytesRespuesta);
+        vigencia.comprobar();
+        return Object.freeze({ tipo: 'pagina', pagina, textoCanonico });
+      }
       const pagina: PaginaListadoFotos = Object.freeze({ version: 1, tipo: 'listado-respaldos', viajeId: plan.id,
         solicitudesIniciales: Object.freeze(iniciales), continuacion: siguiente ? renderCursor({ version: 1,
           viajeId: plan.id, despuesDe: ultimaPublicada!, hasta: interno.hasta as string }) : null });
@@ -187,5 +223,16 @@ export function crearRepositorioListadoFotosSql(configuracion: {
       return Object.freeze({ tipo: 'pagina', pagina, textoCanonico });
     } catch { return fallar(); }
     finally { vigencia?.cerrar(); }
-  } });
+  }
+  return Object.freeze({
+    listar(huella: string, viajeId: string, continuacion: string | null, signal: AbortSignal): Promise<ResultadoListadoFotos> {
+      return listarInterno(huella, viajeId, continuacion, signal, null) as Promise<ResultadoListadoFotos>;
+    },
+    async listarDestino(huella: string, viajeId: string, destino: DestinoFoto, continuacion: string | null,
+      signal: AbortSignal): Promise<ResultadoListadoFotosDestino> {
+      // null no puede convertir una llamada filtrada en el catálogo global.
+      if (destino === null || destino === undefined) return fallar();
+      return listarInterno(huella, viajeId, continuacion, signal, destino) as Promise<ResultadoListadoFotosDestino>;
+    },
+  });
 }

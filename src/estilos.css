@@ -551,8 +551,16 @@ mark {
     background: var(--tinta);
     color: var(--papel);
   }
+  /*
+   * Las píldoras flotan sobre el pie de la hoja: la lista se acaba por encima de ellas en cualquier posición, no solo
+   * al final. Fuera de lo que se desplaza se reserva su alto medido (--alto-pildoras: una o dos filas), los 14 px que
+   * las separan del borde y 8 px de aire; el área segura ya va en el relleno de la hoja. Al enfocar o desplazar hasta
+   * algo, quedan 12 px debajo: la zona al dedo y el contorno de foco no se cortan.
+   */
   body.panel-abierto #panel.expandido #contenido {
-    padding-bottom: 84px;
+    --reserva-pildoras: calc(var(--alto-pildoras, 44px) + 14px + 8px);
+    margin-bottom: var(--reserva-pildoras);
+    scroll-padding-bottom: 12px;
   }
   body.panel-abierto #toast {
     bottom: calc(var(--abajo) + 72px);
@@ -2237,7 +2245,12 @@ body.vista-todo .lista {
   color: var(--tinta-suave);
   font-size: 14.5px;
 }
+/*
+ * Si «Tomar foto» y «Elegir de la galería» no caben en una línea, 14 px entre filas: sus zonas al dedo
+ * (7 px por arriba y por abajo) se tocan sin pisarse.
+ */
 .fotos-acciones {
+  row-gap: 14px;
   margin-top: 10px;
 }
 .fotos-acciones[hidden],
@@ -2247,6 +2260,49 @@ body.vista-todo .lista {
 }
 .fotos-nota {
   max-width: 34em;
+}
+/*
+ * Compartidas (solo con la composición del respaldo): las del servidor del viaje de ESTE destino, junto a las de
+ * este móvil. Se ven con conexión y no se guardan: su celda va en contorno discontinuo, la misma marca que la
+ * píldora sin conexión y el anillo de lo opcional (no está en este móvil). Rótulo como «Aquí».
+ */
+.fotos-remotas {
+  margin-top: 12px;
+}
+.fotos-remotas[hidden],
+.fotos-remotas-acciones:empty {
+  display: none;
+}
+.fotos-remotas .subs-titulo {
+  margin: 0 0 4px;
+}
+.fotos-remotas-estado {
+  max-width: 34em;
+  margin: 0 0 8px;
+  color: var(--tinta-suave);
+  font-size: 14px;
+  line-height: 1.4;
+}
+.foto-remota .foto-abrir {
+  border-style: dashed;
+}
+.fotos-remotas-acciones {
+  margin-top: 10px;
+}
+.fotos-remotas-acciones a.mini {
+  text-decoration: none;
+}
+/* Añadir es de este móvil: un poco más de aire entre las compartidas y «Tomar foto» / «Elegir de la galería». */
+.fotos-remotas:not([hidden]) + .fotos-acciones {
+  margin-top: 16px;
+}
+.visor-remota-nota {
+  color: var(--tinta-suave);
+  font-size: 14.5px;
+  line-height: 1.4;
+}
+.visor-remota-nota:empty {
+  display: none;
 }
 
 /* «Fotos del viaje» en «Todo» (solo con la composición del respaldo): este móvil y, a un toque, el servidor. */
@@ -2303,6 +2359,36 @@ body.vista-todo .lista {
 /* Lo único que avisa: el servidor contestó algo que no corresponde y no se vuelve a enviar. */
 .fila-estado.bloqueada {
   color: var(--aviso);
+}
+/* «Respaldar pendientes»: el lote de este móvil, bajo su recuento. La pregunta es una nota de borde discontinuo (aún no
+   ha pasado nada, como al importar una copia); el progreso solo cambia el texto de su línea, que no se mueve. */
+.lote-fotos {
+  max-width: 36em;
+  margin: 0 0 10px;
+  font-variant-numeric: tabular-nums;
+}
+.lote-fotos[data-estado='propuesta'] {
+  padding: 10px 12px;
+  border: 1.5px dashed var(--borde-fuerte);
+  border-radius: 8px;
+}
+/* La línea de estado es una región viva: vacía mide cero, pero sigue en el árbol para que se anuncie al llenarse. */
+.estado-lote,
+.detalle-lote {
+  margin: 0;
+  font-size: 14.5px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+.detalle-lote {
+  margin-top: 4px;
+  color: var(--tinta-suave);
+}
+.detalle-lote:empty {
+  display: none;
+}
+.estado-lote:not(:empty) ~ .acciones-lote {
+  margin-top: 8px;
 }
 
 /* «Copia de este móvil» en «Todo» (solo con la composición de portabilidad): preparar y descargar la copia, importar la

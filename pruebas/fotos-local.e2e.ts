@@ -222,8 +222,9 @@ test('dos conexiones nativas concurrentes: una captura gana sin sobrescribir y v
       paradaId: plan.itinerario.dias[0].paradas[0].id }, new File(['primera'], 'a'), 1);
     const salidas = await Promise.allSettled([a.guardarOriginal(captura), b.guardarOriginal(captura)]);
     const bytes = await (await a.leerOriginal(captura.metadatos.fotoId)).text();
+    // v3: una versión FUTURA respecto a la PhotoDB actual (v2).
     const actualizado = await new Promise<IDBDatabase>((ok, no) => {
-      const s = indexedDB.open(nombre, 2); s.onsuccess = () => ok(s.result); s.onerror = () => no(s.error);
+      const s = indexedDB.open(nombre, 3); s.onsuccess = () => ok(s.result); s.onerror = () => no(s.error);
       s.onblocked = () => no(new Error('La biblioteca no liberó handles'));
     });
     let cerrada = false;
@@ -280,4 +281,40 @@ test('IDB nativa: request success y abort posterior nunca confirman guardado', a
     nueva.cerrar(); return { guardada, cantidad: lista.length, original: original !== null };
   });
   expect(resultado).toEqual({ guardada: false, cantidad: 0, original: false });
+});
+
+test('PhotoDB v1 nativa pasa a v2 al abrir: «procedencias» vacía y bytes intactos; solo la vía cámara/galería deja marca', async ({ page }) => {
+  const r = await page.evaluate(async () => {
+    const [local, fotos, plan] = await Promise.all(['/local.js', '/fotos.js', '/plan.js'].map((x) => import(x)));
+    const nombre = 'migracion-fotos';
+    const destino = { tipo: 'parada', viajeId: plan.itinerario.id, paradaId: plan.itinerario.dias[0].paradas[0].id };
+    // Fixture v1 EXPLÍCITA, con la forma exacta de la versión anterior.
+    const v1 = await new Promise<IDBDatabase>((ok, no) => {
+      const s = indexedDB.open(nombre, 1);
+      s.onupgradeneeded = () => ['metadatos', 'originales', 'miniaturas'].forEach((t) => s.result.createObjectStore(t));
+      s.onsuccess = () => ok(s.result); s.onerror = () => no(s.error);
+    });
+    const vieja = fotos.crearCapturaFoto(plan.itinerario, destino, new File(['vieja'], 'v.bin'), 1);
+    await new Promise<void>((ok, no) => {
+      const tx = v1.transaction(['metadatos', 'originales'], 'readwrite');
+      tx.objectStore('metadatos').put(vieja.metadatos, vieja.metadatos.fotoId);
+      tx.objectStore('originales').put(vieja.original, vieja.metadatos.fotoId);
+      tx.oncomplete = () => ok(); tx.onabort = () => no(tx.error);
+    });
+    v1.close();
+    const lib = await local.abrirFotosLocal(plan.itinerario, { nombre });
+    const nueva = fotos.crearCapturaFoto(plan.itinerario, destino, new File(['nueva'], 'n.bin'), 2);
+    await lib.guardarOriginal(nueva, 'camara-galeria');
+    const marcaNueva = (await lib.leerProcedencia?.(nueva.metadatos.fotoId)) ?? null;
+    const marcaVieja = (await lib.leerProcedencia?.(vieja.metadatos.fotoId)) ?? null;
+    const bytesVieja = await (await lib.leerOriginal(vieja.metadatos.fotoId)).text();
+    lib.cerrar();
+    const crudo = await new Promise<{ version: number; almacenes: string[] }>((ok) => {
+      const s = indexedDB.open(nombre);
+      s.onsuccess = () => { ok({ version: s.result.version, almacenes: Array.from(s.result.objectStoreNames) }); s.result.close(); };
+    });
+    return { crudo, marcaNueva, marcaVieja, bytesVieja };
+  });
+  expect(r).toEqual({ crudo: { version: 2, almacenes: ['metadatos', 'miniaturas', 'originales', 'procedencias'] },
+    marcaNueva: 'camara-galeria', marcaVieja: null, bytesVieja: 'vieja' });
 });

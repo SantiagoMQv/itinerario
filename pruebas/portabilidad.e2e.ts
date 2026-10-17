@@ -432,7 +432,8 @@ test('restaurador dedicado nativo: lote de tres stores, bytes completos, miniatu
       bases: (await indexedDB.databases()).map((d) => d.name) };
   });
   expect(r.resultado).toMatchObject({ tipo: 'observadas', transaccion: 'confirmada' });
-  expect(r.modos).toEqual([{ tablas: ['metadatos', 'originales', 'miniaturas'], modo: 'readwrite' }]);
+  // «procedencias» va en la MISMA TX solo para rechazar marcas huérfanas; el restaurador no escribe en ella.
+  expect(r.modos).toEqual([{ tablas: ['metadatos', 'originales', 'miniaturas', 'procedencias'], modo: 'readwrite' }]);
   expect(r).toMatchObject({ todos: true, cantidad: (1 << 20) + 5, mini: [0, 7, 254], nombre: '\0 e\u0301 ', signo: true,
     borrada: { tipo: 'borrada' }, local: [0, 7, 253], ausente: null,
     rechazo: { tipo: 'conflicto-preflight', transaccion: 'no-intentada' } });
@@ -460,7 +461,7 @@ test('restaurador nativo: request success→abort y alta concurrente no confirma
     const abrir = IDBFactory.prototype.open; let insertada = false;
     IDBFactory.prototype.open = function (...args: Parameters<typeof abrir>) {
       const req = abrir.apply(this, args);
-      if (args[1] === 1 && !insertada) req.addEventListener('success', () => {
+      if (args[1] === 2 && !insertada) req.addEventListener('success', () => { // apertura v2 del restaurador
         insertada = true; const tx = req.result.transaction(['metadatos', 'originales', 'miniaturas'], 'readwrite');
         tx.objectStore('metadatos').add(base.tablas.metadatos[0].valor, fotoId);
         tx.objectStore('originales').add(base.tablas.originales[0].valor, fotoId);
@@ -862,7 +863,7 @@ test('restaurador nativo: tombstone intercalado no resucita y derivación fresca
       const open = IDBFactory.prototype.open; let intercalada = false;
       IDBFactory.prototype.open = function (...args: Parameters<typeof open>) {
         const req = open.apply(this, args);
-        if (args[1] === 1 && !intercalada) req.addEventListener('success', () => {
+        if (args[1] === 2 && !intercalada) req.addEventListener('success', () => { // apertura v2 del restaurador
           intercalada = true; const tx = req.result.transaction(['metadatos', 'originales', 'miniaturas'], 'readwrite');
           if (caso === 'tombstone') { tx.objectStore('metadatos').put({ formato: 1, tipo: 'borrada', fotoId }, fotoId); tx.objectStore('originales').delete(fotoId); }
           else { tx.objectStore('metadatos').put({ ...metadata, miniatura: { tipo: 'lista', bytes: 1, ancho: 1, alto: 1, mime: 'image/png' } }, fotoId);

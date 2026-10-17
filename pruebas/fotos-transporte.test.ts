@@ -451,3 +451,123 @@ it('atestación fallida al reabrir una enviada no borra ni oculta su incertidumb
     expect(await c.ledger.leer(fotoId)).toMatchObject({ fase: 'enviada', enviada: true, recibo: null });
   } finally { c.cerrar(); }
 });
+
+// ---------- 401 tipado (RP1) ----------
+
+describe('causa tipada de un 401 del endpoint exacto', () => {
+  it('RT1 · un 401 queda incierto con causa «sin-sesion»; otro estado HTTP no la lleva', async () => {
+    const c = await contexto();
+    try {
+      c.enviar.mockImplementation(async () => new Response('', { status: 401 }));
+      const e = await c.transporte.subir(c.ref).then(() => null, (x: unknown) => x);
+      expect(e).toBeInstanceOf(ErrorTransporteFotos);
+      expect(e).toMatchObject({ estado: 'incierta', causa: 'sin-sesion' });
+      c.enviar.mockImplementation(async () => new Response('', { status: 503 }));
+      const otro = await c.transporte.subir(c.ref).then(() => null, (x: unknown) => x);
+      expect(otro).toBeInstanceOf(ErrorTransporteFotos);
+      expect((otro as ErrorTransporteFotos).causa).toBeUndefined();
+    } finally { c.cerrar(); }
+  });
+  it('RT2 · el plazo es un entero positivo de setTimeout; si no, el transporte no se construye', async () => {
+    const c = await contexto();
+    try {
+      const con = (plazoMs: unknown) => () => crearTransporteFotos({ plan: itinerario, origen, fuente: c.fuente, ledger: c.ledger,
+        fetch: c.enviar, plazoMs: plazoMs as never }).cerrar();
+      for (const malo of [0, -1, 1.5, 2_147_483_648, Number.NaN, Number.POSITIVE_INFINITY, '40', null]) {
+        expect(con(malo), String(malo)).toThrow('Plazo de envío inválido');
+      }
+      for (const bueno of [1, 2_147_483_647]) expect(con(bueno)).not.toThrow();
+      expect(c.enviar).not.toHaveBeenCalled();
+    } finally { c.cerrar(); }
+  });
+});
+
+describe('admisión del lote: solo una operación preparada sin envío (H1)', () => {
+  /** Otra instancia real sobre el MISMO ledger (otra conexión) cuyo POST queda sin acuse (503). */
+  async function otraInstancia(c: Awaited<ReturnType<typeof contexto>>) {
+    const ledger = await abrirRespaldoFotosLocal(itinerario, c.fuente, { fabrica: c.fabrica });
+    const enviar = vi.fn<typeof fetch>(async () => new Response('', { status: 503 }));
+    const transporte = crearTransporteFotos({ plan: itinerario, origen, fuente: c.fuente, ledger, fetch: enviar });
+    return { ledger, enviar, transporte, cerrar: () => { transporte.cerrar(); ledger.cerrar(); } };
+  }
+
+  it('H1-T1 · otra instancia envía la MISMA operación mientras el lote lee el original: el lote no hace POST', async () => {
+    const c = await contexto(); const otra = await otraInstancia(c);
+    try {
+      // Barrera DENTRO del propio transporte, después de su primera lectura del ledger y antes del reclamo.
+      const retenida = barrera<void>(); let llegada!: () => void;
+      const llego = new Promise<void>((ok) => { llegada = ok; }); let retenidas = 0;
+      const fuente = { leerMetadatos: (id: string) => c.fuente.leerMetadatos(id),
+        leerOriginal: async (id: string) => {
+          const v = await c.fuente.leerOriginal(id);
+          if (retenidas++ === 0) { llegada(); await retenida.promesa; }
+          return v;
+        } };
+      const lote = crearTransporteFotos({ plan: itinerario, origen, fuente, ledger: c.ledger, fetch: c.enviar });
+      const subida = lote.subir(c.ref, { soloPreparada: true });
+      await llego;
+      expect(await c.ledger.leer(fotoId)).toMatchObject({ fase: 'preparado', enviada: false });
+      // La otra instancia envía la misma operación y queda incierta, durable ANTES de soltar la barrera.
+      expect(await otra.transporte.subir(c.ref).then(() => null, (e: unknown) => e)).toMatchObject({ estado: 'incierta' });
+      expect(otra.enviar).toHaveBeenCalledTimes(1);
+      const ajena = await c.ledger.leer(fotoId);
+      expect(ajena).toMatchObject({ fase: 'enviada', enviada: true, pausada: false, recibo: null, operacionId });
+      retenida.resolver();
+      const e = await subida.then(() => null, (x: unknown) => x);
+      expect(c.enviar).not.toHaveBeenCalled();
+      expect(e).toBeInstanceOf(ErrorTransporteFotos);
+      expect(e).toMatchObject({ estado: 'sin-envio', causa: 'admision' });
+      expect(await c.ledger.leer(fotoId)).toEqual(ajena);
+      // El reintento manual explícito sigue enviando la MISMA operación y confirma con su acuse.
+      expect(await c.transporte.reintentar(c.ref)).toMatchObject({ fase: 'respaldada', operacionId });
+      expect(c.enviar).toHaveBeenCalledTimes(1);
+      const cuerpo = c.enviar.mock.calls[0][1]?.body as FormData;
+      expect(deserializarSolicitudRespaldo(itinerario, cuerpo.get('solicitud'))).toMatchObject({ fotoId, operacionId });
+    } finally { otra.cerrar(); c.cerrar(); }
+  });
+
+  it('H1-T2 · el reclamo es atómico: aunque la última lectura viera «preparado», si otro la marcó antes no hay POST', async () => {
+    const c = await contexto(); const otra = await otraInstancia(c);
+    try {
+      // Dos transacciones válidas y sin interbloqueo: la del otro contexto ocurre ENTERA entre la última lectura del
+      // lote (que ya resolvió «preparado») y su reclamo.
+      const retenida = barrera<void>(); let llegada!: () => void;
+      const llego = new Promise<void>((ok) => { llegada = ok; }); let lecturas = 0;
+      const ledger = { ...c.ledger, leer: async (id: string) => {
+        const v = await c.ledger.leer(id);
+        if (++lecturas === 2) { llegada(); await retenida.promesa; }
+        return v;
+      } };
+      const lote = crearTransporteFotos({ plan: itinerario, origen, fuente: c.fuente, ledger, fetch: c.enviar });
+      const subida = lote.subir(c.ref, { soloPreparada: true });
+      await llego;
+      expect(await c.ledger.leer(fotoId)).toMatchObject({ fase: 'preparado', enviada: false });
+      expect(await otra.transporte.subir(c.ref).then(() => null, (e: unknown) => e)).toMatchObject({ estado: 'incierta' });
+      const ajena = await c.ledger.leer(fotoId);
+      expect(ajena).toMatchObject({ fase: 'enviada', enviada: true, recibo: null, operacionId });
+      retenida.resolver();
+      const e = await subida.then(() => null, (x: unknown) => x);
+      expect(c.enviar).not.toHaveBeenCalled();
+      expect(e).toMatchObject({ estado: 'sin-envio', causa: 'admision' });
+      expect(await c.ledger.leer(fotoId)).toEqual(ajena);
+    } finally { otra.cerrar(); c.cerrar(); }
+  });
+
+  it('H1-T3 · el envío propio del lote no se bloquea con su propio marcador y el individual sigue reenviando', async () => {
+    const c = await contexto();
+    try {
+      expect(await c.transporte.subir(c.ref, { soloPreparada: true })).toMatchObject({ fase: 'respaldada', operacionId });
+      expect(c.enviar).toHaveBeenCalledTimes(1);
+      // Condiciones con otra forma no se interpretan ni hacen IO.
+      await expect(c.transporte.subir(c.ref, { soloPreparada: 1 } as never)).rejects.toThrow();
+      expect(c.enviar).toHaveBeenCalledTimes(1);
+    } finally { c.cerrar(); }
+    const d = await contexto(); const otra = await otraInstancia(d);
+    try {
+      // Sin condición (respaldo individual), una operación enviada sin acuse se vuelve a enviar como hasta ahora.
+      await otra.transporte.subir(d.ref).catch(() => {});
+      expect(await d.transporte.subir(d.ref)).toMatchObject({ fase: 'respaldada', operacionId });
+      expect(d.enviar).toHaveBeenCalledTimes(1);
+    } finally { otra.cerrar(); d.cerrar(); }
+  });
+});

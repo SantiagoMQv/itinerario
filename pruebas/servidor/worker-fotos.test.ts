@@ -2,6 +2,9 @@
 /// <reference lib="dom.iterable" />
 // Integración mixta navegador/Node: tipos DOM sólo en el proyecto de pruebas, no en el servidor productivo.
 import { readFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import * as protocoloDestino from '../../src/fotos-listado-protocolo';
+import { deserializarSolicitudRespaldo } from '../../src/fotos-protocolo';
 import { PGlite } from '@electric-sql/pglite';
 import { IDBFactory } from 'fake-indexeddb';
 import { crearClienteListadoFotos } from '../../src/fotos-listado';
@@ -41,6 +44,7 @@ const consultas = new Map([
   ['admitir_intento', 2], ['crear_sesion', 7], ['leer_sesion', 2], ['revocar_sesion', 2],
   ['listar_sesiones', 2], ['revocar_otra_sesion', 3], ['consultar_progreso', 3], ['confirmar_progreso', 4],
   ['reservar_foto', 8], ['finalizar_foto', 10], ['consultar_foto', 3], ['listar_fotos_confirmadas', 7],
+  ['listar_fotos_confirmadas_destino', 8],
 ].map(([nombre, cantidad]) => {
   const n = Number(cantidad);
   return [`SELECT itinerario.${nombre}(${Array.from({ length: n }, (_, i) => `$${i + 1}`).join(', ')}) AS resultado`, n];
@@ -187,11 +191,110 @@ beforeAll(async () => {
   for (const n of ['001_base.sql', '002_progreso.sql', '003_sesiones.sql', '004_limite.sql', '005_fotos.sql', '006_listado_fotos.sql']) {
     await db.exec(await readFile(new URL('../../servidor/migraciones/' + n, import.meta.url), 'utf8'));
   }
+  // RED ejercita el HTTP anterior: la ausencia de la adición no es un fallo de carga.
+  const adicion = new URL('../../servidor/migraciones/007_listado_fotos_destino.sql', import.meta.url);
+  if (existsSync(adicion)) await db.exec(await readFile(adicion, 'utf8'));
   await db.query('INSERT INTO itinerario.viajes VALUES ($1,0,$2)', [plan.id, serializarProgreso(crearProgreso(plan))]);
 }, 30000);
 beforeEach(async () => { await db.exec('BEGIN'); });
 afterEach(async () => { await db.exec('ROLLBACK'); vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks(); });
 afterAll(async () => { await db?.close(); });
+
+describe('Descubrimiento por destino sin originales ni persistencia', () => {
+  const destino = base.original.destino;
+  const url = (d = destino, c: string | null = null) => '/api/fotos/listado?destino='
+    + encodeURIComponent(JSON.stringify(d)) + (c === null ? '' : '&continuacion=' + encodeURIComponent(c));
+  it('descubre INITIAL ajeno raw y ofrece cliente aislado con codec exacto', async () => {
+    const f = preparar(); const uno = await iniciar(f.entorno, 'uno'); const dos = await iniciar(f.entorno, 'dos');
+    const s = { ...base, original: { ...base.original, nombre: '\uD800\0"destino":{"tipo":"parada"}',
+      mimeDeclarado: '\uDC00\0"paradaId":"falso"' } };
+    expect((await worker.fetch(post(uno, s).solicitud, f.entorno)).status).toBe(201);
+    const entorno = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: presupuestoListado };
+    const antes = await snapshot(f.bucket); f.bucket.eventos.length = 0; f.llamadas.length = 0;
+    const r = await worker.fetch(req(url(), { headers: { Cookie: dos } }), entorno);
+    expect(r.status).toBe(200); // RED de comportamiento, antes de usar los puertos nuevos.
+    const texto = await r.text();
+    const p = protocoloDestino.deserializarPaginaListadoFotosDestino(plan, texto, 1, 524288);
+    expect(p.tipo).toBe('listado-respaldos-destino'); expect(p.destino).toEqual(destino);
+    expect(p.solicitudesIniciales).toEqual([serializarSolicitudRespaldo(plan, s)]);
+    expect(() => protocoloDestino.deserializarPaginaListadoFotos(plan, texto, 1, 524288)).toThrow();
+    expect(() => protocoloDestino.deserializarPaginaListadoFotosDestino(plan, texto + ' ', 1, 524288)).toThrow();
+    const raw = deserializarSolicitudRespaldo(plan, p.solicitudesIniciales[0]);
+    expect(raw.original.nombre).toBe(s.original.nombre); expect(raw.original.mimeDeclarado).toBe(s.original.mimeDeclarado);
+    expect(Object.is(raw.original.incorporada, -0)).toBe(true);
+    const presupuestoCliente = { maxFilas: 1, maxBytesPagina: 524288, maxBytesChunk: 4194304,
+      maxBytesBackingChunk: 4194304, maxLecturas: 65536, maxBytesPlan: 4194304,
+      maxBytesRetenidos: 512 * 1024 ** 2, plazoMs: 10000 };
+    const enviados: string[] = [];
+    const c = crearClienteListadoFotos({ plan, origen, presupuesto: presupuestoCliente, http: { async fetch(entrada) {
+      const solicitud = new Request(entrada); enviados.push(solicitud.url); solicitud.headers.set('Cookie', dos);
+      return worker.fetch(solicitud, entorno);
+    } } });
+    expect(await c.listarDestino(destino, null)).toEqual({ tipo: 'pagina', pagina: p });
+    expect(enviados).toEqual([origen + url()]);
+    c.cerrar(); expect(await c.listarDestino(destino, null)).toEqual({ tipo: 'detenida', motivo: 'cerrada' });
+    expect(await snapshot(f.bucket)).toEqual(antes); expect(f.bucket.eventos).toEqual([]);
+    expect(f.llamadas.filter((q) => q.query.includes('leer_sesion'))).toHaveLength(4);
+    expect(fotosSql(f)).toEqual([]);
+  });
+  it('pagina con superior filtrado, no confunde subparada y vincula cursor', async () => {
+    const f = preparar(); const cookie = await iniciar(f.entorno);
+    const segunda = { ...base, fotoId: 'BBCDEF12-1234-4123-8123-123456789ABD',
+      operacionId: 'BBCDEF12-1234-4123-8123-123456789ABC', original: { ...base.original,
+        fotoId: 'BBCDEF12-1234-4123-8123-123456789ABD' } };
+    const padre = plan.dias.flatMap((d) => d.paradas).find((p) => p.subparadas?.length);
+    if (!padre?.subparadas?.[0]) throw new Error('Plan sin subparada para prueba');
+    const sub = { tipo: 'subparada' as const, viajeId: plan.id, paradaId: padre.id, subparadaId: padre.subparadas[0].id };
+    const tercera = { ...base, fotoId: 'CBCDEF12-1234-4123-8123-123456789ABD',
+      operacionId: 'CBCDEF12-1234-4123-8123-123456789ABC', original: { ...base.original,
+        fotoId: 'CBCDEF12-1234-4123-8123-123456789ABD', destino: sub,
+        nombre: JSON.stringify(destino), mimeDeclarado: JSON.stringify(destino) } };
+    for (const s of [base, segunda, tercera]) expect((await worker.fetch(post(cookie, s).solicitud, f.entorno)).status).toBe(201);
+    const entorno = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: presupuestoListado };
+    f.bucket.eventos.length = 0; const antes = await snapshot(f.bucket);
+    const pedir = (d = destino, c: string | null = null) => worker.fetch(req(url(d, c), { headers: { Cookie: cookie } }), entorno);
+    const r = await pedir(); expect(r.status).toBe(200);
+    const p = protocoloDestino.deserializarPaginaListadoFotosDestino(plan, await r.text(), 1, 524288);
+    expect(p.solicitudesIniciales).toEqual([serializarSolicitudRespaldo(plan, base)]); expect(p.continuacion).not.toBeNull();
+    const c = protocoloDestino.deserializarCursorListadoFotosDestino(plan, p.continuacion);
+    expect(c.hasta).toBe(segunda.fotoId); expect(c.destino).toEqual(destino);
+    expect(() => protocoloDestino.deserializarCursorListadoFotos(plan, p.continuacion)).toThrow();
+    expect((await pedir(destino, p.continuacion)).status).toBe(200);
+    const pagina2 = await (await pedir(destino, p.continuacion)).json();
+    expect(pagina2).toMatchObject({ solicitudesIniciales: [serializarSolicitudRespaldo(plan, segunda)], continuacion: null });
+    expect((await pedir(sub, p.continuacion)).status).toBe(400);
+    expect((await worker.fetch(req('/api/fotos/listado?continuacion=' + encodeURIComponent(p.continuacion!),
+      { headers: { Cookie: cookie } }), entorno)).status).toBe(400);
+    const ps = await (await pedir(sub)).json(); expect(ps).toMatchObject({ destino: sub,
+      solicitudesIniciales: [serializarSolicitudRespaldo(plan, tercera)], continuacion: null });
+    expect(await snapshot(f.bucket)).toEqual(antes); expect(f.bucket.eventos).toEqual([]);
+  });
+  it('no publica INITIAL de destino distinto aunque el localizador SQL lo seleccionara', async () => {
+    const f = preparar(); const cookie = await iniciar(f.entorno);
+    expect((await worker.fetch(post(cookie).solicitud, f.entorno)).status).toBe(201);
+    const entorno = { ...f.entorno, FOTOS_LISTADO_PRESUPUESTO: presupuestoListado };
+    const r = await worker.fetch(req(url(), { headers: { Cookie: cookie } }), entorno);
+    expect(r.status).toBe(200);
+    // Sustituye sólo el resultado SDK de la función nueva: no se confía en su localizador.
+    const nativo = f.transporte.getMockImplementation()!;
+    f.transporte.mockImplementation(async (entrada, opciones) => {
+      const respuesta = await nativo(entrada, opciones);
+      const q = JSON.parse(String(opciones?.body)) as { query: string };
+      if (!q.query.includes('listar_fotos_confirmadas_destino')) return respuesta;
+      const cuerpo = await respuesta.json() as { rows: string[][] };
+      const pagina = JSON.parse(cuerpo.rows[0][0]) as { candidatas: { consultaCanonica: string }[] };
+      const consulta = JSON.parse(pagina.candidatas[0].consultaCanonica) as { reserva: { solicitudCanonica: string } };
+      const otra = plan.dias.flatMap((d) => d.paradas).find((p) => p.id !== destino.paradaId)!;
+      consulta.reserva.solicitudCanonica = serializarSolicitudRespaldo(plan, { ...base,
+        original: { ...base.original, destino: { ...destino, paradaId: otra.id } } });
+      pagina.candidatas[0].consultaCanonica = JSON.stringify(consulta);
+      cuerpo.rows[0][0] = JSON.stringify(pagina);
+      return new Response(JSON.stringify(cuerpo));
+    });
+    await errorPrivado(await worker.fetch(req(url(), { headers: { Cookie: cookie } }), entorno), 503, true);
+    expect((await worker.fetch(req(url({ ...destino, paradaId: 'inexistente' }), { headers: { Cookie: cookie } }), entorno)).status).toBe(400);
+  });
+});
 
 describe('Fotos Worker real + SDK real + SQL001–006 local; cookie reenviada en Node', () => {
   it('Cliente manual descubre INITIAL confirmado del otro editor sin MUTAR SQL,R2 ni estado local', async () => {

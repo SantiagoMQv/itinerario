@@ -1,14 +1,17 @@
 import type { Itinerario } from './tipos';
 import { esFotoBorrada, esIdFoto, tamanoBlob, type CapturaFoto, type DestinoFoto, type MetadatosFoto } from './fotos';
-import type { FotosLocal } from './fotos-local';
+import type { FotosLocal, ViaProcedencia } from './fotos-local';
 import { abrirRespaldoFotosLocal, type RespaldoFotosLocal } from './fotos-respaldo-local';
 import { crearTransporteFotos, ErrorTransporteFotos, type TransporteFotos } from './fotos-transporte';
 import { crearClienteListadoFotos, type ListadoFotos, type PresupuestoListadoFotosCliente,
   type ResultadoListadoFotosCliente } from './fotos-listado';
-import { crearDescargaFotos, type DescargaFotos, type ResultadoDescargaFotos } from './fotos-descarga';
-import { copiarOriginalRespaldo, mismosOriginalesRespaldo, type EntradaRespaldo, type OriginalRespaldo,
-  type ReferenciaRespaldo } from './fotos-respaldo';
+import { crearDescargaFotos, crearRecepcionOriginal, type DescargaFotos, type RecepcionOriginal,
+  type ResultadoDescargaFotos } from './fotos-descarga';
+import { copiarIdentidadRespaldo, copiarOriginalRespaldo, mismosOriginalesRespaldo, type EntradaRespaldo,
+  type OriginalRespaldo, type ReferenciaRespaldo } from './fotos-respaldo';
 import { deserializarSolicitudRespaldo } from './fotos-protocolo';
+import type { MotorMiniatura } from './fotos-imagen';
+import { crearFotosRemotas, type FotosRemotas, type LimitesRemotas } from './fotos-remotas';
 
 /**
  * Respaldo manual y catálogo de fotos privadas en la interfaz del viaje.
@@ -17,7 +20,12 @@ import { deserializarSolicitudRespaldo } from './fotos-protocolo';
  * local, el transporte, el listado y la descarga de las bibliotecas existentes. Solo acciones explícitas: una
  * acción es UN POST o UN GET; nada se envía, consulta, reintenta ni descarga al abrir el visor, «Todo» ni una
  * página. Listar, guardar o comprobar nunca son acuse (ACK), marca de envío (SENT) ni entradas del ledger.
+ * La única acción que autoriza VARIOS POST es la confirmación explícita del lote «Respaldar pendientes»: solo las
+ * fotos de su recuento finito (añadidas aquí con cámara o galería y sin respaldo), de una en una, con el mismo
+ * ledger y el mismo transporte; no es sincronización ni nada que siga solo.
  * La web publicada lo compone con null: ni red, ni ledger, ni texto nuevo (ver componerRespaldoFotos).
+ * Con la misma composición, las fotos compartidas de cada ficha (componerFotosRemotas): se consultan por destino al
+ * abrir «Fotos», se ven con conexión sin guardarse y «Guardar sin conexión» es la descarga duradera de siempre.
  * Al final, la sección «Fotos del viaje» de «Todo» (DOM), que solo existe con la composición activada.
  */
 
@@ -51,8 +59,33 @@ export interface DependenciasRespaldoFotos {
   readonly revocarUrl?: (url: string) => void;
   readonly alCambiar?: (que: CambioRespaldo) => void;
 }
+/** «sin-sesion»: este controlador vio un 401 (consulta o guardado); quien compone invalida también lo suyo. */
 export type CambioRespaldo = { readonly tipo: 'foto'; readonly fotoId: string } | { readonly tipo: 'catalogo' }
-  | { readonly tipo: 'resumen' };
+  | { readonly tipo: 'resumen' } | { readonly tipo: 'sin-sesion' } | { readonly tipo: 'lote' };
+
+/** Progreso del lote. «confirmadas»: solo acuses durables del servidor en el ledger de este móvil; los bytes
+ * estimados de originales no son tráfico real (sobrecarga, reintentos y facturación no se conocen). */
+export interface ProgresoLote {
+  readonly total: number;
+  readonly confirmadas: number;
+  /** Ya no estaban, cambiaron o se confirmaron por otra vía entre medias: no se enviaron. */
+  readonly omitidas: number;
+  /** Salieron sin acuse o quedaron en un estado que no se reenvía a ciegas: revisión aparte. */
+  readonly revision: number;
+  /** Aún sin enviar dentro del recuento confirmado. */
+  readonly restantes: number;
+}
+export type MotivoParadaLote = 'pausa' | 'sin-sesion' | 'plazo' | 'incierta' | 'error' | 'sin-conexion' | 'cerrado';
+/** «propuesta»: recuento finito listo para confirmar (0 red, 0 preparaciones, 0 originales leídos). */
+export type EstadoLote =
+  | { readonly tipo: 'inactivo' }
+  | { readonly tipo: 'contando' }
+  | { readonly tipo: 'no-disponible' }
+  | { readonly tipo: 'propuesta'; readonly fotos: number; readonly bytes: number; readonly confirmadas: number;
+      readonly revision: number; readonly sinOrigen: number }
+  | { readonly tipo: 'enviando'; readonly progreso: ProgresoLote; readonly pausando: boolean }
+  | { readonly tipo: 'detenido'; readonly progreso: ProgresoLote; readonly motivo: MotivoParadaLote }
+  | { readonly tipo: 'terminado'; readonly progreso: ProgresoLote };
 
 /** Estado de una foto según el ledger durable de este móvil (nunca un resultado optimista). */
 export type EstadoRespaldo =
@@ -94,6 +127,15 @@ export type EstadoCatalogo =
   | { readonly tipo: 'fallo'; readonly motivo: 'sin-sesion' | 'continuacion' | 'servidor' | 'respuesta' | 'presupuesto' | 'ocupado' }
   | { readonly tipo: 'detenido'; readonly motivo: 'cancelada' | 'plazo' | 'cerrada' };
 
+/** Resultado de guardar en este móvil (desde el catálogo o desde la ficha): lo durable, nunca optimista.
+ * «comprobada»: ya estaba con la misma identidad y los mismos bytes. `captura`: bytes de esta sesión, como archivo. */
+export interface ResultadoGuardado {
+  readonly tipo: 'guardada' | 'comprobada' | 'no-guardada' | 'detenida' | 'ocupada' | 'no-disponible';
+  readonly captura?: true;
+  /** Por qué no se guardó, cuando importa: 401 del endpoint («sin-sesion») o plazo de la recepción vencido. */
+  readonly causa?: 'sin-sesion' | 'plazo';
+}
+
 export interface ResumenRespaldo {
   readonly fotoId: string;
   readonly estado: EstadoRespaldo;
@@ -123,11 +165,30 @@ export interface RespaldoFotos {
   /** Un GET por toque; la continuación se guarda RAW y nunca se sigue sola. */
   listar(desde: 'principio' | 'siguiente'): Promise<void>;
   cancelarListado(): void;
-  /** Segunda acción explícita sobre una fila de la página vigente: siempre un GET si se admite. */
-  guardar(fotoId: string): Promise<void>;
+  /** Segunda acción explícita: una fila de la página vigente o, con `descubierta`, la referencia que encontró la
+   * ficha de su destino (se valida con el plan; no depende de ninguna página global). Siempre un GET si se admite. */
+  guardar(fotoId: string, descubierta?: OriginalRespaldo): Promise<ResultadoGuardado>;
   cancelarGuardado(): void;
+  /** Sesión perdida vista fuera (p. ej. por las compartidas de una ficha): suelta la página del catálogo y las
+   * capturas temporales; no toca el ledger ni las fotos guardadas en este móvil. */
+  invalidarSesion(): void;
   /** Bytes de una descarga fallida (solo esta sesión) como archivo octet-stream; nunca entran en PhotoDB ni en el ledger. */
   descargarArchivo(fotoId: string): { readonly url: string; readonly nombre: string } | null;
+  /** Lote manual global «Respaldar pendientes» (dentro de ESTE controlador: mismo PhotoDB, ledger y transporte). */
+  readonly lote: EstadoLote;
+  /** Recuento finito e inmutable: metadata local, procedencia y ledger. 0 red, 0 preparaciones, 0 originales. */
+  contarLote(): Promise<void>;
+  /** El consentimiento: envía SOLO el recuento, de una en una, revalidando cada foto antes de preparar y enviar. */
+  confirmarLote(): Promise<void>;
+  /** Corta el lote: la foto en curso se aborta (si ya salió, el servidor puede recibirla); su IO sigue siendo suyo
+   * hasta que asiente. */
+  pausarLote(): void;
+  /** Continuación explícita: solo las restantes del MISMO recuento; lo que quedó incierto no se reenvía. */
+  continuarLote(): Promise<void>;
+  /** Cancela una propuesta o termina un lote detenido o acabado: nada sigue. */
+  terminarLote(): void;
+  /** La vista se cierra u oculta: fin de la continuidad y del consentimiento; volver no reanuda nada. */
+  abandonarLote(): void;
   soltarUrl(url: string): void;
   /** Cierra lo propio (ledger, transporte, listado, descarga); NUNCA el PhotoDB del controlador de fotos. */
   cerrar(): void;
@@ -169,11 +230,63 @@ function motivoCatalogo(m: MotivoListado): MotivoCatalogo {
 }
 const accionDe = (local: LocalCatalogo): FilaCatalogo['accion'] =>
   local === 'ausente' ? 'guardar' : local === 'registrada' ? 'comprobar' : null;
+const NO_DISPONIBLE: ResultadoGuardado = { tipo: 'no-disponible' };
+
+/** Lo que este móvil tiene de un original: solo lecturas de metadata, identidad completa (sin bytes). */
+export async function clasificarEnEsteMovil(plan: Itinerario, o: OriginalRespaldo, p: FotosLocal | null): Promise<LocalCatalogo> {
+  if (!p) return 'ilegible';
+  try {
+    const m = await p.leerMetadatos(o.fotoId);
+    if (m === null) return 'ausente';
+    if (esFotoBorrada(m)) return 'borrada';
+    return mismosOriginalesRespaldo(plan, copiarOriginalRespaldo(plan, m), o) ? 'registrada' : 'otra';
+  } catch { return 'ilegible'; }
+}
 
 /** Gate de composición: con null no se construye nada (ni fábricas, ni ledger, ni red). */
 export function componerRespaldoFotos(composicion: ComposicionRespaldoFotos | null,
   resto: Omit<DependenciasRespaldoFotos, 'composicion'>): RespaldoFotos | null {
   return composicion ? crearRespaldoFotos({ ...resto, composicion }) : null;
+}
+
+export interface DependenciasFotosRemotas {
+  readonly plan: Itinerario;
+  /** El MISMO FotosLocal vivo del controlador de fotos, solo para leer metadata (dedup); nunca se escribe aquí. */
+  readonly puerto: () => FotosLocal | null;
+  /** Puerto HTTP de las bibliotecas (recepción: `fetch`; listado: `http: { fetch }`). Omitido: el nativo. */
+  readonly fetch?: typeof fetch;
+  readonly enLinea?: () => boolean;
+  readonly crearMotor?: () => MotorMiniatura;
+  readonly crearUrl?: (blob: Blob) => string;
+  readonly revocarUrl?: (url: string) => void;
+  /** Cotas de fotos y vistas retenidas; omitidas: LIMITES_REMOTAS. */
+  readonly limites?: Partial<LimitesRemotas>;
+  readonly alCambiar?: (destino: DestinoFoto | null) => void;
+  /** Las compartidas vieron un 401: para invalidar también el catálogo global. */
+  readonly alPerderSesion?: () => void;
+}
+/** Gate de composición de las fotos compartidas de cada ficha: con null no se construye nada (ni recepción, ni
+ * listado, ni red). Con composición: una instancia de listado NUEVA por ficha abierta (nunca la del catálogo
+ * global), el mismo origen y presupuesto, y la misma política de original que la descarga duradera. */
+export function componerFotosRemotas(composicion: ComposicionRespaldoFotos | null, d: DependenciasFotosRemotas): FotosRemotas | null {
+  if (!composicion) return null;
+  const { plan } = d;
+  let recepcion: RecepcionOriginal | null;
+  // Mismo plazo que el cliente del listado de la composición (su único plazo de cliente): finito también aquí.
+  const plazoMs = composicion.listado.plazoMs;
+  try {
+    recepcion = crearRecepcionOriginal({ plan, origen: composicion.origen, plazoMs, ...(d.fetch ? { fetch: d.fetch } : {}),
+      ...(composicion.maxBytesOriginal !== undefined ? { maxBytesOriginal: composicion.maxBytesOriginal } : {}) });
+  } catch { recepcion = null; }
+  return crearFotosRemotas({ plan, recepcion,
+    crearListado: () => (d.fetch
+      ? crearClienteListadoFotos({ plan, origen: composicion.origen, presupuesto: composicion.listado, http: { fetch: d.fetch } })
+      : crearClienteListadoFotos({ plan, origen: composicion.origen, presupuesto: composicion.listado })),
+    clasificar: (o) => clasificarEnEsteMovil(plan, o, d.puerto()),
+    ...(d.enLinea ? { enLinea: d.enLinea } : {}), ...(d.crearMotor ? { crearMotor: d.crearMotor } : {}),
+    ...(d.crearUrl ? { crearUrl: d.crearUrl } : {}), ...(d.revocarUrl ? { revocarUrl: d.revocarUrl } : {}),
+    limites: { plazoMs, ...d.limites }, ...(d.alCambiar ? { alCambiar: d.alCambiar } : {}),
+    ...(d.alPerderSesion ? { alPerderSesion: d.alPerderSesion } : {}) });
 }
 
 export function crearRespaldoFotos(d: DependenciasRespaldoFotos): RespaldoFotos {
@@ -197,16 +310,20 @@ export function crearRespaldoFotos(d: DependenciasRespaldoFotos): RespaldoFotos 
   const estados = new Map<string, EstadoRespaldo>();
   /** Foto con un envío propio en curso (el transporte admite uno por instancia). */
   let activa: string | null = null;
-  /** Ocupado hasta que la biblioteca asienta su IO propio, no hasta un resultado cancelado. */
-  let cargaEnCurso: Promise<ResultadoRespaldo> | null = null;
+  /** Admisión COMPARTIDA (respaldo individual y cada paso del lote): ocupado hasta que la biblioteca asienta su IO
+   * propio, no hasta un resultado cancelado. */
+  let cargaEnCurso: Promise<unknown> | null = null;
   let descargaEnCurso: Promise<unknown> | null = null;
   let catalogo: EstadoCatalogo = { tipo: 'reposo' };
   let genCatalogo = 0;
   let consultando = false;
   /** Continuación RAW de la última página: posición, no permiso; nunca se sigue sola. */
   let continuacion: string | null = null;
-  /** Bytes de descargas fallidas, solo en memoria de esta sesión. */
-  const capturas = new Map<string, CapturaFoto>();
+  /** Época de autorización: sube con cada sesión perdida (401 propio o avisado desde fuera). Distinta de genPuerto
+   * (PhotoDB): un 401 no cambia de base, pero invalida todo lo privado temporal iniciado antes. */
+  let autorizacion = 0;
+  /** Bytes de descargas fallidas, solo en memoria de esta sesión y de SU época de autorización. */
+  const capturas = new Map<string, { readonly captura: CapturaFoto; readonly autorizacion: number }>();
   const entregadas = new Set<string>();
 
   function avisar(que: CambioRespaldo) {
@@ -281,7 +398,8 @@ export function crearRespaldoFotos(d: DependenciasRespaldoFotos): RespaldoFotos 
   }
 
   function transporteDe(p: FotosLocal, l: RespaldoFotosLocal): TransporteFotos {
-    transporte ??= crearTransporteFotos({ plan, origen, fuente: p, ledger: l,
+    // El POST lleva el plazo del cliente de la composición (sin presupuesto ni servidor nuevos).
+    transporte ??= crearTransporteFotos({ plan, origen, fuente: p, ledger: l, plazoMs: composicion.listado.plazoMs,
       ...(d.fetch ? { fetch: d.fetch } : {}),
       ...(composicion.maxBytesOriginal !== undefined ? { maxBytesOriginal: composicion.maxBytesOriginal } : {}) });
     return transporte;
@@ -330,7 +448,8 @@ export function crearRespaldoFotos(d: DependenciasRespaldoFotos): RespaldoFotos 
 
   function ejecutarCarga(fotoId: string, preparar: boolean): Promise<ResultadoRespaldo> {
     if (terminado) return Promise.resolve({ tipo: 'no-disponible' });
-    if (cargaEnCurso) return Promise.resolve({ tipo: 'ocupada' });
+    // Un envío a la vez: tampoco mientras corre el lote (entre una foto y la siguiente).
+    if (cargaEnCurso || recorriendo) return Promise.resolve({ tipo: 'ocupada' });
     if (!enLinea()) return Promise.resolve({ tipo: 'sin-conexion' });
     const p = sincronizarPuerto();
     if (!p || !esIdFoto(fotoId)) return Promise.resolve({ tipo: 'no-disponible' });
@@ -341,14 +460,179 @@ export function crearRespaldoFotos(d: DependenciasRespaldoFotos): RespaldoFotos 
     return operacion;
   }
 
-  async function clasificar(o: OriginalRespaldo, p: FotosLocal | null): Promise<LocalCatalogo> {
-    if (!p) return 'ilegible';
+
+  // ---------- Lote manual «Respaldar pendientes» ----------
+  interface ElementoLote {
+    readonly original: OriginalRespaldo;
+    /** Operación ya preparada (sin envío ni pausa) que se conserva; null: se preparará al confirmar. */
+    readonly operacionId: string | null;
+    resultado: 'pendiente' | 'confirmada' | 'omitida' | 'revision';
+  }
+  type PasoLote = { readonly resultado: ElementoLote['resultado']; readonly motivo?: MotivoParadaLote };
+  let lote: EstadoLote = { tipo: 'inactivo' };
+  let elementosLote: ElementoLote[] = [];
+  /** genPuerto del recuento: con otro PhotoDB, el consentimiento ya no vale. */
+  let puertoLote = -1;
+  /** Continuidad del consentimiento: sube al volver a contar, pausar, terminar o abandonar. */
+  let genLote = 0;
+  let recorriendo = false;
+  let pasoLoteEnCurso = false;
+  let motivoCorte: MotivoParadaLote | null = null;
+  const VIA_LOTE: ViaProcedencia = 'camara-galeria';
+
+  function ponerLote(e: EstadoLote) {
+    lote = e;
+    avisar({ tipo: 'lote' });
+  }
+  function progresoLote(): ProgresoLote {
+    const cuenta = (r: ElementoLote['resultado']) => elementosLote.filter((x) => x.resultado === r).length;
+    return { total: elementosLote.length, confirmadas: cuenta('confirmada'), omitidas: cuenta('omitida'),
+      revision: cuenta('revision'), restantes: cuenta('pendiente') };
+  }
+  /** Solo un preparado sin envío, sin pausa y de la MISMA identidad sigue siendo enviable dentro del lote. */
+  const preparadoLimpio = (e: EntradaRespaldo, o: OriginalRespaldo) => e.fase === 'preparado' && !e.enviada && !e.pausada
+    && mismosOriginalesRespaldo(plan, e.original, o);
+
+  async function contarLote(): Promise<void> {
+    if (terminado || recorriendo || lote.tipo === 'contando') return;
+    const gen = ++genLote;
+    elementosLote = []; motivoCorte = null;
+    const p = sincronizarPuerto();
+    if (!p) { ponerLote({ tipo: 'no-disponible' }); return; }
+    const genP = genPuerto;
+    const vale = () => !terminado && gen === genLote && genP === genPuerto;
+    ponerLote({ tipo: 'contando' });
     try {
-      const m = await p.leerMetadatos(o.fotoId);
-      if (m === null) return 'ausente';
-      if (esFotoBorrada(m)) return 'borrada';
-      return mismosOriginalesRespaldo(plan, copiarOriginalRespaldo(plan, m), o) ? 'registrada' : 'otra';
-    } catch { return 'ilegible'; }
+      const l = await abrirLedger();
+      if (!vale()) return;
+      if (!l) throw new Error('Registro de respaldos no disponible');
+      // Solo metadata: ningún original, miniatura, GET, POST ni preparación antes de confirmar.
+      const fotos = await p.listar();
+      if (!vale()) return;
+      const porId = new Map((await l.listar()).map((e) => [e.fotoId, e]));
+      if (!vale()) return;
+      const elegibles: ElementoLote[] = [];
+      let bytes = 0; let confirmadas = 0; let revision = 0; let sinOrigen = 0;
+      for (const m of fotos) {
+        const original = Object.freeze(copiarOriginalRespaldo(plan, m));
+        const entrada = porId.get(m.fotoId);
+        if (entrada?.fase === 'respaldada') { confirmadas++; continue; }
+        // Enviada sin acuse, en pausa, bloqueada o de otra identidad: revisión aparte, nunca dentro del lote.
+        if (entrada && !preparadoLimpio(entrada, original)) { revision++; continue; }
+        let via: ViaProcedencia | null = null;
+        try { via = p.leerProcedencia ? await p.leerProcedencia(m.fotoId) : null; } catch { via = null; }
+        if (!vale()) return;
+        if (via !== VIA_LOTE) { sinOrigen++; continue; }
+        const suma = bytes + original.bytesOriginal;
+        if (!Number.isSafeInteger(suma)) throw new Error('Suma de originales fuera de rango');
+        bytes = suma;
+        elegibles.push({ original, operacionId: entrada ? entrada.operacionId : null, resultado: 'pendiente' });
+      }
+      elementosLote = elegibles;
+      puertoLote = genP;
+      ponerLote({ tipo: 'propuesta', fotos: elegibles.length, bytes, confirmadas, revision, sinOrigen });
+    } catch {
+      if (vale()) { elementosLote = []; ponerLote({ tipo: 'no-disponible' }); }
+    }
+  }
+
+  /** Una foto del recuento: revalida ledger, identidad viva y procedencia tras CADA await; la pausa (época) se
+   * comprueba antes de preparar y antes de asignar el envío. Nunca adopta otra operación. */
+  async function pasoLote(x: ElementoLote, gen: number): Promise<PasoLote> {
+    pasoLoteEnCurso = true;
+    const id = x.original.fotoId;
+    try {
+      const p = sincronizarPuerto();
+      if (!p || puertoLote !== genPuerto) return { resultado: 'pendiente', motivo: 'error' };
+      const genP = genPuerto;
+      const sigue = () => !terminado && gen === genLote && genP === genPuerto;
+      const l = await abrirLedger();
+      if (!sigue()) return { resultado: 'pendiente' };
+      if (!l) return { resultado: 'pendiente', motivo: 'error' };
+      let entrada = await l.leer(id);
+      if (!sigue()) return { resultado: 'pendiente' };
+      if (entrada?.fase === 'respaldada') return { resultado: 'omitida' };
+      if (entrada ? !preparadoLimpio(entrada, x.original) || (x.operacionId !== null && entrada.operacionId !== x.operacionId)
+        : x.operacionId !== null) return { resultado: 'revision' };
+      const m = await p.leerMetadatos(id);
+      if (!sigue()) return { resultado: 'pendiente' };
+      if (!m || esFotoBorrada(m) || !mismosOriginalesRespaldo(plan, copiarOriginalRespaldo(plan, m), x.original)) {
+        return { resultado: 'omitida' };
+      }
+      const via = p.leerProcedencia ? await p.leerProcedencia(id) : null;
+      if (!sigue()) return { resultado: 'pendiente' };
+      if (via !== VIA_LOTE) return { resultado: 'omitida' };
+      if (!entrada) {
+        const original = await p.leerOriginal(id);
+        if (!sigue()) return { resultado: 'pendiente' };
+        if (!original) return { resultado: 'omitida' };
+        entrada = await l.preparar({ metadatos: m, original });
+        // Preparada y pausada a la vez: queda «preparado» sin envío y entra al continuar.
+        if (!sigue()) return { resultado: 'pendiente' };
+      }
+      const t = transporteDe(p, l);
+      activa = id;
+      avisar({ tipo: 'foto', fotoId: id }); avisar({ tipo: 'resumen' });
+      let error: unknown = null;
+      // El lote solo envía su operación si sigue preparada sin envío: el transporte lo exige al reclamarla.
+      try { await t.subir(referenciaDe(entrada), { soloPreparada: true }); } catch (e) { error = e; } finally {
+        if (activa === id) activa = null;
+      }
+      const durable = await leerDurable(id, genP);
+      if (error instanceof ErrorTransporteFotos && error.causa === 'admision') {
+        // Otro contexto la envió, pausó o confirmó entretanto: sin POST del lote; se revisa aparte y el lote sigue.
+        return { resultado: durable.tipo === 'respaldada' ? 'omitida' : 'revision' };
+      }
+      if (durable.tipo === 'respaldada') return { resultado: 'confirmada' };
+      const resultado = ['sin-confirmar', 'pausado', 'bloqueada'].includes(durable.tipo) ? 'revision' : 'pendiente';
+      if (error instanceof ErrorTransporteFotos) {
+        if (error.causa === 'sin-sesion') return { resultado, motivo: 'sin-sesion' };
+        if (error.causa === 'plazo') return { resultado, motivo: 'plazo' };
+        // Detenida por la pausa del lote: el bucle lo ve en la época; por otra causa, se para.
+        if (error.estado === 'detenida') return gen === genLote ? { resultado, motivo: 'error' } : { resultado };
+        if (error.estado === 'incierta') return { resultado, motivo: 'incierta' };
+      }
+      return { resultado, motivo: 'error' };
+    } catch {
+      return { resultado: 'pendiente', motivo: 'error' };
+    } finally { pasoLoteEnCurso = false; }
+  }
+
+  async function recorrerLote(): Promise<void> {
+    const gen = ++genLote;
+    motivoCorte = null;
+    recorriendo = true;
+    ponerLote({ tipo: 'enviando', progreso: progresoLote(), pausando: false });
+    let motivo: MotivoParadaLote | null = null;
+    try {
+      // Admisión compartida: un respaldo individual en curso asienta antes de la primera foto del lote.
+      while (cargaEnCurso && gen === genLote) { try { await cargaEnCurso; } catch { /* su resultado es suyo */ } }
+      for (const x of elementosLote) {
+        if (gen !== genLote) break;
+        if (x.resultado !== 'pendiente') continue;
+        if (!enLinea()) { motivo = 'sin-conexion'; break; }
+        const paso = pasoLote(x, gen);
+        cargaEnCurso = paso;
+        let r: PasoLote;
+        try { r = await paso; } finally { if (cargaEnCurso === paso) cargaEnCurso = null; }
+        x.resultado = r.resultado;
+        if (gen === genLote) ponerLote({ tipo: 'enviando', progreso: progresoLote(), pausando: false });
+        if (r.motivo) { motivo = r.motivo; break; }
+      }
+    } finally {
+      recorriendo = false;
+    }
+    if (terminado) return;
+    if (gen !== genLote) motivo = motivoCorte ?? 'pausa';
+    if (motivo) ponerLote({ tipo: 'detenido', progreso: progresoLote(), motivo });
+    else ponerLote({ tipo: 'terminado', progreso: progresoLote() });
+  }
+  /** Corta la continuidad: la foto en curso se aborta, pero su IO sigue siendo suyo hasta que asienta. */
+  function cortarLote(motivo: MotivoParadaLote) {
+    motivoCorte = motivo;
+    genLote++;
+    if (pasoLoteEnCurso) transporte?.cancelar();
+    if (lote.tipo === 'enviando') ponerLote({ tipo: 'enviando', progreso: lote.progreso, pausando: true });
   }
 
   function listadoDe(): ListadoFotos | null {
@@ -368,6 +652,26 @@ export function crearRespaldoFotos(d: DependenciasRespaldoFotos): RespaldoFotos 
     }
   }
 
+  /** Sin sesión: la página del catálogo (candidatas temporales) y las capturas de esta sesión se sueltan; una
+   * consulta en curso ya no se pinta. El ledger y las fotos guardadas en este móvil no se tocan. */
+  function soltarPorSesion(propia: boolean) {
+    autorizacion++;
+    genCatalogo++;
+    continuacion = null;
+    capturas.clear();
+    if (consultando) listado?.cancelar();
+    if (catalogo.tipo === 'pagina' || catalogo.tipo === 'consultando') catalogo = { tipo: 'fallo', motivo: 'sin-sesion' };
+    avisar({ tipo: 'catalogo' });
+    if (propia) avisar({ tipo: 'sin-sesion' });
+  }
+  /** ÚNICA puerta de las capturas privadas (bytes recibidos de un guardado que no llegó a PhotoDB): solo se retienen
+   * si siguen siendo de la MISMA autorización y del MISMO PhotoDB con que empezó ese guardado. Un 401 entretanto las
+   * descarta: ni archivo, ni URL. Las fotos que sí se guardaron en este móvil no dependen de esto. */
+  function retenerCaptura(fotoId: string, captura: CapturaFoto, epoca: number, gen: number): boolean {
+    if (terminado || epoca !== autorizacion || gen !== genPuerto) return false;
+    capturas.set(fotoId, { captura, autorizacion: epoca });
+    return true;
+  }
   function actualizarFila(gen: number, fotoId: string, cambios: Partial<Omit<FilaCatalogo, 'original'>>) {
     if (gen !== genCatalogo || catalogo.tipo !== 'pagina') return;
     const filas = catalogo.filas.map((f) => (f.original.fotoId === fotoId ? { ...f, ...cambios } : f));
@@ -377,7 +681,7 @@ export function crearRespaldoFotos(d: DependenciasRespaldoFotos): RespaldoFotos 
 
   function descargaDe(p: FotosLocal): DescargaFotos {
     // La misma política de original que el transporte: 0 también vale (ningún original positivo se pide).
-    descarga ??= crearDescargaFotos({ plan, origen, fotos: p, ...(d.fetch ? { fetch: d.fetch } : {}),
+    descarga ??= crearDescargaFotos({ plan, origen, fotos: p, plazoMs: composicion.listado.plazoMs, ...(d.fetch ? { fetch: d.fetch } : {}),
       ...(composicion.maxBytesOriginal !== undefined ? { maxBytesOriginal: composicion.maxBytesOriginal } : {}) });
     return descarga;
   }
@@ -385,6 +689,36 @@ export function crearRespaldoFotos(d: DependenciasRespaldoFotos): RespaldoFotos 
   return {
     get fase() { return fase; },
     get catalogo() { return catalogo; },
+    get lote() { return lote; },
+    contarLote,
+    async confirmarLote() {
+      if (terminado || recorriendo || lote.tipo !== 'propuesta') return;
+      if (elementosLote.length === 0) { ponerLote({ tipo: 'inactivo' }); return; }
+      await recorrerLote();
+    },
+    pausarLote() {
+      if (lote.tipo === 'enviando' && !lote.pausando) cortarLote('pausa');
+    },
+    async continuarLote() {
+      if (terminado || recorriendo || lote.tipo !== 'detenido' || lote.motivo === 'cerrado') return;
+      if (!elementosLote.some((x) => x.resultado === 'pendiente')) return;
+      await recorrerLote();
+    },
+    terminarLote() {
+      if (recorriendo || lote.tipo === 'enviando') return;
+      genLote++;
+      elementosLote = []; motivoCorte = null;
+      ponerLote({ tipo: 'inactivo' });
+    },
+    abandonarLote() {
+      if (lote.tipo === 'contando' || lote.tipo === 'propuesta') {
+        genLote++; elementosLote = [];
+        ponerLote({ tipo: 'inactivo' });
+      } else if (lote.tipo === 'enviando') cortarLote('cerrado');
+      else if (lote.tipo === 'detenido' && lote.motivo !== 'cerrado') {
+        ponerLote({ tipo: 'detenido', progreso: lote.progreso, motivo: 'cerrado' });
+      }
+    },
     async leer(fotoId) {
       if (terminado) return ILEGIBLE;
       const p = sincronizarPuerto();
@@ -459,7 +793,7 @@ export function crearRespaldoFotos(d: DependenciasRespaldoFotos): RespaldoFotos 
           const filas: FilaCatalogo[] = [];
           for (const texto of r.pagina.solicitudesIniciales) {
             const original = deserializarSolicitudRespaldo(plan, texto).original;
-            const local = await clasificar(original, p);
+            const local = await clasificarEnEsteMovil(plan, original, p);
             filas.push({ original, local, accion: accionDe(local) });
           }
           if (gen !== genCatalogo || terminado) return;
@@ -473,24 +807,43 @@ export function crearRespaldoFotos(d: DependenciasRespaldoFotos): RespaldoFotos 
       } else if (r.tipo === 'fallida') catalogo = { tipo: 'fallo', motivo: motivoCatalogo(r.motivo) };
       else catalogo = { tipo: 'detenido', motivo: r.motivo };
       avisar({ tipo: 'catalogo' });
+      // Un 401 del catálogo sube la época de autorización (capturas en curso incluidas) y avisa: también invalida
+      // las compartidas de las fichas.
+      if (r.tipo === 'fallida' && r.motivo === 'sin-sesion') soltarPorSesion(true);
     },
     cancelarListado() { if (consultando) listado?.cancelar(); },
-    async guardar(fotoId) {
-      if (terminado || descargaEnCurso) return;
+    async guardar(fotoId, descubierta): Promise<ResultadoGuardado> {
+      if (terminado) return NO_DISPONIBLE;
+      if (descargaEnCurso) return { tipo: 'ocupada' };
       // Si cambió PhotoDB, la página se descarta antes de buscar la fila.
       const p = sincronizarPuerto();
-      if (!p || catalogo.tipo !== 'pagina') return;
-      const fila = catalogo.filas.find((f) => f.original.fotoId === fotoId);
-      if (!fila || !fila.accion) return;
-      // Referencia, puerto y generaciones capturados ANTES del primer await.
+      if (!p) return NO_DISPONIBLE;
+      // Referencia, puerto, generaciones y época de autorización capturados ANTES del primer await.
       const gen = genPuerto;
       const genC = genCatalogo;
-      const ref = fila.original;
+      const epoca = autorizacion;
+      let ref: OriginalRespaldo;
+      if (descubierta !== undefined) {
+        // De la ficha de su destino: identidad completa validada con el plan y del MISMO fotoId. Borrada u ocupada
+        // por otra captura aquí, la descarga lo rechaza antes de cualquier GET (nunca resucita ni sobrescribe).
+        try { ref = copiarIdentidadRespaldo(plan, descubierta); } catch { return NO_DISPONIBLE; }
+        if (ref.fotoId !== fotoId) return NO_DISPONIBLE;
+      } else {
+        if (catalogo.tipo !== 'pagina') return NO_DISPONIBLE;
+        const fila = catalogo.filas.find((f) => f.original.fotoId === fotoId);
+        if (!fila || !fila.accion) return NO_DISPONIBLE;
+        ref = fila.original;
+      }
+      // La fila del catálogo (si la hay) solo cambia si es la MISMA identidad.
+      const marcar = (cambios: Partial<Omit<FilaCatalogo, 'original'>>) => {
+        if (catalogo.tipo === 'pagina' && catalogo.filas.some((f) => f.original.fotoId === fotoId
+          && mismosOriginalesRespaldo(plan, f.original, ref))) actualizarFila(genC, fotoId, cambios);
+      };
       let instancia: DescargaFotos;
       try { instancia = descargaDe(p); }
-      catch { actualizarFila(genC, fotoId, { estado: 'no-guardada', captura: undefined }); return; }
+      catch { marcar({ estado: 'no-guardada', captura: undefined }); return { tipo: 'no-guardada' }; }
       capturas.delete(fotoId);
-      actualizarFila(genC, fotoId, { estado: 'guardando', captura: undefined });
+      marcar({ estado: 'guardando', captura: undefined });
       const operacion = (async () => {
         // Foto fresca de PhotoDB antes del GET: distingue una guardada nueva de una comprobada (bytes por la biblioteca).
         let antes: 'ausente' | 'presente' | 'desconocido' = 'desconocido';
@@ -504,7 +857,7 @@ export function crearRespaldoFotos(d: DependenciasRespaldoFotos): RespaldoFotos 
       try { salida = await operacion; }
       finally { if (descargaEnCurso === operacion) descargaEnCurso = null; }
       const { r, antes } = salida;
-      if (terminado) return;
+      if (terminado) return NO_DISPONIBLE;
       if (r.tipo === 'guardada') {
         let misma = false;
         try {
@@ -514,19 +867,36 @@ export function crearRespaldoFotos(d: DependenciasRespaldoFotos): RespaldoFotos 
         if (misma) {
           // Única condición de incorporación: guardada, misma identidad pedida y mismo PhotoDB capturado.
           try { d.incorporar(r.captura.metadatos); } catch { /* la interfaz no altera lo durable */ }
-          actualizarFila(genC, fotoId, { estado: antes === 'presente' ? 'comprobada' : 'guardada',
-            local: 'registrada', accion: 'comprobar' });
-        } else actualizarFila(genC, fotoId, { estado: 'detenida' });
-      } else if (r.tipo === 'fallida') {
-        const conCaptura = !!r.captura && gen === genPuerto;
-        if (conCaptura && r.captura) capturas.set(fotoId, r.captura);
-        actualizarFila(genC, fotoId, conCaptura ? { estado: 'no-guardada', captura: true } : { estado: 'no-guardada' });
-      } else actualizarFila(genC, fotoId, { estado: 'detenida' });
+          const estado = antes === 'presente' ? 'comprobada' : 'guardada';
+          marcar({ estado, local: 'registrada', accion: 'comprobar' });
+          return { tipo: estado };
+        }
+        marcar({ estado: 'detenida' });
+        return { tipo: 'detenida' };
+      }
+      if (r.tipo === 'fallida') {
+        if (r.causa === 'sin-sesion') {
+          // 401: no se guardó nada y la sesión ya no vale: fuera todas las candidatas temporales.
+          marcar({ estado: 'no-guardada' });
+          soltarPorSesion(true);
+          return { tipo: 'no-guardada', causa: 'sin-sesion' };
+        }
+        // Cuota, colisión o cualquier otro fallo de escritura: la captura pasa por la misma puerta.
+        const conCaptura = !!r.captura && retenerCaptura(fotoId, r.captura, epoca, gen);
+        marcar(conCaptura ? { estado: 'no-guardada', captura: true } : { estado: 'no-guardada' });
+        const causa = r.causa === 'plazo' ? { causa: 'plazo' as const } : {};
+        return conCaptura ? { tipo: 'no-guardada', captura: true, ...causa } : { tipo: 'no-guardada', ...causa };
+      }
+      marcar({ estado: 'detenida' });
+      return { tipo: 'detenida' };
     },
     cancelarGuardado() { descarga?.cancelar(); },
+    invalidarSesion() { if (!terminado) soltarPorSesion(false); },
     descargarArchivo(fotoId) {
-      const c = capturas.get(fotoId);
-      if (!c || terminado) return null;
+      const guardada = capturas.get(fotoId);
+      // Solo una captura de la autorización vigente; nunca una URL nueva tras un 401.
+      if (!guardada || terminado || guardada.autorizacion !== autorizacion) return null;
+      const c = guardada.captura;
       // Mismos bytes como octet-stream: se descargan, nunca se muestran ni se guardan en PhotoDB.
       const blob = Blob.prototype.slice.call(c.original, 0, tamanoBlob(c.original), 'application/octet-stream') as Blob;
       const url = crearUrl(blob);
@@ -538,6 +908,7 @@ export function crearRespaldoFotos(d: DependenciasRespaldoFotos): RespaldoFotos 
       if (terminado) return;
       terminado = true;
       fase = 'terminada';
+      genLote++;
       transporte?.cerrar(); transporte = null;
       descarga?.cerrar(); descarga = null;
       listado?.cerrar(); listado = null;
@@ -634,6 +1005,55 @@ export function textoResultadoRespaldo(r: ResultadoRespaldo): string {
   }
 }
 
+/** Copy del lote «Respaldar pendientes». No promete datos móviles gratis, wifi ni que pausar evite costes. */
+export function textoLote(l: EstadoLote): { readonly estado: string; readonly detalle: string } {
+  const fotos = (n: number) => `${n} ${n === 1 ? 'foto' : 'fotos'}`;
+  const fuera = (p: Extract<EstadoLote, { tipo: 'propuesta' }>) => {
+    const partes: string[] = [];
+    if (p.confirmadas) partes.push(`${p.confirmadas} ya ${p.confirmadas === 1 ? 'confirmada' : 'confirmadas'}`);
+    if (p.revision) partes.push(`${p.revision} para revisar`);
+    if (p.sinOrigen) {
+      partes.push(p.sinOrigen === 1
+        ? '1 sin origen comprobado aquí (anterior, descargada o importada: se respalda desde su visor)'
+        : `${p.sinOrigen} sin origen comprobado aquí (anteriores, descargadas o importadas: se respaldan desde su visor)`);
+    }
+    return partes.length ? `Quedan fuera: ${partes.join(' · ')}.` : '';
+  };
+  const cuenta = (p: ProgresoLote) => `${p.confirmadas} de ${p.total} confirmadas`;
+  const balance = (p: ProgresoLote) => [
+    p.revision ? `${p.revision} para revisar aparte (sin confirmar).` : '',
+    p.omitidas ? `${p.omitidas} ${p.omitidas === 1 ? 'omitida: ya no estaba o cambió.' : 'omitidas: ya no estaban o cambiaron.'}` : '',
+  ].filter(Boolean).join(' ');
+  switch (l.tipo) {
+    case 'inactivo': return { estado: '', detalle: '' };
+    case 'contando': return { estado: 'Contando las fotos pendientes de este móvil…', detalle: '' };
+    case 'no-disponible':
+      return { estado: 'No se pudieron leer las fotos o el registro de respaldos de este móvil; no se ha enviado nada.', detalle: '' };
+    case 'propuesta':
+      if (l.fotos === 0) return { estado: 'No hay fotos añadidas aquí con la cámara o la galería pendientes de respaldo.', detalle: fuera(l) };
+      return { estado: `¿Respaldar ${fotos(l.fotos)} ${l.fotos === 1 ? 'añadida' : 'añadidas'} aquí con la cámara o la galería `
+        + `(≈ ${pesoLegible(l.bytes)} de originales)?`,
+      detalle: ['Se envían de una en una al servidor del viaje; los datos móviles pueden tener coste.', fuera(l)].filter(Boolean).join(' ') };
+    case 'enviando':
+      return { estado: l.pausando ? `Pausando: ${cuenta(l.progreso)}.` : `Respaldando: ${cuenta(l.progreso)} por el servidor.`, detalle: '' };
+    case 'terminado': return { estado: `Lote terminado: ${cuenta(l.progreso)} por el servidor.`, detalle: balance(l.progreso) };
+    case 'detenido': {
+      const p = l.progreso;
+      if (l.motivo === 'pausa') {
+        return { estado: `En pausa: ${cuenta(p)}.`,
+          detalle: ['Si una foto ya había salido, el servidor puede recibirla igualmente.', balance(p)].filter(Boolean).join(' ') };
+      }
+      if (l.motivo === 'cerrado') {
+        return { estado: `Se detuvo al salir de esta vista: ${cuenta(p)}.`,
+          detalle: ['Para seguir, vuelve a respaldar las pendientes.', balance(p)].filter(Boolean).join(' ') };
+      }
+      const causa = { 'sin-sesion': 'este móvil no tiene sesión en el servidor', 'plazo': 'tardó demasiado',
+        'incierta': 'una foto quedó sin confirmar', 'error': 'no se pudo enviar', 'sin-conexion': 'sin conexión' }[l.motivo];
+      return { estado: `Parado: ${causa}. ${cuenta(p)}.`, detalle: balance(p) };
+    }
+  }
+}
+
 // ---------- «Fotos del viaje» en «Todo» (DOM; solo con la composición activada) ----------
 
 export interface OpcionesSeccionFotosViaje {
@@ -670,7 +1090,8 @@ function boton(texto: string, clase: string, datos: Record<string, string>): HTM
 }
 const ATRIBUTOS_ACCION = ['data-catalogo-ver', 'data-catalogo-siguientes', 'data-catalogo-principio', 'data-catalogo-reintentar',
   'data-catalogo-cancelar', 'data-catalogo-guardar', 'data-catalogo-cancelar-guardado', 'data-catalogo-archivo',
-  'data-viaje-reintentar'];
+  'data-viaje-reintentar', 'data-lote-contar', 'data-lote-confirmar', 'data-lote-pausar', 'data-lote-continuar',
+  'data-lote-terminar'];
 
 export function crearSeccionFotosViaje(o: OpcionesSeccionFotosViaje): SeccionFotosViaje {
   const { respaldo, nombreDe } = o;
@@ -733,6 +1154,41 @@ export function crearSeccionFotosViaje(o: OpcionesSeccionFotosViaje): SeccionFot
     }
     return li;
   }
+  /** Botones del lote según su estado; un solo botón en tinta (la confirmación). */
+  function accionesLote(): HTMLElement[] {
+    const l = respaldo.lote;
+    const contar = (ocupado = false) => {
+      const b = boton('Respaldar pendientes', 'boton', { 'lote-contar': '' });
+      if (ocupado) b.setAttribute('aria-disabled', 'true');
+      return b;
+    };
+    switch (l.tipo) {
+      case 'inactivo': case 'terminado': case 'no-disponible': return [contar()];
+      case 'contando': return [contar(true)];
+      case 'propuesta':
+        if (l.fotos === 0) return [boton('Cerrar', 'mini suave', { 'lote-terminar': '' })];
+        return [boton(`Respaldar ${l.fotos} ${l.fotos === 1 ? 'foto' : 'fotos'}`, 'boton tinta', { 'lote-confirmar': '' }),
+          boton('Cancelar', 'mini suave', { 'lote-terminar': '' })];
+      case 'enviando': {
+        const b = boton(l.pausando ? 'Pausando…' : 'Pausar', 'boton', { 'lote-pausar': '' });
+        if (l.pausando) b.setAttribute('aria-disabled', 'true');
+        return [b];
+      }
+      case 'detenido': {
+        if (l.motivo === 'cerrado') return [contar()];
+        const r: HTMLElement[] = [];
+        if (l.progreso.restantes > 0) r.push(boton(`Continuar (${l.progreso.restantes})`, 'boton', { 'lote-continuar': '' }));
+        if (l.motivo === 'sin-sesion' && enLinea()) {
+          // Solo un enlace: la navegación es de quien lo toca, nunca una redirección sola.
+          const a = elemento('a', 'boton', 'Entrar');
+          a.href = '/entrar';
+          r.push(a);
+        }
+        r.push(boton('Terminar', 'mini suave', { 'lote-terminar': '' }));
+        return r;
+      }
+    }
+  }
   function accionesCatalogo(): HTMLElement[] {
     const c = respaldo.catalogo;
     const ver = () => boton('Ver fotos respaldadas', 'boton', { 'catalogo-ver': '' });
@@ -790,13 +1246,25 @@ export function crearSeccionFotosViaje(o: OpcionesSeccionFotosViaje): SeccionFot
     const lineaCatalogo = contenedor.querySelector<HTMLElement>('.estado-catalogo');
     const acciones = contenedor.querySelector<HTMLElement>('.acciones-catalogo');
     const filasCatalogo = contenedor.querySelector<HTMLElement>('.filas-catalogo');
-    if (!lineaResumen || !filasResumen || !lineaCatalogo || !acciones || !filasCatalogo) return;
+    const lineaLote = contenedor.querySelector<HTMLElement>('.estado-lote');
+    const detalleLote = contenedor.querySelector<HTMLElement>('.detalle-lote');
+    const botonesLote = contenedor.querySelector<HTMLElement>('.acciones-lote');
+    if (!lineaResumen || !filasResumen || !lineaCatalogo || !acciones || !filasCatalogo || !lineaLote || !detalleLote
+      || !botonesLote) return;
     const foco = document.activeElement instanceof HTMLElement && contenedor.contains(document.activeElement)
       ? document.activeElement : null;
     const buscada = foco ? huella(foco) : '';
     lineaResumen.textContent = textoResumen();
     const pendientes = (resumen ?? []).filter((r) => ['sin-confirmar', 'pausado', 'bloqueada', 'enviando'].includes(r.estado.tipo));
     filasResumen.replaceChildren(...pendientes.map(filaResumen));
+    // Lote: región viva estable (solo cambia su texto) y sus botones, sustituidos solo si cambian.
+    const tl = textoLote(respaldo.lote);
+    if (lineaLote.parentElement) lineaLote.parentElement.dataset.estado = respaldo.lote.tipo;
+    if (lineaLote.textContent !== tl.estado) lineaLote.textContent = tl.estado;
+    if (detalleLote.textContent !== tl.detalle) detalleLote.textContent = tl.detalle;
+    const nuevosLote = accionesLote();
+    const firmaLote = nuevosLote.map((b) => b.outerHTML).join('');
+    if (botonesLote.dataset.firma !== firmaLote) { botonesLote.dataset.firma = firmaLote; botonesLote.replaceChildren(...nuevosLote); }
     const texto = textoCatalogo(respaldo.catalogo, o.maxFilas);
     // Región viva estable: solo cambia su texto.
     if (lineaCatalogo.textContent !== texto) lineaCatalogo.textContent = texto;
@@ -805,7 +1273,10 @@ export function crearSeccionFotosViaje(o: OpcionesSeccionFotosViaje): SeccionFot
     filasCatalogo.replaceChildren(...(c.tipo === 'pagina' ? c.filas.map(filaCatalogo) : []));
     if (foco && !foco.isConnected) {
       const igual = [...contenedor.querySelectorAll<HTMLElement>('button, a')].find((b) => huella(b) === buscada);
-      (igual ?? contenedor.querySelector<HTMLElement>('h3'))?.focus();
+      // Un botón del lote que cambia (Respaldar → confirmar → Pausar → Continuar…): el foco pasa al primero nuevo.
+      const delLote = foco.getAttributeNames().some((a) => a.startsWith('data-lote-'))
+        ? botonesLote.querySelector<HTMLElement>('button, a') : null;
+      (igual ?? delLote ?? contenedor.querySelector<HTMLElement>('h3'))?.focus();
     }
   }
   function descargarArchivo(fotoId: string) {
@@ -835,6 +1306,8 @@ export function crearSeccionFotosViaje(o: OpcionesSeccionFotosViaje): SeccionFot
     refrescarResumen();
   }
 
+  /** Ocultar la app corta el lote y su consentimiento: volver no reanuda nada. */
+  const alOcultar = () => { if (document.visibilityState === 'hidden') respaldo.abandonarLote(); };
   return {
     montar(c) {
       gen++;
@@ -844,8 +1317,14 @@ export function crearSeccionFotosViaje(o: OpcionesSeccionFotosViaje): SeccionFot
       titulo.tabIndex = -1;
       const lineaCatalogo = elemento('p', 'estado-catalogo');
       lineaCatalogo.setAttribute('role', 'status');
+      // «Respaldar pendientes»: bajo el recuento de este móvil, con su propia línea de estado estable.
+      const loteFotos = elemento('div', 'lote-fotos');
+      const lineaLote = elemento('p', 'estado-lote');
+      lineaLote.setAttribute('role', 'status');
+      loteFotos.append(lineaLote, elemento('p', 'detalle-lote'), elemento('div', 'acciones-bloque acciones-lote'));
+      document.addEventListener('visibilitychange', alOcultar);
       c.replaceChildren(titulo,
-        elemento('h4', 'subs-titulo', 'En este móvil'), elemento('p', 'estado-fotos-viaje'),
+        elemento('h4', 'subs-titulo', 'En este móvil'), elemento('p', 'estado-fotos-viaje'), loteFotos,
         elemento('ul', 'filas-fotos-viaje filas-resumen'),
         elemento('h4', 'subs-titulo', 'En el servidor'), lineaCatalogo,
         elemento('div', 'acciones-bloque acciones-catalogo'), elemento('ul', 'filas-fotos-viaje filas-catalogo'),
@@ -855,7 +1334,7 @@ export function crearSeccionFotosViaje(o: OpcionesSeccionFotosViaje): SeccionFot
     },
     alCambiar(que) {
       if (!contenedor) return;
-      if (que.tipo === 'catalogo') pintar();
+      if (que.tipo === 'catalogo' || que.tipo === 'lote') pintar();
       else if (que.tipo === 'resumen') refrescarResumen();
     },
     manejarClic(objetivo) {
@@ -871,11 +1350,20 @@ export function crearSeccionFotosViaje(o: OpcionesSeccionFotosViaje): SeccionFot
       else if (b.dataset.catalogoGuardar) void respaldo.guardar(b.dataset.catalogoGuardar);
       else if (b.dataset.catalogoArchivo) descargarArchivo(b.dataset.catalogoArchivo);
       else if (b.dataset.viajeReintentar) void reintentarDesdeResumen(b.dataset.viajeReintentar);
+      else if (b.hasAttribute('data-lote-contar')) void respaldo.contarLote();
+      else if (b.hasAttribute('data-lote-confirmar')) void respaldo.confirmarLote();
+      else if (b.hasAttribute('data-lote-pausar')) respaldo.pausarLote();
+      else if (b.hasAttribute('data-lote-continuar')) void respaldo.continuarLote();
+      else if (b.hasAttribute('data-lote-terminar')) respaldo.terminarLote();
       return true;
     },
     desmontar() {
-      gen++;
+      const g = ++gen;
       contenedor = null;
+      document.removeEventListener('visibilitychange', alOcultar);
+      // Salir de «Todo» termina la continuidad del lote: nada sigue ni se reanuda solo. Repintar «Todo» (desmontar y
+      // montar en el MISMO turno, como al cargar el mapa) no es salir: si se volvió a montar, el lote sigue.
+      queueMicrotask(() => { if (gen === g && !contenedor) respaldo.abandonarLote(); });
     },
   };
 }

@@ -12,6 +12,26 @@ export interface OpcionesRespaldoFotosLocal {
   /** CSPRNG UUIDv4 inyectable; solo se consulta al crear una preparación explícita nueva. */
   readonly uuid?: () => string;
 }
+/** Condición de quien reclama el envío. `soloPreparada`: el lote solo admite una operación preparada sin envío ni
+ * pausa; el reintento individual (sin condición) sigue pudiendo reenviar la MISMA operación. */
+export interface CondicionesEnvio {
+  readonly soloPreparada?: boolean;
+}
+/** El reclamo condicionado no se cumplió: otro contexto ya envió, pausó o confirmó esa operación. No se escribió nada. */
+export class ErrorAdmisionRespaldo extends Error {
+  constructor() {
+    super('La operación ya no está preparada sin envío; no se reclama otra vez');
+    this.name = 'ErrorAdmisionRespaldo';
+  }
+}
+/** Copia validada antes de cualquier await: solo `soloPreparada` booleana; otra forma no se interpreta. */
+export function copiarCondicionesEnvio(valor: unknown): { readonly soloPreparada: boolean } {
+  if (valor === undefined) return { soloPreparada: false };
+  if (!(camposFoto(valor, ['soloPreparada']) || camposFoto(valor, []))) throw new Error('Condiciones de envío inválidas');
+  const solo = valor.soloPreparada;
+  if (solo !== undefined && typeof solo !== 'boolean') throw new Error('Condiciones de envío inválidas');
+  return { soloPreparada: solo === true };
+}
 export interface RespaldoFotosLocal {
   /** Metadata exclusivamente: no carga originales ni implica consulta remota. */
   listar(): Promise<EntradaRespaldo[]>;
@@ -22,8 +42,10 @@ export interface RespaldoFotosLocal {
    * Retorna operación existente sin rebobinarla; operación distinta siempre es colisión. */
   preparar(captura: CapturaFoto, operacionId?: string): Promise<EntradaRespaldo>;
   /** Resolver TX antes de IO externo. El transporte FUTURO deberá reatestar el original
-   * antes de IO: este marcador irreversible por sí solo no autoriza bytes ni autentica sesión. */
-  marcarEnviada(referencia: ReferenciaRespaldo): Promise<EntradaRespaldo>;
+   * antes de IO: este marcador irreversible por sí solo no autoriza bytes ni autentica sesión.
+   * Con `soloPreparada`, la comprobación y la escritura van en la MISMA transacción readwrite: si otro contexto ya
+   * la envió, pausó o confirmó, rechaza con ErrorAdmisionRespaldo sin escribir. Entre conexiones, gana una sola. */
+  marcarEnviada(referencia: ReferenciaRespaldo, condiciones?: CondicionesEnvio): Promise<EntradaRespaldo>;
   /** Intención local, no prueba de aborto remoto/rollback ni ausencia de bytes/costes. */
   pausar(referencia: ReferenciaRespaldo): Promise<EntradaRespaldo>;
   /** Solo acción explícita manual: quita pausa sin regenerar operación, payload ni testigo. */
@@ -148,11 +170,14 @@ export async function abrirRespaldoFotosLocal(plan: Itinerario, fuente: Lecturas
     }
     return actual;
   }
-  function cambiar(refEntrada: unknown, accion: 'enviar' | 'pausar' | 'reintentar'): Promise<EntradaRespaldo> {
+  function cambiar(refEntrada: unknown, accion: 'enviar' | 'pausar' | 'reintentar',
+    soloPreparada = false): Promise<EntradaRespaldo> {
     // Copia antes de transacción/await: una acción tardía nunca cambia su destino.
     const ref = copiarReferenciaRespaldo(planFijo, refEntrada);
     return conRegistro(ref.fotoId, 'readwrite', (anterior, t, terminar) => {
       const actual = comprobarReferencia(anterior, ref);
+      // Admisión del lote en el reclamo mismo: nada de lo que otro contexto haya hecho se envía otra vez.
+      if (soloPreparada && (actual.fase !== 'preparado' || actual.enviada || actual.pausada)) throw new ErrorAdmisionRespaldo();
       let siguiente: EntradaRespaldo;
       if (accion === 'pausar') siguiente = { ...actual, pausada: true };
       else {
@@ -204,7 +229,7 @@ export async function abrirRespaldoFotosLocal(plan: Itinerario, fuente: Lecturas
         t.add(siguiente, metadata.fotoId); terminar(siguiente);
       });
     },
-    marcarEnviada: async (ref) => cambiar(ref, 'enviar'),
+    marcarEnviada: async (ref, condiciones) => cambiar(ref, 'enviar', copiarCondicionesEnvio(condiciones).soloPreparada),
     pausar: async (ref) => cambiar(ref, 'pausar'),
     reintentar: async (ref) => cambiar(ref, 'reintentar'),
     confirmarRecibo: async (entrada) => {

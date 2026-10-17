@@ -7,6 +7,7 @@ import { abrirFotosLocal, type FotosLocal } from '../src/fotos-local';
 import { crearMiniatura, type ImagenDecodificada } from '../src/fotos-imagen';
 import { crearCapturaFoto, esFotoBorrada, type DestinoFoto } from '../src/fotos';
 import { TROZO_IDENTIDAD, claveDestino, crearFotosInterfaz, destinoDeClave, type FotosInterfaz } from '../src/fotos-interfaz';
+import { copiarOriginalRespaldo } from '../src/fotos-respaldo';
 
 const PARADA = 'c80e3471f9ab562d';
 const SUB = 'eb6438fa172dc905';
@@ -474,7 +475,7 @@ describe('identidad completa antes de confirmar', () => {
     const c = montar({ uuid: () => ID });
     await c.interfaz.abrir();
     await new Promise<void>((ok, ko) => {
-      const r = c.fabrica.open('fotos-interfaz', 1);
+      const r = c.fabrica.open('fotos-interfaz'); // la versión vigente, como otra conexión
       r.onerror = () => ko(r.error);
       r.onsuccess = () => {
         const tx = r.result.transaction(['metadatos', 'originales'], 'readwrite');
@@ -526,7 +527,7 @@ describe('vistas previas guardadas: validación compartida por lista y visor', (
   /** Escribe en crudo (como otra conexión) una vista previa y su metadata «lista» coherente para la biblioteca. */
   function ponerVista(fabrica: IDBFactory, id: string, bytes: Uint8Array<ArrayBuffer>, ancho: number, alto: number) {
     return new Promise<void>((ok, ko) => {
-      const r = fabrica.open('fotos-interfaz', 1);
+      const r = fabrica.open('fotos-interfaz'); // la versión vigente, como otra conexión
       r.onerror = () => ko(r.error);
       r.onsuccess = () => {
         const tx = r.result.transaction(['metadatos', 'miniaturas'], 'readwrite');
@@ -613,5 +614,36 @@ describe('vistas previas guardadas: validación compartida por lista y visor', (
     await visitar(m);
     expect([m.urls.size, m.interfaz.entradas(parada)[0]?.url]).toEqual([0, undefined]);
     expect([await m.interfaz.verMiniatura(m.id), m.urls.size]).toEqual([null, 0]);
+  });
+});
+
+// ---------- Procedencia de lo que entra por cámara o galería (RP1) ----------
+
+describe('procedencia de lo que entra por cámara o galería', () => {
+  it('RI1 · guardar desde la interfaz (cámara o galería) deja la marca durable ligada a la identidad ORIGINAL', async () => {
+    const a = montar();
+    await a.interfaz.abrir();
+    const r = await a.interfaz.guardar(parada, archivo('uno.png'));
+    if (r.tipo !== 'guardada') throw new Error('no guardada');
+    const metadatos = a.interfaz.entradas(parada).find((e) => e.fotoId === r.fotoId);
+    expect(metadatos).toBeTruthy();
+    // Lectura CRUDA sin versión de la misma base.
+    const crudo = await new Promise<{ almacenes: string[]; marcas: unknown[] }>((ok, no) => {
+      const s = a.fabrica.open('fotos-interfaz');
+      s.onerror = () => no(s.error);
+      s.onsuccess = () => {
+        const db = s.result; const almacenes = Array.from(db.objectStoreNames);
+        if (!almacenes.includes('procedencias')) { db.close(); ok({ almacenes, marcas: [] }); return; }
+        const q = db.transaction('procedencias').objectStore('procedencias').getAll();
+        q.onsuccess = () => { db.close(); ok({ almacenes, marcas: q.result }); };
+        q.onerror = () => { db.close(); no(q.error); };
+      };
+    });
+    expect(crudo.almacenes).toContain('procedencias');
+    const local = await abrirFotosLocal(itinerario, { fabrica: a.fabrica, nombre: 'fotos-interfaz' });
+    try {
+      const m = await local.leerMetadatos(r.fotoId);
+      expect(crudo.marcas).toEqual([{ version: 1, via: 'camara-galeria', original: copiarOriginalRespaldo(itinerario, m) }]);
+    } finally { local.cerrar(); }
   });
 });

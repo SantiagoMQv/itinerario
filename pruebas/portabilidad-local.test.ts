@@ -8,6 +8,7 @@ import { aplicarOperacion, crearProgreso } from '../src/progreso';
 import { describe, expect, it, vi } from 'vitest';
 import { itinerario } from '../src/datos/itinerario';
 import { crearExportadorLocal, crearImportadorRecuperacionLocal } from '../src/portabilidad-local';
+import { copiarOriginalRespaldo } from '../src/fotos-respaldo';
 const fotoId = '12345678-1234-4123-8123-123456789abc';
 const borradaId = '22345678-1234-4123-8123-123456789abc';
 const operacionId = '32345678-1234-4123-8123-123456789abc';
@@ -346,11 +347,13 @@ describe('exportación explícita local sin crear bases', () => {
   it.each(['fotos', 'progreso', 'ledger'])('schema futuro %s no se baja de versión', async (tipo) => {
     const fabrica = new IDBFactory();
     const nombre = tipo === 'fotos' ? nombreFotos : tipo === 'progreso' ? 'itinerario-progreso' : nombreLedger;
-    const tablas = tipo === 'fotos' ? ['metadatos', 'originales', 'miniaturas'] : [tipo === 'progreso' ? 'viajes' : 'respaldos'];
-    const db = await abrir(fabrica, nombre, tablas, 2); db.close();
+    const tablas = tipo === 'fotos' ? ['metadatos', 'originales', 'miniaturas', 'procedencias'] : [tipo === 'progreso' ? 'viajes' : 'respaldos'];
+    // Futura para cada base: la PhotoDB actual es v2, así que su futura es v3.
+    const futura = tipo === 'fotos' ? 3 : 2;
+    const db = await abrir(fabrica, nombre, tablas, futura); db.close();
     const accion = tipo === 'fotos' ? capturarFotosLocal : tipo === 'progreso' ? capturarProgresoLocal : capturarRespaldoFotosLocal;
     await expect(accion(itinerario, limites, { fabrica })).rejects.toThrow();
-    expect((await fabrica.databases())[0].version).toBe(2);
+    expect((await fabrica.databases())[0].version).toBe(futura);
   });
   it.each(['extra', 'indice', 'keyPath', 'incremental'])('schema desconocido %s se conserva', async (tipo) => {
     const fabrica = new IDBFactory(); const db = await abrir(fabrica, nombreFotos, [], 1, (db) => {
@@ -523,5 +526,24 @@ describe('exportación explícita local sin crear bases', () => {
     const db = await abrir(fabrica, nombreFotos, ['metadatos', 'originales', 'miniaturas']);
     await poner(db, 'metadatos', { formato: 1, tipo: 'borrada', fotoId }, fotoId);
     await expect(capturarFotosLocal(itinerario, { ...limites, maxRegistros: 0 }, { fabrica })).rejects.toThrow('maxRegistros'); db.close();
+  });
+});
+
+// ---------- PhotoDB v2: la exportación sigue siendo de tres tablas (RP1) ----------
+
+describe('PhotoDB v2 y formato portable de tres tablas', () => {
+  it('RPL1 · una PhotoDB v2 válida se exporta con metadatos, originales y miniaturas; «procedencias» nunca sale', async () => {
+    const fabrica = new IDBFactory();
+    const db = await abrir(fabrica, nombreFotos, ['metadatos', 'originales', 'miniaturas', 'procedencias'], 2);
+    await poner(db, 'metadatos', metadata(), fotoId);
+    await poner(db, 'originales', new Blob([new Uint8Array([1, 2, 3])], { type: 'image/heic' }), fotoId);
+    await poner(db, 'procedencias', { version: 1, via: 'camara-galeria', original: copiarOriginalRespaldo(itinerario, metadata()) }, fotoId);
+    db.close();
+    const base = await capturarFotosLocal(itinerario, limites, { fabrica });
+    expect(base.presente).toBe(true);
+    expect(Object.keys(base.tablas).sort()).toEqual(['metadatos', 'miniaturas', 'originales']);
+    expect(base.tablas.metadatos).toEqual([{ clave: fotoId, valor: metadata() }]);
+    expect(base.tablas.originales).toHaveLength(1);
+    expect(base.tablas.miniaturas).toEqual([]);
   });
 });

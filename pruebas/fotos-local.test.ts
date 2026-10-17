@@ -2,6 +2,7 @@ import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { abrirFotosLocal } from '../src/fotos-local';
 import { crearCapturaFoto } from '../src/fotos';
+import { copiarOriginalRespaldo } from '../src/fotos-respaldo';
 import { itinerario } from '../src/datos/itinerario';
 
 const destino = { tipo: 'parada' as const, viajeId: itinerario.id, paradaId: itinerario.dias[0].paradas[0].id };
@@ -18,9 +19,10 @@ function contexto() {
   };
   return { fabrica, abrir };
 }
-async function cruda(fabrica: IDBFactory, version = 1): Promise<IDBDatabase> {
+/** Inspector crudo de la base ACTUAL: sin versión (la que haya); solo una fixture explícita pide una. */
+async function cruda(fabrica: IDBFactory, version?: number): Promise<IDBDatabase> {
   return new Promise((ok, no) => {
-    const s = fabrica.open('fotos-prueba', version);
+    const s = version === undefined ? fabrica.open('fotos-prueba') : fabrica.open('fotos-prueba', version);
     s.onsuccess = () => { cierres.push(() => s.result.close()); ok(s.result); };
     s.onerror = () => no(s.error);
   });
@@ -171,12 +173,15 @@ describe('IDB de fotos: contratos simulados con fake-indexeddb, no cuota física
     const fabrica = new IDBFactory();
     const db = await new Promise<IDBDatabase>((ok) => {
       const s = fabrica.open('fotos-prueba', 1);
-      s.onupgradeneeded = () => s.result.createObjectStore('ajeno');
+      s.onupgradeneeded = () => s.result.createObjectStore('ajeno').put('dato', 'k');
       s.onsuccess = () => ok(s.result);
     });
-    cierres.push(() => db.close());
+    // Abrir es subir a v2: con la conexión ajena abierta la subida queda bloqueada y se rechaza sin tocar nada.
+    await expect(abrirFotosLocal(itinerario, { fabrica, nombre: 'fotos-prueba' })).rejects.toThrow('bloqueada');
+    db.close();
+    // Ya sin conexiones, la subida llega a validar la v1: es ajena y se aborta (también la subida tardía anterior).
     await expect(abrirFotosLocal(itinerario, { fabrica, nombre: 'fotos-prueba' })).rejects.toThrow('Esquema');
-    expect(Array.from(db.objectStoreNames)).toEqual(['ajeno']);
+    expect(await volcar(fabrica)).toMatchObject({ version: 1, almacenes: ['ajeno'], tablas: { ajeno: [{ clave: 'k', valor: 'dato' }] } });
   });
   it('blocked SIMULADO rechaza y cierra un éxito tardío, error de apertura no crea fallback', async () => {
     const fabrica = new IDBFactory();
@@ -206,8 +211,160 @@ describe('IDB de fotos: contratos simulados con fake-indexeddb, no cuota física
     expect(await lib.leerMetadatos(fotoId)).toEqual(captura().metadatos);
   });
   it('versionchange libera conexión y cerrar hace fallar honestamente llamadas siguientes', async () => {
-    const ctx = contexto(); const lib = await ctx.abrir(); const db2 = await cruda(ctx.fabrica, 2);
+    // v3: una versión FUTURA respecto a la PhotoDB actual.
+    const ctx = contexto(); const lib = await ctx.abrir(); const db2 = await cruda(ctx.fabrica, 3);
     await expect(lib.listar()).rejects.toThrow('cerrado'); db2.close();
     await expect(ctx.abrir()).rejects.toThrow();
+  });
+});
+
+// ---------- Procedencia positiva y migración aditiva v1→v2 (RP1) ----------
+
+const otraId = '32345678-1234-4123-8123-123456789abc';
+const borradaId = '42345678-1234-4123-8123-123456789abc';
+interface Volcado {
+  readonly version: number;
+  readonly almacenes: string[];
+  readonly estructuras: { readonly keyPath: unknown; readonly autoIncrement: boolean; readonly indices: number }[];
+  readonly tablas: Record<string, { clave: IDBValidKey; valor: unknown }[]>;
+}
+/** Lectura CRUDA, readonly y sin versión de toda la base: Blobs por tipo, tamaño y bytes. */
+async function volcar(fabrica: IDBFactory, nombre = 'fotos-prueba'): Promise<Volcado> {
+  const db = await new Promise<IDBDatabase>((ok, no) => {
+    const s = fabrica.open(nombre); s.onsuccess = () => ok(s.result); s.onerror = () => no(s.error);
+  });
+  try {
+    const almacenes = Array.from(db.objectStoreNames);
+    const tx = db.transaction(almacenes);
+    const estructuras = almacenes.map((a) => {
+      const t = tx.objectStore(a); return { keyPath: t.keyPath, autoIncrement: t.autoIncrement, indices: t.indexNames.length };
+    });
+    const tablas: Volcado['tablas'] = {};
+    await Promise.all(almacenes.map((a) => new Promise<void>((ok, no) => {
+      const valores = tx.objectStore(a).getAll(); const claves = tx.objectStore(a).getAllKeys();
+      claves.onsuccess = async () => {
+        tablas[a] = await Promise.all((claves.result).map(async (clave, i) => {
+          const v: unknown = valores.result[i];
+          return { clave, valor: v instanceof Blob ? { blob: v.type, bytes: [...new Uint8Array(await v.arrayBuffer())] } : v };
+        }));
+        ok();
+      };
+      claves.onerror = () => no(claves.error);
+    })));
+    return { version: db.version, almacenes, estructuras, tablas };
+  } finally { db.close(); }
+}
+
+describe('PhotoDB v2: procedencia de cámara o galería y migración aditiva', () => {
+  it('RL1 · una base v1 válida pasa a v2 al abrir: «procedencias» vacía y filas, bytes, miniaturas y tombstones intactos', async () => {
+    const fabrica = new IDBFactory();
+    // Fixture v1 EXPLÍCITA, con la forma exacta de la versión anterior.
+    const v1 = await new Promise<IDBDatabase>((ok, no) => {
+      const s = fabrica.open('fotos-prueba', 1);
+      s.onupgradeneeded = () => ['metadatos', 'originales', 'miniaturas'].forEach((t) => s.result.createObjectStore(t));
+      s.onsuccess = () => ok(s.result); s.onerror = () => no(s.error);
+    });
+    const viva = captura();
+    const conMiniatura = { ...viva.metadatos, miniatura: { tipo: 'lista' as const, bytes: 3, ancho: 1, alto: 1, mime: 'image/png' as const } };
+    await new Promise<void>((ok, no) => {
+      const tx = v1.transaction(['metadatos', 'originales', 'miniaturas'], 'readwrite');
+      tx.objectStore('metadatos').put(conMiniatura, fotoId);
+      tx.objectStore('originales').put(viva.original, fotoId);
+      tx.objectStore('miniaturas').put(new Blob(['png'], { type: 'image/png' }), fotoId);
+      tx.objectStore('metadatos').put({ formato: 1, tipo: 'borrada', fotoId: borradaId }, borradaId);
+      tx.oncomplete = () => ok(); tx.onabort = () => no(tx.error);
+    });
+    v1.close();
+    const antes = await volcar(fabrica);
+    expect(antes.version).toBe(1);
+    const lib = await abrirFotosLocal(itinerario, { fabrica, nombre: 'fotos-prueba' });
+    expect(await lib.listar()).toEqual([conMiniatura]);
+    lib.cerrar();
+    const despues = await volcar(fabrica);
+    expect(despues.version).toBe(2);
+    expect(despues.almacenes).toEqual(['metadatos', 'miniaturas', 'originales', 'procedencias']);
+    expect(despues.estructuras).toEqual(Array(4).fill({ keyPath: null, autoIncrement: false, indices: 0 }));
+    expect(despues.tablas.procedencias).toEqual([]);
+    for (const t of ['metadatos', 'originales', 'miniaturas']) expect(despues.tablas[t], t).toEqual(antes.tablas[t]);
+  });
+
+  it('RL2 · guardar con vía «camara-galeria» deja la marca durable de su identidad ORIGINAL; sin vía, ninguna', async () => {
+    const ctx = contexto(); const lib = await ctx.abrir();
+    await lib.guardarOriginal(captura(), 'camara-galeria');
+    // Sin segundo argumento (descarga, importación, llamadores antiguos): nunca hay marca.
+    const ajena = crearCapturaFoto(itinerario, destino, new File([new Uint8Array([9])], 'b.png', { type: 'image/png', lastModified: 3 }),
+      22, { uuid: () => otraId });
+    await lib.guardarOriginal(ajena);
+    const crudo = await volcar(ctx.fabrica);
+    expect(crudo.tablas.procedencias).toEqual([{ clave: fotoId,
+      valor: { version: 1, via: 'camara-galeria', original: copiarOriginalRespaldo(itinerario, captura().metadatos) } }]);
+    expect(await lib.leerProcedencia?.(fotoId)).toBe('camara-galeria');
+    expect(await lib.leerProcedencia?.(otraId)).toBeNull();
+  });
+
+  it('RL3 · una marca huérfana con ese ID se rechaza (con o sin vía) y no se adopta ni se repara', async () => {
+    const ctx = contexto(); const lib = await ctx.abrir(); const db = await cruda(ctx.fabrica);
+    const marca = { version: 1, via: 'camara-galeria', original: copiarOriginalRespaldo(itinerario, captura().metadatos) };
+    await sembrar(db, 'procedencias', marca);
+    await expect(lib.guardarOriginal(captura())).rejects.toThrow('huérfana');
+    await expect(lib.guardarOriginal(captura(), 'camara-galeria')).rejects.toThrow('huérfana');
+    const crudo = await volcar(ctx.fabrica);
+    expect([crudo.tablas.metadatos, crudo.tablas.originales]).toEqual([[], []]);
+    expect(crudo.tablas.procedencias).toEqual([{ clave: fotoId, valor: marca }]);
+    expect(await lib.leerProcedencia?.(fotoId)).toBeNull();
+  });
+
+  it('RL4 · marca malformada, de otra versión o de otra identidad no da procedencia; vía desconocida no escribe nada', async () => {
+    const ctx = contexto(); const lib = await ctx.abrir(); const db = await cruda(ctx.fabrica);
+    await lib.guardarOriginal(captura());
+    const original = copiarOriginalRespaldo(itinerario, captura().metadatos);
+    for (const mala of [{ version: 2, via: 'camara-galeria', original }, { version: 1, via: 'descarga', original },
+      { version: 1, via: 'camara-galeria', original: { ...original, nombre: 'otra.heic' } }, { version: 1 }, 'camara-galeria']) {
+      await sembrar(db, 'procedencias', mala);
+      expect(await lib.leerProcedencia?.(fotoId), JSON.stringify(mala)).toBeNull();
+    }
+    const otra = crearCapturaFoto(itinerario, destino, new File([new Uint8Array([9])], 'b.png', { type: 'image/png', lastModified: 3 }),
+      22, { uuid: () => otraId });
+    await expect(lib.guardarOriginal(otra, 'descarga' as never)).rejects.toThrow('Vía de procedencia inválida');
+    expect(await lib.leerMetadatos(otraId)).toBeNull();
+  });
+
+  it('RL5 · colisión no toca la marca; miniatura no la cambia; borrar se la lleva con los bytes', async () => {
+    const ctx = contexto(); const lib = await ctx.abrir();
+    await lib.guardarOriginal(captura(), 'camara-galeria');
+    const marca = (await volcar(ctx.fabrica)).tablas.procedencias;
+    await expect(lib.guardarOriginal(captura(), 'camara-galeria')).rejects.toThrow('Colisión');
+    await lib.guardarMiniatura(fotoId, new Blob(['png'], { type: 'image/png' }), 1, 1);
+    expect((await volcar(ctx.fabrica)).tablas.procedencias).toEqual(marca);
+    expect(await lib.leerProcedencia?.(fotoId)).toBe('camara-galeria');
+    await lib.borrarLocal(fotoId);
+    expect((await volcar(ctx.fabrica)).tablas.procedencias).toEqual([]);
+    expect(await lib.leerProcedencia?.(fotoId)).toBeNull();
+  });
+
+  it('RL6 · v1 con la forma cambiada aborta la subida y queda v1 intacta; una versión futura no se abre ni se rebaja', async () => {
+    const fabrica = new IDBFactory();
+    const v1 = await new Promise<IDBDatabase>((ok, no) => {
+      const s = fabrica.open('fotos-prueba', 1);
+      s.onupgradeneeded = () => {
+        s.result.createObjectStore('metadatos'); s.result.createObjectStore('miniaturas');
+        s.result.createObjectStore('originales', { autoIncrement: true });
+      };
+      s.onsuccess = () => ok(s.result); s.onerror = () => no(s.error);
+    });
+    v1.close();
+    await expect(abrirFotosLocal(itinerario, { fabrica, nombre: 'fotos-prueba' })).rejects.toThrow('Esquema');
+    expect(await volcar(fabrica)).toMatchObject({ version: 1, almacenes: ['metadatos', 'miniaturas', 'originales'] });
+
+    const futura = new IDBFactory();
+    const v3 = await new Promise<IDBDatabase>((ok, no) => {
+      const s = futura.open('fotos-prueba', 3);
+      s.onupgradeneeded = () => ['metadatos', 'originales', 'miniaturas', 'procedencias', 'nueva']
+        .forEach((t) => s.result.createObjectStore(t));
+      s.onsuccess = () => ok(s.result); s.onerror = () => no(s.error);
+    });
+    v3.close();
+    await expect(abrirFotosLocal(itinerario, { fabrica: futura, nombre: 'fotos-prueba' })).rejects.toThrow();
+    expect(await volcar(futura)).toMatchObject({ version: 3, almacenes: ['metadatos', 'miniaturas', 'nueva', 'originales', 'procedencias'] });
   });
 });

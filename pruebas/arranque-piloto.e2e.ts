@@ -54,6 +54,9 @@ interface FixtureArranque {
   fijarBase(): Promise<void>;
   /** Rutas que difieren de la base fijada: 'todo' (localStorage entero) o 'semilla' (identidad y legado). */
   diferencias(alcance: 'todo' | 'semilla'): Promise<string[]>;
+  /** Como 'semilla' tras arrancar la app: PhotoDB solo puede haber pasado de v1 a v2 con «procedencias» vacía; sus
+   * demás tablas, la raíz y la semilla de localStorage se comparan exactas. */
+  diferenciasTrasSubirFotos(): Promise<string[]>;
 }
 declare global { interface Window { fixtureArranque?: FixtureArranque } }
 
@@ -226,6 +229,18 @@ window.fixtureArranque = {
     await comparar(recortar(base, alcance), recortar(await instantanea(), alcance), '', difs);
     return difs;
   },
+  async diferenciasTrasSubirFotos() {
+    const ahora = await instantanea();
+    const difs = [];
+    const antes = base.fotos; const despues = ahora.fotos;
+    if (!antes || !despues || antes.version !== 1 || despues.version !== 2) difs.push('/fotos/version');
+    const esperadas = JSON.stringify([...Object.keys(antes?.tablas ?? {}), 'procedencias'].sort());
+    if (JSON.stringify(Object.keys(despues?.tablas ?? {}).sort()) !== esperadas) { difs.push('/fotos/tablas (forma)'); return difs; }
+    if (despues.tablas.procedencias.length !== 0) difs.push('/fotos/tablas/procedencias');
+    const previas = {}; for (const t of Object.keys(antes.tablas)) previas[t] = despues.tablas[t];
+    await comparar(recortar({ ...base, fotos: antes.tablas }, 'semilla'), recortar({ ...ahora, fotos: previas }, 'semilla'), '', difs);
+    return difs;
+  },
 };
 `;
   const entradaVirtual: Plugin = { name: 'entrada-arranque-piloto-fixture',
@@ -382,7 +397,7 @@ window.fixtureArranque = {
       await esperarPrivada(page);
       // Misma identidad y legado; raíz y PhotoDB crudos exactos, tombstone y bytes del original incluidos. Abrir lee
       // en local (invariancia durable, no ausencia de IO).
-      expect(await page.evaluate(() => window.fixtureArranque!.diferencias('semilla'))).toEqual([]);
+      expect(await page.evaluate(() => window.fixtureArranque!.diferenciasTrasSubirFotos())).toEqual([]);
       expect(await bases(page)).toEqual(expect.arrayContaining(sembradas));
       expect([...new Set(api().map((s) => `${s.metodo} ${s.ruta}`))]).toEqual(['GET /api/progreso']);
     });

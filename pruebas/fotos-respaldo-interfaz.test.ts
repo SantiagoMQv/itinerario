@@ -10,7 +10,7 @@ import { abrirRespaldoFotosLocal } from '../src/fotos-respaldo-local';
 import { deserializarReciboRespaldo, deserializarSolicitudRespaldo, serializarReciboRespaldo,
   serializarSolicitudRespaldo, type SolicitudRespaldo } from '../src/fotos-protocolo';
 import { COPIA_SIN_CONFIRMAR, avisoBorradoRespaldo, componerRespaldoFotos, crearRespaldoFotos, textoCatalogo,
-  textoFilaCatalogo, textoResultadoRespaldo, type CambioRespaldo, type ComposicionRespaldoFotos, type FilaCatalogo,
+  textoFilaCatalogo, textoLote, textoResultadoRespaldo, type CambioRespaldo, type ComposicionRespaldoFotos, type FilaCatalogo,
   type RespaldoFotos } from '../src/fotos-respaldo-interfaz';
 import { copiarOriginalRespaldo, type OriginalRespaldo } from '../src/fotos-respaldo';
 import { serializarCursorListadoFotos, serializarPaginaListadoFotos } from '../src/fotos-listado-protocolo';
@@ -131,6 +131,8 @@ interface OpcionesMontaje {
   readonly enLinea?: () => boolean;
   /** Puerto a medida (otro PhotoDB, un almacén lleno…); por defecto el PhotoDB real de la prueba. */
   readonly puerto?: (fotos: FotosLocal) => () => FotosLocal | null;
+  /** Operaciones nuevas; por defecto siempre la misma (una foto por prueba). */
+  readonly uuidOperacion?: () => string;
 }
 interface Montaje {
   readonly fabrica: IDBFactory;
@@ -213,7 +215,7 @@ async function montar(escenario: Escenario = {}, opciones: OpcionesMontaje = {})
   let lecturas = 0;
   const respaldo = crearRespaldoFotos({ plan: itinerario, composicion: opciones.composicion ?? composicion,
     puerto: () => { lecturas++; return puerto(); }, incorporar: (m) => { incorporadas.push(m); },
-    fetch: puertoHttp(escenario, llamadas), fabricaLedger: fabrica, uuidOperacion: () => operacionId,
+    fetch: puertoHttp(escenario, llamadas), fabricaLedger: fabrica, uuidOperacion: opciones.uuidOperacion ?? (() => operacionId),
     enLinea: opciones.enLinea ?? (() => true), alCambiar: (que) => { cambios.push(que); },
     crearUrl: (b) => { blobs.push(b); return `blob:prueba/${blobs.length}`; }, revocarUrl: (u) => { revocadas.push(u); } });
   return { fabrica, fotos, respaldo, llamadas, incorporadas, cambios, blobs, revocadas, lecturasPuerto: () => lecturas,
@@ -850,4 +852,543 @@ describe('límite de original de la composición también en guardar y comprobar
       m.cerrar();
     }
   });
+});
+
+// ---------- «Guardar sin conexión» desde la ficha de su destino (FO3) ----------
+
+describe('guardar sin conexión una referencia descubierta en su ficha (U19)', () => {
+  it('U19 · sin página global activa: un GET por toque, PhotoDB guarda los bytes exactos, se incorpora y el ledger no cambia',
+    async () => {
+      const m = await montar({ descarga: () => binario(bytes) });
+      try {
+        // Ninguna página del catálogo global: la referencia llega de la consulta de la ficha de su destino.
+        expect(m.respaldo.catalogo).toEqual({ tipo: 'reposo' });
+        const ref = originalRemoto(R1);
+        const r = await m.respaldo.guardar(R1, ref);
+        expect(r).toEqual({ tipo: 'guardada' });
+        expect(de(m, 'descarga').map((l) => l.url)).toEqual([`${origen}/api/fotos/${R1}/original`]);
+        expect(await bytesDe(await m.fotos.leerOriginal(R1))).toEqual(bytes);
+        expect(copiarOriginalRespaldo(itinerario, await m.fotos.leerMetadatos(R1))).toEqual(ref);
+        expect(m.incorporadas.map((x) => x.fotoId)).toEqual([R1]);
+        // Guardar no consulta, no envía ni es acuse: ni listado, ni POST, ni ledger; el catálogo global sigue igual.
+        expect(de(m, 'listado')).toEqual([]);
+        expect(de(m, 'subida')).toEqual([]);
+        expect(await leerLedger(m)).toEqual([]);
+        expect(m.respaldo.catalogo).toEqual({ tipo: 'reposo' });
+      } finally {
+        m.cerrar();
+      }
+    });
+});
+
+describe('referencia descubierta que no se puede guardar aquí (U20)', () => {
+  it('U20 · otro fotoId, identidad inválida o borrada en este móvil no piden nada; ocupada dice que hay otra en curso', async () => {
+    const retenida = diferido<Response>();
+    const m = await montar({ descarga: () => retenida.promesa });
+    try {
+      const ref = originalRemoto(R1);
+      expect(await m.respaldo.guardar(R2, ref)).toEqual({ tipo: 'no-disponible' });
+      expect(await m.respaldo.guardar(R1, { ...ref, destino: { ...ref.destino, viajeId: 'ajeno' } })).toEqual({ tipo: 'no-disponible' });
+      expect(await m.respaldo.guardar(R1, { ...ref, url: 'https://publico.example' } as never)).toEqual({ tipo: 'no-disponible' });
+      // Borrada aquí: la descarga lo rechaza antes de cualquier GET (nunca resucita).
+      await m.fotos.guardarOriginal(capturaLocal(R3));
+      await m.fotos.borrarLocal(R3);
+      const r3 = copiarOriginalRespaldo(itinerario, capturaLocal(R3).metadatos);
+      expect(await m.respaldo.guardar(R3, r3)).toEqual({ tipo: 'no-guardada' });
+      expect(de(m, 'descarga')).toEqual([]);
+      // Una a la vez: con otro guardado en curso, el segundo toque no pide nada.
+      const primera = m.respaldo.guardar(R1, ref);
+      expect(await m.respaldo.guardar(R4, originalRemoto(R4))).toEqual({ tipo: 'ocupada' });
+      retenida.resolver(binario(bytes));
+      expect(await primera).toEqual({ tipo: 'guardada' });
+      expect(de(m, 'descarga')).toHaveLength(1);
+      expect(m.incorporadas.map((x) => x.fotoId)).toEqual([R1]);
+    } finally {
+      m.cerrar();
+    }
+  });
+});
+
+describe('sesión perdida al guardar (U21)', () => {
+  it('U21 · Guardar recibe 401: resultado tipado sin sesión, el catálogo global suelta su página y avisa; lo guardado aquí no cambia', async () => {
+    const sinSesion = () => new Response('{"error":"sin-sesion"}', { status: 401, headers: CABECERAS_JSON });
+    const m = await montar({ listado: () => pagina([inicial(originalRemoto(R1))], null), descarga: () => sinSesion() });
+    try {
+      const deliberada = capturaLocal(fotoId);
+      await m.fotos.guardarOriginal(deliberada);
+      await m.respaldo.listar('principio');
+      expect(filas(m)).toHaveLength(1);
+      const r = await m.respaldo.guardar(R2, originalRemoto(R2));
+      expect(r).toEqual({ tipo: 'no-guardada', causa: 'sin-sesion' });
+      // Ninguna candidata temporal sigue a la vista: la página global se suelta y la interfaz se entera.
+      expect(m.respaldo.catalogo).toEqual({ tipo: 'fallo', motivo: 'sin-sesion' });
+      expect(m.cambios).toContainEqual({ tipo: 'sin-sesion' });
+      // La copia deliberada de este móvil sigue intacta; nada nuevo se guardó ni se incorporó.
+      expect(await m.fotos.leerMetadatos(fotoId)).toEqual(deliberada.metadatos);
+      expect(await m.fotos.leerMetadatos(R2)).toBeNull();
+      expect(m.incorporadas).toEqual([]);
+      expect(de(m, 'descarga')).toHaveLength(1);
+    } finally {
+      m.cerrar();
+    }
+  });
+});
+
+describe('capturas privadas y sesión perdida a mitad de un guardado (U22)', () => {
+  it('U22 · un 401 en otra operación mientras se escribe: la captura de un fallo posterior por cuota no vuelve, ni su archivo ni su URL; '
+    + 'lo guardado de verdad sigue', async () => {
+    const sinSesion = () => new Response('{"error":"sin-sesion"}', { status: 401, headers: CABECERAS_JSON });
+    let compuerta = diferido<'cuota' | 'real'>();
+    let escribiendo = 0;
+    const m = await montar({ listado: () => sinSesion(), descarga: () => binario(bytes) }, {
+      // El mismo PhotoDB real; guardar un original espera a la compuerta y entonces falla por cuota o escribe de verdad.
+      puerto: (fotos) => {
+        const retenida: FotosLocal = {
+          listar: () => fotos.listar(), leerMetadatos: (id) => fotos.leerMetadatos(id),
+          leerOriginal: (id) => fotos.leerOriginal(id), leerMiniatura: (id) => fotos.leerMiniatura(id),
+          guardarOriginal: async (c) => {
+            escribiendo++;
+            if (await compuerta.promesa === 'cuota') throw new DOMException('Sin espacio', 'QuotaExceededError');
+            return fotos.guardarOriginal(c);
+          },
+          guardarMiniatura: (id, b, ancho, alto) => fotos.guardarMiniatura(id, b, ancho, alto),
+          registrarFalloMiniatura: (id, motivo) => fotos.registrarFalloMiniatura(id, motivo),
+          borrarLocal: (id) => fotos.borrarLocal(id), cerrar: () => {},
+        };
+        return () => retenida;
+      },
+    });
+    try {
+      const deliberada = capturaLocal(fotoId);
+      await m.fotos.guardarOriginal(deliberada);
+      // Guardar ya recibió el original válido y espera su escritura en PhotoDB.
+      const guardado = m.respaldo.guardar(R1, originalRemoto(R1));
+      await vi.waitFor(() => { if (escribiendo !== 1) throw new Error('aún no escribe'); });
+      expect(de(m, 'descarga')).toHaveLength(1);
+      // Otra operación recibe 401: la sesión ya no vale.
+      await m.respaldo.listar('principio');
+      expect(m.respaldo.catalogo).toEqual({ tipo: 'fallo', motivo: 'sin-sesion' });
+      expect(m.cambios).toContainEqual({ tipo: 'sin-sesion' });
+      // Después, la escritura falla por cuota: su captura privada no se retiene ni se ofrece como archivo.
+      compuerta.resolver('cuota');
+      expect(await guardado).toEqual({ tipo: 'no-guardada' });
+      expect(m.respaldo.descargarArchivo(R1)).toBeNull();
+      expect(m.blobs).toEqual([]);
+      expect(await m.fotos.leerMetadatos(R1)).toBeNull();
+      expect(await m.fotos.leerMetadatos(fotoId)).toEqual(deliberada.metadatos);
+      expect(m.incorporadas).toEqual([]);
+      // Un guardado que sí termina en PhotoDB después de otra invalidación es una copia deliberada: no se deshace.
+      compuerta = diferido<'cuota' | 'real'>();
+      const segundo = m.respaldo.guardar(R2, originalRemoto(R2));
+      await vi.waitFor(() => { if (escribiendo !== 2) throw new Error('aún no escribe'); });
+      m.respaldo.invalidarSesion();
+      compuerta.resolver('real');
+      expect(await segundo).toEqual({ tipo: 'guardada' });
+      expect(m.incorporadas.map((x) => x.fotoId)).toEqual([R2]);
+      expect(await bytesDe(await m.fotos.leerOriginal(R2))).toEqual(bytes);
+      expect(m.respaldo.descargarArchivo(R2)).toBeNull();
+      expect(m.blobs).toEqual([]);
+    } finally {
+      m.cerrar();
+    }
+  });
+});
+
+// ---------- Plazo del POST desde la composición (RP1) ----------
+
+describe('plazo del envío de un respaldo', () => {
+  it('RR1 · «Respaldar» usa el plazo del cliente de la composición: un POST que no contesta se corta y queda sin confirmar', async () => {
+    let m!: Montaje;
+    m = await montar({ subida: () => new Promise<Response>((_ok, no) => {
+      // Un puerto que respeta el aborto, como fetch del navegador.
+      const senal = de(m, 'subida').at(-1)!.senal!;
+      senal.addEventListener('abort', () => no(new DOMException('Abortada', 'AbortError')), { once: true });
+    }) }, { composicion: { ...composicion, listado: { ...composicion.listado, plazoMs: 40 } } });
+    try {
+      await m.fotos.guardarOriginal(capturaLocal(fotoId));
+      const resultado = await Promise.race([m.respaldo.respaldar(fotoId),
+        new Promise((ok) => setTimeout(() => ok('sigue-abierta'), 1500))]);
+      expect(resultado).toEqual({ tipo: 'sin-confirmar' });
+      expect(de(m, 'subida')).toHaveLength(1);
+      expect(de(m, 'subida')[0].senal?.aborted).toBe(true);
+      expect(await leerLedger(m)).toEqual([expect.objectContaining({ fotoId, fase: 'enviada', enviada: true, recibo: null })]);
+    } finally {
+      m.cerrar();
+    }
+  });
+});
+
+// ---------- Lote manual «Respaldar pendientes» (RP1) ----------
+
+const VIA = 'camara-galeria' as const;
+/** Operaciones nuevas distintas y válidas (UUID v4). */
+function operaciones(): () => string {
+  let n = 0;
+  return () => `${(++n).toString(16).padStart(8, '0')}-2222-4222-8222-222222222222`;
+}
+/** Siembra el ledger con su API real (otra conexión), como si lo hubiera hecho un respaldo individual anterior. */
+async function sembrarLedger(m: Montaje, captura: ReturnType<typeof capturaLocal>, fase: 'preparado' | 'enviada' | 'respaldada',
+  op: string) {
+  const ledger = await abrirRespaldoFotosLocal(itinerario, m.fotos, { fabrica: m.fabrica });
+  try {
+    const p = await ledger.preparar(captura, op);
+    if (fase === 'preparado') return;
+    await ledger.marcarEnviada({ fotoId: p.fotoId, operacionId: op, original: p.original });
+    if (fase === 'enviada') return;
+    await ledger.confirmarRecibo({ version: 1, tipo: 'acuse-respaldo', viajeId: itinerario.id, operacionId: op,
+      fotoId: p.fotoId, original: p.original, objetoOriginalDurable: true, metadatosDurables: true });
+  } finally { ledger.cerrar(); }
+}
+/** Un POST que solo acaba si se aborta, como fetch del navegador. */
+function colgada(m: () => Montaje): Promise<Response> {
+  return new Promise<Response>((_ok, no) => {
+    const senal = de(m(), 'subida').at(-1)!.senal!;
+    senal.addEventListener('abort', () => no(new DOMException('Abortada', 'AbortError')), { once: true });
+  });
+}
+const resumenLedger = async (m: Montaje) => Object.fromEntries((await leerLedger(m))
+  .map((e) => [e.fotoId, { fase: e.fase, operacionId: e.operacionId, enviada: e.enviada, pausada: e.pausada }]));
+
+describe('lote «Respaldar pendientes»: recuento, consentimiento y envío de una en una (L1–L8)', () => {
+  it('L1 · el recuento solo lee metadata, procedencia y ledger: 0 red, 0 preparaciones, 0 originales; cancelar no deja nada', async () => {
+    const m = await montar({}, { uuidOperacion: operaciones() });
+    try {
+      const op = '12345678-3333-4333-8333-333333333333';
+      for (const id of [R1, R2]) await m.fotos.guardarOriginal(capturaLocal(id, { nombre: `${id.slice(0, 2)}.png` }), VIA);
+      await m.fotos.guardarOriginal(capturaLocal(R3, { nombre: 'anterior.png' })); // sin procedencia: anterior o importada
+      const confirmada = capturaLocal(R4, { nombre: 'confirmada.png' });
+      const enviada = capturaLocal(R5, { nombre: 'enviada.png' });
+      const preparada = capturaLocal(R6, { nombre: 'preparada.png' });
+      for (const c of [confirmada, enviada, preparada]) await m.fotos.guardarOriginal(c, VIA);
+      await sembrarLedger(m, confirmada, 'respaldada', '22345678-3333-4333-8333-333333333333');
+      await sembrarLedger(m, enviada, 'enviada', '32345678-3333-4333-8333-333333333333');
+      await sembrarLedger(m, preparada, 'preparado', op);
+      const antes = await resumenLedger(m);
+      const originales = vi.spyOn(m.fotos, 'leerOriginal');
+      const miniaturas = vi.spyOn(m.fotos, 'leerMiniatura');
+
+      expect(m.respaldo.lote).toEqual({ tipo: 'inactivo' });
+      const contando = m.respaldo.contarLote();
+      expect(m.respaldo.lote).toEqual({ tipo: 'contando' });
+      await contando;
+      expect(m.respaldo.lote).toEqual({ tipo: 'propuesta', fotos: 3, bytes: 3 * bytes.length, confirmadas: 1, revision: 1,
+        sinOrigen: 1 });
+      expect(m.cambios).toContainEqual({ tipo: 'lote' });
+      expect(m.llamadas).toEqual([]);
+      expect([originales.mock.calls.length, miniaturas.mock.calls.length]).toEqual([0, 0]);
+      expect(await resumenLedger(m)).toEqual(antes);
+
+      m.respaldo.terminarLote();
+      expect(m.respaldo.lote).toEqual({ tipo: 'inactivo' });
+      // Sin consentimiento vigente, confirmar no hace nada.
+      await m.respaldo.confirmarLote();
+      expect(m.llamadas).toEqual([]);
+      expect(await resumenLedger(m)).toEqual(antes);
+    } finally {
+      m.cerrar();
+    }
+  });
+
+  it('L2 · confirmar envía SOLO el recuento, de una en una; un preparado limpio conserva su operación', async () => {
+    let enVuelo = 0; let maximo = 0;
+    const m = await montar({ subida: async (s) => {
+      enVuelo++; maximo = Math.max(maximo, enVuelo);
+      await new Promise((ok) => setTimeout(ok, 5));
+      enVuelo--;
+      return acuse(s);
+    } }, { uuidOperacion: operaciones() });
+    try {
+      const op = '12345678-3333-4333-8333-333333333333';
+      for (const id of [R1, R2]) await m.fotos.guardarOriginal(capturaLocal(id, { nombre: `${id.slice(0, 2)}.png` }), VIA);
+      const preparada = capturaLocal(R6, { nombre: 'preparada.png' });
+      await m.fotos.guardarOriginal(preparada, VIA);
+      await sembrarLedger(m, preparada, 'preparado', op);
+      await m.fotos.guardarOriginal(capturaLocal(R3, { nombre: 'anterior.png' }));
+      await m.respaldo.contarLote();
+      // Añadida después del recuento: no entra en este consentimiento.
+      await m.fotos.guardarOriginal(capturaLocal(R4, { nombre: 'nueva.png' }), VIA);
+
+      await m.respaldo.confirmarLote();
+      expect(m.respaldo.lote).toEqual({ tipo: 'terminado',
+        progreso: { total: 3, confirmadas: 3, omitidas: 0, revision: 0, restantes: 0 } });
+      expect(maximo).toBe(1);
+      const subidas = de(m, 'subida').map((l) => l.solicitud!);
+      expect(subidas.map((s) => s.fotoId).sort()).toEqual([R1, R2, R6].sort());
+      expect(subidas.find((s) => s.fotoId === R6)?.operacionId).toBe(op);
+      expect(new Set(subidas.map((s) => s.operacionId)).size).toBe(3);
+      const ledger = await resumenLedger(m);
+      expect(Object.keys(ledger).sort()).toEqual([R1, R2, R6].sort());
+      expect(Object.values(ledger).every((e) => e.fase === 'respaldada')).toBe(true);
+      // Terminado: nada sigue solo y un nuevo recuento ya no incluye las confirmadas.
+      await m.respaldo.contarLote();
+      expect(m.respaldo.lote).toMatchObject({ tipo: 'propuesta', fotos: 1, confirmadas: 3, sinOrigen: 1 });
+      expect(de(m, 'subida')).toHaveLength(3);
+    } finally {
+      m.cerrar();
+    }
+  });
+
+  it('L3 · tras CADA await se revalida: borrada, ya confirmada, identidad cambiada, enviada aparte o sin procedencia no salen', async () => {
+    const m = await montar({ subida: (s) => (s.fotoId === R4 ? servidorCaido() : acuse(s)) }, { uuidOperacion: operaciones() });
+    try {
+      for (const id of [R1, R2, R3, R4, R5, R6]) {
+        await m.fotos.guardarOriginal(capturaLocal(id, { nombre: `${id.slice(0, 2)}.png` }), VIA);
+      }
+      await m.respaldo.contarLote();
+      expect(m.respaldo.lote).toMatchObject({ tipo: 'propuesta', fotos: 6 });
+      // Entre el recuento y la confirmación.
+      await m.fotos.borrarLocal(R1);
+      expect(await m.respaldo.respaldar(R2)).toEqual({ tipo: 'respaldada' });
+      expect(await m.respaldo.respaldar(R4)).toEqual({ tipo: 'sin-confirmar' });
+      const leerMetadatos = m.fotos.leerMetadatos.bind(m.fotos);
+      vi.spyOn(m.fotos, 'leerMetadatos').mockImplementation(async (id) => {
+        const v = await leerMetadatos(id);
+        return id === R3 && v && !('tipo' in v && v.tipo === 'borrada') ? { ...v, nombre: 'otra-identidad.png' } : v;
+      });
+      const leerProcedencia = m.fotos.leerProcedencia!.bind(m.fotos);
+      vi.spyOn(m.fotos, 'leerProcedencia').mockImplementation(async (id) => (id === R5 ? null : leerProcedencia(id)));
+      const antes = de(m, 'subida').length;
+
+      await m.respaldo.confirmarLote();
+      expect(m.respaldo.lote).toEqual({ tipo: 'terminado',
+        progreso: { total: 6, confirmadas: 1, omitidas: 4, revision: 1, restantes: 0 } });
+      expect(de(m, 'subida').slice(antes).map((l) => l.solicitud?.fotoId)).toEqual([R6]);
+      const ledger = await resumenLedger(m);
+      expect(Object.keys(ledger).sort()).toEqual([R2, R4, R6].sort());
+      expect(ledger[R4]).toMatchObject({ fase: 'enviada', enviada: true });
+    } finally {
+      m.cerrar();
+    }
+  });
+
+  it('L4 · pausar durante el POST lo aborta y para; continuar envía SOLO las restantes, nunca la que ya salió', async () => {
+    let m!: Montaje;
+    let n = 0;
+    m = await montar({ subida: (s) => (++n === 1 ? colgada(() => m) : acuse(s)) }, { uuidOperacion: operaciones() });
+    try {
+      for (const id of [R1, R2, R3]) await m.fotos.guardarOriginal(capturaLocal(id, { nombre: `${id.slice(0, 2)}.png` }), VIA);
+      await m.respaldo.contarLote();
+      const enviando = m.respaldo.confirmarLote();
+      await vi.waitFor(() => expect(de(m, 'subida')).toHaveLength(1));
+      expect(m.respaldo.lote).toMatchObject({ tipo: 'enviando', pausando: false });
+      expect(await m.respaldo.respaldar(R2)).toEqual({ tipo: 'ocupada' });
+
+      m.respaldo.pausarLote();
+      expect(m.respaldo.lote).toMatchObject({ tipo: 'enviando', pausando: true });
+      await enviando;
+      const primera = de(m, 'subida')[0];
+      expect(primera.senal?.aborted).toBe(true);
+      expect(m.respaldo.lote).toEqual({ tipo: 'detenido', motivo: 'pausa',
+        progreso: { total: 3, confirmadas: 0, omitidas: 0, revision: 1, restantes: 2 } });
+      // La que ya salió queda sin confirmar (no es una pausa durable de esa foto) y no se reenvía.
+      expect((await resumenLedger(m))[primera.solicitud!.fotoId]).toMatchObject({ fase: 'enviada', pausada: false });
+
+      await m.respaldo.continuarLote();
+      expect(m.respaldo.lote).toEqual({ tipo: 'terminado',
+        progreso: { total: 3, confirmadas: 2, omitidas: 0, revision: 1, restantes: 0 } });
+      const ids = de(m, 'subida').map((l) => l.solicitud!.fotoId);
+      expect(ids).toHaveLength(3);
+      expect(new Set(ids).size).toBe(3);
+    } finally {
+      m.cerrar();
+    }
+  });
+
+  it('L4 · pausar antes de preparar no prepara ni envía; continuar sigue con el mismo recuento', async () => {
+    const m = await montar({ subida: (s) => acuse(s) }, { uuidOperacion: operaciones() });
+    try {
+      for (const id of [R1, R2]) await m.fotos.guardarOriginal(capturaLocal(id, { nombre: `${id.slice(0, 2)}.png` }), VIA);
+      await m.respaldo.contarLote();
+      const retenida = diferido<void>();
+      const leerOriginal = m.fotos.leerOriginal.bind(m.fotos);
+      const espia = vi.spyOn(m.fotos, 'leerOriginal').mockImplementationOnce(async (id) => {
+        await retenida.promesa; return leerOriginal(id);
+      });
+      const enviando = m.respaldo.confirmarLote();
+      await vi.waitFor(() => expect(espia).toHaveBeenCalledTimes(1));
+      m.respaldo.pausarLote();
+      retenida.resolver();
+      await enviando;
+      expect(m.respaldo.lote).toEqual({ tipo: 'detenido', motivo: 'pausa',
+        progreso: { total: 2, confirmadas: 0, omitidas: 0, revision: 0, restantes: 2 } });
+      expect(await resumenLedger(m)).toEqual({});
+      expect(m.llamadas).toEqual([]);
+
+      await m.respaldo.continuarLote();
+      expect(m.respaldo.lote).toMatchObject({ tipo: 'terminado', progreso: { confirmadas: 2, restantes: 0 } });
+      expect(de(m, 'subida')).toHaveLength(2);
+    } finally {
+      m.cerrar();
+    }
+  });
+
+  it('L5 · admisión compartida: el lote espera al respaldo individual en curso y, mientras corre, otro respaldo está ocupado', async () => {
+    const suelta = diferido<void>();
+    let n = 0;
+    const m = await montar({ subida: (s) => (++n === 1 ? suelta.promesa.then(() => acuse(s)) : acuse(s)) },
+      { uuidOperacion: operaciones() });
+    try {
+      for (const id of [R1, R2, R3]) await m.fotos.guardarOriginal(capturaLocal(id, { nombre: `${id.slice(0, 2)}.png` }), VIA);
+      const individual = m.respaldo.respaldar(R1);
+      await vi.waitFor(() => expect(de(m, 'subida')).toHaveLength(1));
+      await m.respaldo.contarLote();
+      // R1 ya salió por su cuenta (enviada, sin acuse aún): revisión aparte, fuera del lote.
+      expect(m.respaldo.lote).toMatchObject({ tipo: 'propuesta', fotos: 2, revision: 1 });
+      const enviando = m.respaldo.confirmarLote();
+      await new Promise((ok) => setTimeout(ok, 30));
+      expect(de(m, 'subida')).toHaveLength(1);
+      expect(await m.respaldo.respaldar(R2)).toEqual({ tipo: 'ocupada' });
+      suelta.resolver();
+      expect(await individual).toEqual({ tipo: 'respaldada' });
+      await enviando;
+      expect(m.respaldo.lote).toEqual({ tipo: 'terminado',
+        progreso: { total: 2, confirmadas: 2, omitidas: 0, revision: 0, restantes: 0 } });
+      expect(de(m, 'subida').map((l) => l.solicitud!.fotoId).slice(1).sort()).toEqual([R2, R3].sort());
+    } finally {
+      m.cerrar();
+    }
+  });
+
+  it('L6 · un 401 para el lote sin soltar la sesión global; el plazo y la falta de conexión también paran sin reintentar', async () => {
+    const sinSesion = () => new Response('{"error":"sin-sesion"}', { status: 401, headers: CABECERAS_JSON });
+    const a = await montar({ subida: () => sinSesion() }, { uuidOperacion: operaciones() });
+    try {
+      for (const id of [R1, R2, R3]) await a.fotos.guardarOriginal(capturaLocal(id, { nombre: `${id.slice(0, 2)}.png` }), VIA);
+      await a.respaldo.contarLote();
+      await a.respaldo.confirmarLote();
+      expect(a.respaldo.lote).toEqual({ tipo: 'detenido', motivo: 'sin-sesion',
+        progreso: { total: 3, confirmadas: 0, omitidas: 0, revision: 1, restantes: 2 } });
+      expect(de(a, 'subida')).toHaveLength(1);
+      expect(a.cambios).not.toContainEqual({ tipo: 'sin-sesion' });
+    } finally {
+      a.cerrar();
+    }
+
+    let b!: Montaje;
+    b = await montar({ subida: () => colgada(() => b) },
+      { uuidOperacion: operaciones(), composicion: { ...composicion, listado: { ...composicion.listado, plazoMs: 40 } } });
+    try {
+      for (const id of [R1, R2]) await b.fotos.guardarOriginal(capturaLocal(id, { nombre: `${id.slice(0, 2)}.png` }), VIA);
+      await b.respaldo.contarLote();
+      await b.respaldo.confirmarLote();
+      expect(b.respaldo.lote).toEqual({ tipo: 'detenido', motivo: 'plazo',
+        progreso: { total: 2, confirmadas: 0, omitidas: 0, revision: 1, restantes: 1 } });
+      expect(de(b, 'subida')).toHaveLength(1);
+      expect(de(b, 'subida')[0].senal?.aborted).toBe(true);
+    } finally {
+      b.cerrar();
+    }
+
+    let conectado = true;
+    const c = await montar({ subida: (s) => acuse(s) }, { uuidOperacion: operaciones(), enLinea: () => conectado });
+    try {
+      for (const id of [R1, R2]) await c.fotos.guardarOriginal(capturaLocal(id, { nombre: `${id.slice(0, 2)}.png` }), VIA);
+      await c.respaldo.contarLote();
+      conectado = false;
+      await c.respaldo.confirmarLote();
+      expect(c.respaldo.lote).toEqual({ tipo: 'detenido', motivo: 'sin-conexion',
+        progreso: { total: 2, confirmadas: 0, omitidas: 0, revision: 0, restantes: 2 } });
+      expect(c.llamadas).toEqual([]);
+      expect(await resumenLedger(c)).toEqual({});
+    } finally {
+      c.cerrar();
+    }
+  });
+
+  it('L7 · cerrar u ocultar la vista acaba la continuidad: una propuesta se olvida y un lote en curso no se puede continuar', async () => {
+    let m!: Montaje;
+    let n = 0;
+    m = await montar({ subida: (s) => (++n === 1 ? colgada(() => m) : acuse(s)) }, { uuidOperacion: operaciones() });
+    try {
+      for (const id of [R1, R2]) await m.fotos.guardarOriginal(capturaLocal(id, { nombre: `${id.slice(0, 2)}.png` }), VIA);
+      await m.respaldo.contarLote();
+      m.respaldo.abandonarLote();
+      expect(m.respaldo.lote).toEqual({ tipo: 'inactivo' });
+      await m.respaldo.confirmarLote();
+      expect(m.llamadas).toEqual([]);
+
+      await m.respaldo.contarLote();
+      const enviando = m.respaldo.confirmarLote();
+      await vi.waitFor(() => expect(de(m, 'subida')).toHaveLength(1));
+      m.respaldo.abandonarLote();
+      await enviando;
+      expect(m.respaldo.lote).toMatchObject({ tipo: 'detenido', motivo: 'cerrado', progreso: { revision: 1, restantes: 1 } });
+      await m.respaldo.continuarLote();
+      expect(de(m, 'subida')).toHaveLength(1);
+      expect(m.respaldo.lote).toMatchObject({ tipo: 'detenido', motivo: 'cerrado' });
+    } finally {
+      m.cerrar();
+    }
+  });
+
+  it('L8 · el copy dice qué queda fuera y no promete que pausar evite lo que ya salió', () => {
+    expect(textoLote({ tipo: 'propuesta', fotos: 2, bytes: 14, confirmadas: 1, revision: 2, sinOrigen: 3 }).detalle)
+      .toBe('Se envían de una en una al servidor del viaje; los datos móviles pueden tener coste. Quedan fuera: 1 ya confirmada'
+        + ' · 2 para revisar · 3 sin origen comprobado aquí (anteriores, descargadas o importadas: se respaldan desde su visor).');
+    expect(textoLote({ tipo: 'propuesta', fotos: 0, bytes: 0, confirmadas: 0, revision: 0, sinOrigen: 1 })).toEqual({
+      estado: 'No hay fotos añadidas aquí con la cámara o la galería pendientes de respaldo.',
+      detalle: 'Quedan fuera: 1 sin origen comprobado aquí (anterior, descargada o importada: se respalda desde su visor).' });
+    expect(textoLote({ tipo: 'detenido', motivo: 'pausa',
+      progreso: { total: 3, confirmadas: 1, omitidas: 0, revision: 1, restantes: 1 } })).toEqual({
+      estado: 'En pausa: 1 de 3 confirmadas.',
+      detalle: 'Si una foto ya había salido, el servidor puede recibirla igualmente. 1 para revisar aparte (sin confirmar).' });
+    expect(textoLote({ tipo: 'detenido', motivo: 'sin-sesion',
+      progreso: { total: 2, confirmadas: 0, omitidas: 0, revision: 0, restantes: 2 } }).estado)
+      .toBe('Parado: este móvil no tiene sesión en el servidor. 0 de 2 confirmadas.');
+  });
+});
+
+describe('lote: admisión durable frente a otra instancia (H1)', () => {
+  it('H1-I1 · otra instancia envía la MISMA operación mientras el lote espera la metadata: el lote no hace POST y la deja para revisar',
+    async () => {
+      const op = '42345678-3333-4333-8333-333333333333';
+      const m = await montar({ subida: (s) => acuse(s) }, { uuidOperacion: operaciones() });
+      // Otra instancia real: su propia conexión a PhotoDB y al ledger, su propio transporte; su POST queda sin acuse.
+      const otraFotos = await abrirFotosLocal(itinerario, { fabrica: m.fabrica });
+      const llamadasOtra: Llamada[] = [];
+      const otra = crearRespaldoFotos({ plan: itinerario, composicion, puerto: () => otraFotos, incorporar: () => {},
+        fetch: puertoHttp({ subida: () => servidorCaido() }, llamadasOtra), fabricaLedger: m.fabrica,
+        uuidOperacion: operaciones(), enLinea: () => true });
+      try {
+        const preparada = capturaLocal(R1, { nombre: 'preparada.png' });
+        await m.fotos.guardarOriginal(preparada, VIA);
+        await sembrarLedger(m, preparada, 'preparado', op);
+        await m.respaldo.contarLote();
+        expect(m.respaldo.lote).toMatchObject({ tipo: 'propuesta', fotos: 1, revision: 0 });
+
+        // Barrera en el lote DESPUÉS de su primera lectura del ledger: la metadata de la foto.
+        const retenida = diferido<void>(); let llegada!: () => void;
+        const llego = new Promise<void>((ok) => { llegada = ok; });
+        const leerMetadatos = m.fotos.leerMetadatos.bind(m.fotos);
+        const espia = vi.spyOn(m.fotos, 'leerMetadatos').mockImplementationOnce(async (id) => {
+          llegada(); await retenida.promesa; return leerMetadatos(id);
+        });
+        const enviando = m.respaldo.confirmarLote();
+        await llego;
+        expect(espia).toHaveBeenCalledTimes(1);
+        expect((await resumenLedger(m))[R1]).toMatchObject({ fase: 'preparado', enviada: false, operacionId: op });
+
+        // La otra instancia envía la MISMA operación y queda sin confirmar, durable antes de soltar al lote.
+        expect(await otra.respaldar(R1)).toEqual({ tipo: 'sin-confirmar' });
+        expect(llamadasOtra.filter((l) => l.tipo === 'subida').map((l) => l.solicitud?.operacionId)).toEqual([op]);
+        const ajena = await leerLedger(m);
+        expect(ajena).toEqual([expect.objectContaining({ fotoId: R1, operacionId: op, fase: 'enviada', enviada: true,
+          pausada: false, recibo: null })]);
+
+        retenida.resolver();
+        await enviando;
+        // El lote no hace ningún POST: solo salió el intencionado de la otra instancia.
+        expect(de(m, 'subida')).toEqual([]);
+        expect(m.respaldo.lote).toEqual({ tipo: 'terminado',
+          progreso: { total: 1, confirmadas: 0, omitidas: 0, revision: 1, restantes: 0 } });
+        expect(await leerLedger(m)).toEqual(ajena);
+
+        // Revisarla a mano: «Reintentar» envía la MISMA operación y el acuse la confirma.
+        expect(await m.respaldo.reintentar(R1)).toEqual({ tipo: 'respaldada' });
+        expect(de(m, 'subida').map((l) => l.solicitud?.operacionId)).toEqual([op]);
+        expect(await leerLedger(m)).toEqual([expect.objectContaining({ fotoId: R1, operacionId: op, fase: 'respaldada' })]);
+      } finally {
+        otra.cerrar(); otraFotos.cerrar(); m.cerrar();
+      }
+    });
 });

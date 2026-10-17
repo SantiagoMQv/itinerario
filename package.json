@@ -13,7 +13,7 @@
     "preview": "vite preview",
     "check": "tsc --noEmit && tsc --noEmit -p tsconfig.pruebas.json && npm run check:servidor",
     "check:servidor": "tsc --noEmit -p tsconfig.servidor.json && tsc --noEmit -p tsconfig.pruebas-servidor.json",
-    "test": "vitest run",
+    "test": "vitest run --dir pruebas",
     "test:e2e": "playwright test",
     "verify": "npm run check && npm test && npm run test:e2e"
   },

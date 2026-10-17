@@ -30,6 +30,20 @@ describe('página pública /entrar', () => {
     expect(respuesta.headers.has('Set-Cookie')).toBe(false);
   });
 
+  it('el fetch de sesión es same-origin en modo y credenciales y omite Referer; el documento conserva no-referrer', async () => {
+    const respuesta = await proveerRespuestaEntrada(solicitar());
+    const html = await respuesta.text();
+    expect(respuesta.headers.get('Referrer-Policy')).toBe('no-referrer');
+    expect(html).toContain('<meta name="referrer" content="no-referrer">');
+    const opciones = /fetch\('\/api\/sesion', \{([\s\S]*?)\n      \}\)/.exec(html)?.[1] ?? '';
+    expect(opciones).toContain("method: 'POST'");
+    expect(opciones).toContain("mode: 'same-origin'");
+    expect(opciones).toContain("credentials: 'same-origin'");
+    expect(opciones).toContain("redirect: 'error'");
+    expect(opciones).toContain("referrerPolicy: 'no-referrer'");
+    expect(html.match(/referrerPolicy:/g)).toHaveLength(1);
+  });
+
   it('CSP defensiva con un nonce propio y distinto en cada respuesta', async () => {
     const [a, b] = await Promise.all([proveerRespuestaEntrada(solicitar()), proveerRespuestaEntrada(solicitar())]);
     const csp = a.headers.get('Content-Security-Policy')!;

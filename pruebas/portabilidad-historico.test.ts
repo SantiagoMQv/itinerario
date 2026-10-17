@@ -4,6 +4,7 @@ import * as fotos from '../src/fotos-local';
 import { itinerario } from '../src/datos/itinerario';
 import { exportarArchivoPortable, type BasePortable } from '../src/portabilidad';
 import { crearPortabilidadHistorica } from '../src/portabilidad-historico';
+import { copiarOriginalRespaldo } from '../src/fotos-respaldo';
 
 const limites = { maxRegistros: 100, maxBytesMetadatos: 100000, maxBytesArchivo: 4000000, maxProfundidad: 64 };
 const limitesHistoria = { maxImportaciones: 100, maxObservaciones: 1000, maxProcedencias: 1000, maxBytesHistoria: 40000000 };
@@ -226,7 +227,8 @@ describe('restauración portable dedicada: lote PhotoDB, nunca progreso ni ledge
     const open = fabrica.open.bind(fabrica); let inyectada = false;
     const spy = vi.spyOn(fabrica, 'open').mockImplementation((nombre, version) => {
       const req = open(nombre, version);
-      if (version === 1 && !inyectada) req.addEventListener('success', () => {
+      // La apertura física del restaurador es la de PhotoDB v2 (con «procedencias»).
+      if (version === 2 && !inyectada) req.addEventListener('success', () => {
         inyectada = true; const tx = req.result.transaction(['metadatos', 'originales', 'miniaturas'], 'readwrite');
         if (caso === 'insercion') {
           tx.objectStore('metadatos').add(metadata(), fotoId);
@@ -282,5 +284,69 @@ describe('restauración portable dedicada: lote PhotoDB, nunca progreso ni ledge
         .toMatchObject({ tipo: 'lectura-posterior-fallida', transaccion: 'confirmada' });
     } finally { escritura.mockRestore(); lectura.mockRestore(); }
     expect(await original(fabrica)).not.toBeNull();
+  });
+});
+
+// ---------- Restauración sobre PhotoDB v2 (RP1) ----------
+
+describe('restauración portable sobre PhotoDB v2', () => {
+  it('RH1 · restaurar añade la importada SIN marca y conserva intacta la local con su marca de cámara/galería', async () => {
+    const fabrica = new IDBFactory();
+    const db = await new Promise<IDBDatabase>((ok, no) => {
+      const s = fabrica.open(nombre, 2);
+      s.onupgradeneeded = () => ['metadatos', 'originales', 'miniaturas', 'procedencias'].forEach((t) => s.result.createObjectStore(t));
+      s.onsuccess = () => ok(s.result); s.onerror = () => no(s.error);
+    });
+    const marca = { version: 1, via: 'camara-galeria', original: copiarOriginalRespaldo(itinerario, metadata(otraId)) };
+    await new Promise<void>((ok, no) => {
+      const tx = db.transaction(['metadatos', 'originales', 'procedencias'], 'readwrite');
+      tx.objectStore('metadatos').put(metadata(otraId), otraId);
+      tx.objectStore('originales').put(new Blob([new Uint8Array([7, 8, 9])], { type: 'image/heic' }), otraId);
+      tx.objectStore('procedencias').put(marca, otraId);
+      tx.oncomplete = () => ok(); tx.onabort = () => no(tx.error);
+    });
+    db.close();
+    const r = await fotos.crearRestauradorFotosPortable(itinerario, limites, { fabrica }).restaurar(base());
+    expect(r).toMatchObject({ tipo: 'observadas', transaccion: 'confirmada' });
+    const crudo = await new Promise<{ version: number; marcas: [IDBValidKey, unknown][]; ids: IDBValidKey[] }>((ok, no) => {
+      const s = fabrica.open(nombre);
+      s.onerror = () => no(s.error);
+      s.onsuccess = () => {
+        const d = s.result; const tx = d.transaction(['metadatos', 'procedencias']);
+        const ids = tx.objectStore('metadatos').getAllKeys();
+        const claves = tx.objectStore('procedencias').getAllKeys(); const valores = tx.objectStore('procedencias').getAll();
+        tx.oncomplete = () => { d.close(); ok({ version: d.version, ids: ids.result,
+          marcas: claves.result.map((k, i) => [k, valores.result[i]]) }); };
+        tx.onabort = () => { d.close(); no(tx.error); };
+      };
+    });
+    expect(crudo.version).toBe(2);
+    expect([...crudo.ids].sort()).toEqual([fotoId, otraId].sort());
+    expect(crudo.marcas).toEqual([[otraId, marca]]);
+  });
+  it('RH2 · una importada que coincide con la local no la toca: misma fila, mismos bytes y su marca sigue siendo suya', async () => {
+    const fabrica = new IDBFactory();
+    const db = await new Promise<IDBDatabase>((ok, no) => {
+      const s = fabrica.open(nombre, 2);
+      s.onupgradeneeded = () => ['metadatos', 'originales', 'miniaturas', 'procedencias'].forEach((t) => s.result.createObjectStore(t));
+      s.onsuccess = () => ok(s.result); s.onerror = () => no(s.error);
+    });
+    const marca = { version: 1, via: 'camara-galeria', original: copiarOriginalRespaldo(itinerario, metadata()) };
+    await new Promise<void>((ok, no) => {
+      const tx = db.transaction(['metadatos', 'originales', 'procedencias'], 'readwrite');
+      tx.objectStore('metadatos').put(metadata(), fotoId);
+      tx.objectStore('originales').put(new Blob([new Uint8Array([1, 2, 3])], { type: 'image/heic' }), fotoId);
+      tx.objectStore('procedencias').put(marca, fotoId);
+      tx.oncomplete = () => ok(); tx.onabort = () => no(tx.error);
+    });
+    db.close();
+    const r = await fotos.crearRestauradorFotosPortable(itinerario, limites, { fabrica }).restaurar(base());
+    expect(r).toMatchObject({ tipo: 'observadas', fotos: [{ fotoId, tipo: 'existente' }] });
+    const f = await fotos.abrirFotosLocal(itinerario, { fabrica });
+    try {
+      expect(await f.leerMetadatos(fotoId)).toEqual(metadata());
+      expect(new Uint8Array(await (await f.leerOriginal(fotoId))!.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
+      expect(await f.leerProcedencia?.(fotoId)).toBe('camara-galeria');
+    } finally { f.cerrar(); }
   });
 });

@@ -1,9 +1,10 @@
 import type { Itinerario } from '../src/tipos';
 import { camposFoto, esIdFoto } from '../src/fotos';
-import { leerJsonListadoAcotado } from '../src/fotos-listado-protocolo';
+import { leerJsonListadoAcotado, deserializarDestinoListadoFotos, serializarDestinoListadoFotos,
+  deserializarCursorListadoFotosDestino, MAX_CARACTERES_QUERY_LISTADO_FOTOS_DESTINO } from '../src/fotos-listado-protocolo';
 import type { EjecutorSql } from './contratos';
-import { calcularCotasListadoFotos, copiarPresupuestoListadoFotos, crearRepositorioListadoFotosSql,
-  type PresupuestoListadoFotos } from './repositorio-listado-fotos';
+import { calcularCotasListadoFotos, calcularCotasListadoFotosDestino, copiarPresupuestoListadoFotos, crearRepositorioListadoFotosSql,
+  type PresupuestoListadoFotos, type ResultadoListadoFotos, type ResultadoListadoFotosDestino } from './repositorio-listado-fotos';
 import { copiarPlanFotos, crearVigenciaFotos, type VigenciaFotos } from './multipart-fotos';
 import type { ControladorSesiones, RegistroSesion } from './sesiones';
 
@@ -82,6 +83,25 @@ function cursor(url: URL, viajeId: string): string | null {
   if (canonico !== decodificado) return fallar();
   return decodificado;
 }
+/** Sólo dos campos en orden fijo; ningún URLSearchParams coercitivo ni alias. */
+function consultaDestino(url: URL, plan: Itinerario): { destino: ReturnType<typeof deserializarDestinoListadoFotos>;
+  continuacion: string | null } | null {
+  const href = url.href; const inicio = href.indexOf('?'); const fragmento = href.indexOf('#');
+  if (inicio < 0 || (fragmento >= 0 && fragmento < inicio)) return null;
+  const longitud = (fragmento < 0 ? href.length : fragmento) - inicio;
+  if (longitud > MAX_CARACTERES_QUERY_LISTADO_FOTOS_DESTINO) return fallar();
+  if (!url.search.startsWith('?destino=')) return null;
+  const partes = url.search.slice(9).split('&');
+  if (partes.length > 2 || !partes[0] || (partes.length === 2 && !partes[1].startsWith('continuacion='))) return fallar();
+  const decode = (s: string) => decodeURIComponent(s.replace(/\+/g, ' '));
+  const destino = deserializarDestinoListadoFotos(plan, decode(partes[0]));
+  const continuacion = partes.length === 1 ? null : decode(partes[1].slice(13));
+  if (continuacion !== null) {
+    const c = deserializarCursorListadoFotosDestino(plan, continuacion);
+    if (serializarDestinoListadoFotos(plan, c.destino) !== serializarDestinoListadoFotos(plan, destino)) return fallar();
+  }
+  return { destino, continuacion };
+}
 function responder(solicitud: Request, estado: number, cuerpo = '{"error":"' + MENSAJE + '"}'): Response {
   return new Response(solicitud.method === 'HEAD' ? null : cuerpo, { status: estado, headers: {
     'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'private, no-store',
@@ -128,12 +148,25 @@ export function prepararListadoFotos(configuracion: {
         const inicial = actor(await vigencia.esperar(() => autenticarCapturado(solicitud), true));
         if (!vigente(inicial, viajeId, reloj())) return responder(solicitud, 401);
         let continuacion: string | null;
-        try { continuacion = cursor(destino, viajeId); } catch { return responder(solicitud, 400); }
-        const resultado = await vigencia.esperar(() => repositorio.listar(inicial.huella, inicial.viajeId,
-          continuacion, vigencia!.signal), true);
+        let filtrada: ReturnType<typeof consultaDestino>;
+        try {
+          filtrada = consultaDestino(destino, plan);
+          continuacion = filtrada === null ? cursor(destino, viajeId) : filtrada.continuacion;
+        } catch { return responder(solicitud, 400); }
+        let maxBytesActual = maxBytes;
+        if (filtrada !== null) {
+          const c = calcularCotasListadoFotosDestino(presupuesto.maxFilas, presupuesto.maxOperacionesPorFoto);
+          const minimoFiltrado = sumar(sumar(c.bytesRetenidos, multiplicar(6, c.bytesRespuesta)), 65536);
+          if (presupuesto.maxBytesRespuesta < c.bytesRespuesta || presupuesto.maxBytesRetenidos < minimoFiltrado) return fallar();
+          maxBytesActual = c.bytesRespuesta;
+        }
+        const seleccion = filtrada;
+        const resultado = await vigencia.esperar<ResultadoListadoFotos | ResultadoListadoFotosDestino>(() => seleccion === null
+          ? repositorio.listar(inicial.huella, inicial.viajeId, continuacion, vigencia!.signal)
+          : repositorio.listarDestino(inicial.huella, inicial.viajeId, seleccion.destino, continuacion, vigencia!.signal), true);
         if (camposFoto(resultado, ['tipo']) && resultado.tipo === 'sin-sesion') return responder(solicitud, 401);
         if (!camposFoto(resultado, ['tipo', 'pagina', 'textoCanonico']) || resultado.tipo !== 'pagina') return fallar();
-        const cuerpo = texto(resultado.textoCanonico, maxBytes);
+        const cuerpo = texto(resultado.textoCanonico, maxBytesActual);
         // DB real de sesiones después del RETURN SQL Y entrega SDK, mismo Request.
         const fresca = actor(await vigencia.esperar(() => autenticarCapturado(solicitud), true));
         if (!vigente(fresca, viajeId, reloj()) || fresca.huella !== inicial.huella || fresca.id !== inicial.id

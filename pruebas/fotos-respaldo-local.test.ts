@@ -279,3 +279,44 @@ describe('ledger manual durable, fakeIDB: no prueba de cuota ni servidor real', 
     if (caso !== 'falta') expect(await leerCrudo(actual)).toEqual({ fotoId, ajeno: true });
   });
 });
+
+describe('admisión del lote en el reclamo durable (H1)', () => {
+  it('H1-L1 · con «soloPreparada» el marcador solo se escribe sobre una preparada sin envío ni pausa; lo demás no cambia', async () => {
+    const c = await contexto(); const e = await c.preparar(); const b = await c.abrir();
+    // Otra conexión (otro contexto) ya la marcó enviada: el lote no puede reclamarla y nada cambia.
+    const ajena = await b.marcarEnviada(referencia(e));
+    await expect(c.a.marcarEnviada(referencia(e), { soloPreparada: true })).rejects.toMatchObject({ name: 'ErrorAdmisionRespaldo' });
+    expect(await c.a.leer(fotoId)).toEqual(ajena);
+    // Sin condición, el reintento individual de la MISMA operación sigue permitido.
+    expect(await c.a.marcarEnviada(referencia(e))).toEqual(ajena);
+    // En pausa o ya confirmada tampoco se reclama con la condición.
+    const pausada = await c.a.pausar(referencia(e));
+    await expect(c.a.marcarEnviada(referencia(e), { soloPreparada: true })).rejects.toMatchObject({ name: 'ErrorAdmisionRespaldo' });
+    expect(await c.a.leer(fotoId)).toEqual(pausada);
+    await c.a.reintentar(referencia(e)); const confirmada = await c.a.confirmarRecibo(recibo(e));
+    await expect(c.a.marcarEnviada(referencia(e), { soloPreparada: true })).rejects.toMatchObject({ name: 'ErrorAdmisionRespaldo' });
+    expect(await c.a.leer(fotoId)).toEqual(confirmada);
+    // Condiciones con otra forma no se interpretan: se rechazan antes de abrir la transacción.
+    await expect(c.a.marcarEnviada(referencia(e), { soloPreparada: 'si' } as never)).rejects.toThrow('Condiciones');
+    await expect(c.a.marcarEnviada(referencia(e), { otra: true } as never)).rejects.toThrow('Condiciones');
+  });
+
+  it('H1-L2 · dos reclamos con condición desde dos conexiones a la vez: exactamente uno gana y el otro no escribe', async () => {
+    const c = await contexto(); const e = await c.preparar(); const b = await c.abrir();
+    const r = await Promise.allSettled([c.a.marcarEnviada(referencia(e), { soloPreparada: true }),
+      b.marcarEnviada(referencia(e), { soloPreparada: true })]);
+    expect(r.map((x) => x.status).sort()).toEqual(['fulfilled', 'rejected']);
+    const perdida = r.find((x): x is PromiseRejectedResult => x.status === 'rejected');
+    expect(perdida?.reason).toMatchObject({ name: 'ErrorAdmisionRespaldo' });
+    const ganada = r.find((x): x is PromiseFulfilledResult<EntradaRespaldo> => x.status === 'fulfilled');
+    expect(ganada?.value).toMatchObject({ fase: 'enviada', enviada: true, pausada: false, operacionId });
+    expect(await c.a.leer(fotoId)).toEqual(ganada?.value);
+  });
+
+  it('H1-L3 · la condición no rechaza el marcador propio ya escrito: tras reclamar, acuse y lecturas siguen', async () => {
+    const c = await contexto(); const e = await c.preparar();
+    const propia = await c.a.marcarEnviada(referencia(e), { soloPreparada: true });
+    expect(propia).toMatchObject({ fase: 'enviada', enviada: true, operacionId });
+    expect(await c.a.confirmarRecibo(recibo(e))).toMatchObject({ fase: 'respaldada', operacionId });
+  });
+});

@@ -4,7 +4,7 @@ import { itinerario } from '../src/datos/itinerario';
 import { abrirFotosLocal } from '../src/fotos-local';
 import type { CapturaFoto } from '../src/fotos';
 import { copiarOriginalRespaldo } from '../src/fotos-respaldo';
-import { crearDescargaFotos } from '../src/fotos-descarga';
+import { crearDescargaFotos, crearRecepcionOriginal } from '../src/fotos-descarga';
 
 function barrera<T>() {
   let resolver!: (v: T) => void;
@@ -420,5 +420,145 @@ describe('ownership, cancelación y cierre', () => {
       expect(await c.fotos.leerMetadatos(fotoId)).toBeNull();
       expect((await c.descarga.descargar(c.ref)).tipo).toBe('guardada');
     } finally { liberar.resolver(respuesta()); c.cerrar(); }
+  });
+});
+
+// ---------- Recepción a memoria para ver una foto compartida (FO3): el mismo GET protegido, sin PhotoDB ----------
+
+describe('recepción protegida a memoria, sin PhotoDB', () => {
+  it('RC1 · el mismo GET protegido que la descarga, bytes exactos en un Blob y ninguna escritura local', async () => {
+    const c = await contexto();
+    try {
+      const leer = vi.spyOn(c.fotos, 'leerMetadatos'); const guardar = vi.spyOn(c.fotos, 'guardarOriginal');
+      const r = crearRecepcionOriginal({ plan: itinerario, origen, fetch: c.enviar });
+      expect(c.enviar).not.toHaveBeenCalled();
+      const recibido = await r.recibir(c.ref);
+      expect(recibido.tipo).toBe('recibido');
+      if (recibido.tipo !== 'recibido') return;
+      expect([...new Uint8Array(await recibido.original.arrayBuffer())]).toEqual([0, 255, 17]);
+      expect(recibido.bytesRecibidos).toBe(3);
+      expect(c.enviar).toHaveBeenCalledWith(ruta, expect.objectContaining({ method: 'GET',
+        credentials: 'same-origin', cache: 'no-store', redirect: 'error' }));
+      expect([...new Headers(c.enviar.mock.calls[0][1]!.headers)]).toEqual([['accept', 'application/octet-stream']]);
+      // Ver no toca PhotoDB: ni lecturas ni escrituras, y nada queda guardado.
+      expect(leer).not.toHaveBeenCalled(); expect(guardar).not.toHaveBeenCalled();
+      expect(await c.fotos.listar()).toEqual([]);
+      expect((await c.fabrica.databases()).map((b) => b.name)).toHaveLength(1);
+    } finally { c.cerrar(); }
+  });
+  it('RC2 · 401 del endpoint exacto es «sin sesión»; un 401 de una URL ajena, otros estados o el contrato roto no lo son', async () => {
+    const c = await contexto();
+    try {
+      const casos: [Response, string][] = [
+        [new Response('', { status: 401 }), 'sin-sesion'],
+        [respuesta([0, 255, 17], { status: 503 }), 'respuesta'],
+        [respuesta([0, 255, 17], { headers: { 'Content-Type': 'image/png', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' } }), 'respuesta'],
+        [respuesta([0, 255, 17, 9]), 'respuesta'],
+        [respuesta([0, 255]), 'respuesta'],
+      ];
+      for (const [res, motivo] of casos) {
+        const r = crearRecepcionOriginal({ plan: itinerario, origen, fetch: async () => res });
+        expect(await r.recibir(c.ref), motivo).toMatchObject({ tipo: 'fallida', motivo });
+      }
+      const ajena = new Response('', { status: 401 });
+      Object.defineProperty(ajena, 'url', { value: 'https://otro.example/api/fotos/x/original' });
+      expect(await crearRecepcionOriginal({ plan: itinerario, origen, fetch: async () => ajena }).recibir(c.ref))
+        .toMatchObject({ tipo: 'fallida', motivo: 'respuesta' });
+      expect(await crearRecepcionOriginal({ plan: itinerario, origen, fetch: async () => { throw new TypeError('red'); } })
+        .recibir(c.ref)).toMatchObject({ tipo: 'fallida', motivo: 'red' });
+    } finally { c.cerrar(); }
+  });
+  it('RC3 · límite de la composición e identidad inválida se rechazan sin red', async () => {
+    const c = await contexto();
+    try {
+      const r = crearRecepcionOriginal({ plan: itinerario, origen, fetch: c.enviar, maxBytesOriginal: 2 });
+      expect(await r.recibir(c.ref)).toEqual({ tipo: 'fallida', motivo: 'limite', bytesRecibidos: 0 });
+      expect(await r.recibir({ ...c.ref, fotoId: '../imagen' })).toEqual({ tipo: 'fallida', motivo: 'identidad', bytesRecibidos: 0 });
+      expect(await r.recibir({ ...c.ref, destino: { ...c.ref.destino, viajeId: 'ajeno' } }))
+        .toMatchObject({ tipo: 'fallida', motivo: 'identidad' });
+      expect(c.enviar).not.toHaveBeenCalled();
+      expect(() => crearRecepcionOriginal({ plan: itinerario, origen: `${origen}/` })).toThrow();
+      expect(() => crearRecepcionOriginal({ plan: itinerario, origen, fotos: c.fotos } as never)).toThrow();
+    } finally { c.cerrar(); }
+  });
+  it('RC4 · la señal corta el lector a mitad y devuelve «detenida»; cerrar aborta todas las recepciones en curso', async () => {
+    const c = await contexto();
+    try {
+      let cancelado = 0;
+      const lento = () => new Response(new ReadableStream<Uint8Array>({
+        start(control) { control.enqueue(new Uint8Array([0])); },
+        cancel() { cancelado++; },
+      }), { status: 200, headers: { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff' } });
+      const r = crearRecepcionOriginal({ plan: itinerario, origen, fetch: async () => lento() });
+      const control = new AbortController();
+      const una = r.recibir(c.ref, control.signal);
+      await new Promise((ok) => setTimeout(ok, 5));
+      control.abort();
+      expect(await una).toMatchObject({ tipo: 'detenida' });
+      expect(cancelado).toBe(1);
+      const otra = r.recibir(c.ref);
+      await new Promise((ok) => setTimeout(ok, 5));
+      r.cerrar();
+      expect(await otra).toMatchObject({ tipo: 'detenida' });
+      expect(cancelado).toBe(2);
+      expect(await r.recibir(c.ref)).toEqual({ tipo: 'detenida', bytesRecibidos: 0 });
+      const yaCortada = new AbortController(); yaCortada.abort();
+      expect(await crearRecepcionOriginal({ plan: itinerario, origen, fetch: c.enviar }).recibir(c.ref, yaCortada.signal))
+        .toEqual({ tipo: 'detenida', bytesRecibidos: 0 });
+    } finally { c.cerrar(); }
+  });
+});
+
+// ---------- Correcciones FO3: la sesión perdida llega tipada a quien guarda ----------
+
+describe('descarga duradera: sesión tipada', () => {
+  it('DX1 · un 401 del endpoint exacto falla con causa «sin-sesion» tipada y no escribe nada; otros fallos no la llevan', async () => {
+    const c = await contexto();
+    try {
+      c.enviar.mockImplementation(async () => new Response('', { status: 401 }));
+      const r = await c.descarga.descargar(c.ref);
+      expect(r).toMatchObject({ tipo: 'fallida', causa: 'sin-sesion' });
+      expect(await c.fotos.leerMetadatos(fotoId)).toBeNull();
+      c.enviar.mockImplementation(async () => respuesta([0, 255, 17], { status: 503 }));
+      const otro = await c.descarga.descargar(c.ref);
+      expect(otro.tipo).toBe('fallida');
+      expect(otro).not.toHaveProperty('causa');
+    } finally { c.cerrar(); }
+  });
+});
+
+describe('plazo finito de la recepción', () => {
+  const lentoCon = (cancelados: string[]) => async () => new Response(new ReadableStream<Uint8Array>({
+    start(control) { control.enqueue(new Uint8Array([0])); },
+    cancel() { cancelados.push('cancelado'); },
+  }), { status: 200, headers: { 'Content-Type': 'application/octet-stream', 'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff' } });
+  it('DX2 · descarga duradera: si el original no termina de llegar, al vencer el plazo falla con causa «plazo» y no escribe nada', async () => {
+    const c = await contexto();
+    try {
+      const cancelados: string[] = [];
+      const d = crearDescargaFotos({ plan: itinerario, origen, fotos: c.fotos, fetch: lentoCon(cancelados), plazoMs: 30 });
+      const r = await d.descargar(c.ref);
+      expect(r).toMatchObject({ tipo: 'fallida', causa: 'plazo' });
+      expect(r).not.toHaveProperty('captura');
+      expect(cancelados).toEqual(['cancelado']);
+      expect(await c.fotos.leerMetadatos(fotoId)).toBeNull();
+      expect(() => crearDescargaFotos({ plan: itinerario, origen, fotos: c.fotos, plazoMs: 0 })).toThrow();
+      d.cerrar();
+    } finally { c.cerrar(); }
+  });
+  it('RC5 · recepción a memoria: al vencer el plazo se cancela el lector y falla con «plazo»; sin plazo no hay temporizador', async () => {
+    const c = await contexto();
+    try {
+      const cancelados: string[] = [];
+      const r = crearRecepcionOriginal({ plan: itinerario, origen, fetch: lentoCon(cancelados), plazoMs: 30 });
+      expect(await r.recibir(c.ref)).toMatchObject({ tipo: 'fallida', motivo: 'plazo' });
+      expect(cancelados).toEqual(['cancelado']);
+      expect(() => crearRecepcionOriginal({ plan: itinerario, origen, plazoMs: 1.5 })).toThrow();
+      // Un plazo amplio no interfiere con una entrega normal.
+      const normal = crearRecepcionOriginal({ plan: itinerario, origen, fetch: c.enviar, plazoMs: 5_000 });
+      expect((await normal.recibir(c.ref)).tipo).toBe('recibido');
+    } finally { c.cerrar(); }
   });
 });

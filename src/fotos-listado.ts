@@ -1,8 +1,12 @@
 import type { Itinerario } from './tipos';
+import type { DestinoFoto } from './fotos';
 import { copiarPlanFotos } from '../servidor/multipart-fotos';
 import { deserializarSolicitudRespaldo } from './fotos-protocolo';
 import { deserializarCursorListadoFotos, deserializarPaginaListadoFotos,
-  type PaginaListadoFotos } from './fotos-listado-protocolo';
+  deserializarCursorListadoFotosDestino, deserializarPaginaListadoFotosDestino,
+  serializarDestinoListadoFotos, deserializarDestinoListadoFotos,
+  MAX_BYTES_CURSOR_LISTADO_FOTOS_DESTINO, MAX_CARACTERES_QUERY_LISTADO_FOTOS_DESTINO,
+  type PaginaListadoFotos, type PaginaListadoFotosDestino } from './fotos-listado-protocolo';
 
 /** Admisión lógica explícita; no certifica RAM física, GC, costes ni concurrencia global. */
 export interface PresupuestoListadoFotosCliente {
@@ -29,9 +33,15 @@ export type ResultadoListadoFotosCliente =
       | 'sin-sesion' | 'argumentos-invalidos' | 'consulta-rechazada' | 'infraestructura'
       | 'respuesta-inesperada' | 'formato-invalido' | 'presupuesto-excedido' | 'ocupada' }
   | { readonly tipo: 'detenida'; readonly motivo: 'cancelada' | 'plazo' | 'cerrada' };
+export type ResultadoListadoFotosDestinoCliente = Exclude<ResultadoListadoFotosCliente, { tipo: 'pagina' }>
+  | { readonly tipo: 'pagina'; readonly pagina: PaginaListadoFotosDestino };
+type ResultadoAccionListado = ResultadoListadoFotosCliente | ResultadoListadoFotosDestinoCliente;
 export interface ListadoFotos {
   /** Una acción manual, una página de metadata; no descarga originales ni confirma ACK. */
   listar(continuacion: string | null): Promise<ResultadoListadoFotosCliente>;
+  /** Comparte single-flight y cancelación con listar; para aislar una ficha, crear otra instancia.
+   * Una página, sin autopaginación ni persistencia; cerrar descarta las entregas tardías. */
+  listarDestino(destino: DestinoFoto, continuacion: string | null): Promise<ResultadoListadoFotosDestinoCliente>;
   cancelar(): void;
   cerrar(): void;
 }
@@ -100,7 +110,7 @@ function medirPlan(valor: unknown): number {
   }
   visitar(valor, 0); return d;
 }
-function presupuesto(entrada: unknown, d: number): { p: PresupuestoListadoFotosCliente; bytes: number } {
+function presupuesto(entrada: unknown, d: number): { p: PresupuestoListadoFotosCliente; bytes: number; retenidos: number } {
   const claves = ['maxFilas', 'maxBytesPagina', 'maxBytesChunk', 'maxBytesBackingChunk',
     'maxLecturas', 'maxBytesPlan', 'maxBytesRetenidos', 'plazoMs'];
   const valores = datos(entrada, claves);
@@ -115,14 +125,14 @@ function presupuesto(entrada: unknown, d: number): { p: PresupuestoListadoFotosC
   const r = sumar(sumar(sumar(sumar(multiplicar(16, bytes), multiplicar(multiplicar(32, p.maxFilas), M)),
     p.maxBytesBackingChunk), multiplicar(sumar(multiplicar(8, p.maxFilas), 16), d)), 1048576);
   if (p.maxBytesPagina < bytes || p.maxBytesRetenidos < r) invalidar();
-  return { p, bytes };
+  return { p, bytes, retenidos: r };
 }
 class Fallida extends Error { constructor(readonly motivo: MotivoFallo) { super('No se puede leer el listado.'); } }
 const fallar = (motivo: MotivoFallo): never => { throw new Fallida(motivo); };
 interface Accion {
   readonly controlador: AbortController;
-  readonly fin: Promise<ResultadoListadoFotosCliente>;
-  readonly publicar: (r: ResultadoListadoFotosCliente) => void;
+  readonly fin: Promise<ResultadoAccionListado>;
+  readonly publicar: (r: ResultadoAccionListado) => void;
   readonly inicio: number;
   ultimo: number;
   temporizador: ReturnType<typeof setTimeout> | null;
@@ -144,7 +154,7 @@ export function crearClienteListadoFotos(opciones: OpcionesListadoFotosCliente):
   const entrada = datos(opciones, ['plan', 'origen', 'presupuesto'], ['http']);
   const d = medirPlan(entrada.plan); // M1: hard cap independiente del presupuesto del operador.
   const plan = copiarPlanFotos(entrada.plan as Itinerario);
-  const { p, bytes } = presupuesto(entrada.presupuesto, d);
+  const { p, bytes, retenidos } = presupuesto(entrada.presupuesto, d);
   if (typeof entrada.origen !== 'string') return invalidar();
   let origen: URL;
   try { origen = new URL(entrada.origen); } catch { return invalidar(); }
@@ -225,7 +235,7 @@ export function crearClienteListadoFotos(opciones: OpcionesListadoFotosCliente):
     a.cancelando = true;
     void externo(a, () => cancelarLector.call(a.lector!)).catch(() => {});
   }
-  function terminar(a: Accion, r: ResultadoListadoFotosCliente): void {
+  function terminar(a: Accion, r: ResultadoAccionListado): void {
     if (a.terminada) return;
     a.terminada = true;
     if (a.temporizador !== null) { clearTimeout(a.temporizador); a.temporizador = null; }
@@ -258,7 +268,7 @@ export function crearClienteListadoFotos(opciones: OpcionesListadoFotosCliente):
     if (valor !== null && valor.length > 256) return fallar('respuesta-inesperada');
     return valor;
   }
-  function gate(a: Accion, r: Response): ReadableStream<Uint8Array> {
+  function gate(a: Accion, r: Response, maxBytes: number): ReadableStream<Uint8Array> {
     // Intrínsecos de marca: un getter propio url/status/body/headers jamás es autoridad.
     const url = respuestaUrl.call(r); const tipo = respuestaTipo.call(r);
     if ((url !== a.url && !(inyectado && url === '')) || respuestaRedirect.call(r)
@@ -281,7 +291,7 @@ export function crearClienteListadoFotos(opciones: OpcionesListadoFotosCliente):
     if (cc.length !== 2 || !cc.includes('private') || !cc.includes('no-store')
       || vary.trim().toLowerCase() !== 'cookie' || pragma.trim().toLowerCase() !== 'no-cache') return fallar('respuesta-inesperada');
     if (longitud !== null && (!/^(?:0|[1-9][0-9]*)$/.test(longitud)
-      || !Number.isSafeInteger(Number(longitud)) || Number(longitud) > bytes)) return fallar('presupuesto-excedido');
+      || !Number.isSafeInteger(Number(longitud)) || Number(longitud) > maxBytes)) return fallar('presupuesto-excedido');
     const body = bodyPropio(a, r);
     if (!body) return fallar('respuesta-inesperada');
     return body;
@@ -292,24 +302,40 @@ export function crearClienteListadoFotos(opciones: OpcionesListadoFotosCliente):
     const backing = arrayBacking.call(chunk) as ArrayBuffer;
     const capacidad = backingBytes.call(backing) as number; // SharedArrayBuffer no tiene esta marca.
     const inicio = arrayOffset.call(chunk) as number;
-    if (largo > p.maxBytesChunk || capacidad > p.maxBytesBackingChunk || largo > bytes - offset) return fallar('presupuesto-excedido');
+    if (largo > p.maxBytesChunk || capacidad > p.maxBytesBackingChunk || largo > destino.byteLength - offset) return fallar('presupuesto-excedido');
     // La vista nueva comprueba también detached; copia inmediata, sin guardar aliases upstream.
     const vista = new Uint8Array(backing, inicio, largo);
     destino.set(vista, offset); return largo;
   }
-  async function ejecutar(a: Accion, continuacion: string | null): Promise<void> {
+  async function ejecutar(a: Accion, continuacion: string | null, solicitado: DestinoFoto | null): Promise<void> {
     let respuesta: Response | null = null;
     try {
       comprobar(a);
       let cursor: ReturnType<typeof deserializarCursorListadoFotos> | null = null;
+      let destino: DestinoFoto | null = null;
+      let claveDestino: string | null = null;
+      const bytesActuales = solicitado === null ? bytes : sumar(bytes, 12290);
+      if (solicitado !== null && (p.maxBytesPagina < bytesActuales
+        || p.maxBytesRetenidos < sumar(retenidos, 16 * 12290 + 65536))) return fallar('presupuesto-excedido');
       try {
-        if (continuacion !== null) {
-          if (typeof continuacion !== 'string' || continuacion.length > 1024) return fallar('argumentos-invalidos');
-          cursor = deserializarCursorListadoFotos(plan, continuacion);
-          const consulta = '?continuacion=' + encodeURIComponent(continuacion);
-          if (consulta.length > 3086) return fallar('argumentos-invalidos');
-          a.url = raiz + consulta;
+        if (solicitado !== null) {
+          claveDestino = serializarDestinoListadoFotos(plan, solicitado);
+          destino = deserializarDestinoListadoFotos(plan, claveDestino);
+          a.url = raiz + '?destino=' + encodeURIComponent(claveDestino);
         }
+        if (continuacion !== null) {
+          const maxCursor = destino === null ? 1024 : MAX_BYTES_CURSOR_LISTADO_FOTOS_DESTINO;
+          if (typeof continuacion !== 'string' || continuacion.length > maxCursor) return fallar('argumentos-invalidos');
+          if (destino === null) cursor = deserializarCursorListadoFotos(plan, continuacion);
+          else {
+            const c = deserializarCursorListadoFotosDestino(plan, continuacion);
+            if (serializarDestinoListadoFotos(plan, c.destino) !== claveDestino) return fallar('argumentos-invalidos');
+            cursor = c;
+          }
+          a.url += (destino === null ? '?' : '&') + 'continuacion=' + encodeURIComponent(continuacion);
+        }
+        if (a.url.length - raiz.length > (destino === null ? 3086 : MAX_CARACTERES_QUERY_LISTADO_FOTOS_DESTINO))
+          return fallar('argumentos-invalidos');
       } catch { return fallar('argumentos-invalidos'); }
       comprobar(a);
       if (!enviar) return fallar('infraestructura');
@@ -321,11 +347,11 @@ export function crearClienteListadoFotos(opciones: OpcionesListadoFotosCliente):
       if (a.terminada) { descartar(a, respuesta); return; }
       comprobar(a);
       let body: ReadableStream<Uint8Array>;
-      try { body = gate(a, respuesta); } catch (e) { descartar(a, respuesta); respuesta = null; throw e; }
+      try { body = gate(a, respuesta, bytesActuales); } catch (e) { descartar(a, respuesta); respuesta = null; throw e; }
       comprobar(a);
       a.lector = obtenerLector.call(body) as ReadableStreamDefaultReader<Uint8Array>;
       respuesta = null; // Ownership pasa exclusivamente al lector; no hay segundo cancel del body.
-      const buffer = new Uint8Array(bytes); // P efectivo fijo, sólo después del gate HTTP.
+      const buffer = new Uint8Array(bytesActuales); // P efectivo fijo, sólo después del gate HTTP.
       let offset = 0; let lecturas = 0;
       for (;;) {
         comprobar(a);
@@ -341,12 +367,15 @@ export function crearClienteListadoFotos(opciones: OpcionesListadoFotosCliente):
         comprobar(a);
       }
       comprobar(a);
-      let pagina: PaginaListadoFotos;
+      let pagina: PaginaListadoFotos | PaginaListadoFotosDestino;
       try {
         // ignoreBOM=true conserva U+FEFF; el scanner lo rechaza en lugar de eliminarlo.
         const texto = new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(buffer.subarray(0, offset));
         comprobar(a);
-        pagina = deserializarPaginaListadoFotos(plan, texto, p.maxFilas, bytes);
+        pagina = destino === null ? deserializarPaginaListadoFotos(plan, texto, p.maxFilas, bytesActuales)
+          : deserializarPaginaListadoFotosDestino(plan, texto, p.maxFilas, bytesActuales);
+        if (pagina.tipo === 'listado-respaldos-destino'
+          && serializarDestinoListadoFotos(plan, pagina.destino) !== claveDestino) return fallar('formato-invalido');
         comprobar(a);
         if (cursor) {
           for (const inicial of pagina.solicitudesIniciales) {
@@ -354,12 +383,16 @@ export function crearClienteListadoFotos(opciones: OpcionesListadoFotosCliente):
             if (!(id > cursor.despuesDe && id <= cursor.hasta)) return fallar('formato-invalido');
             comprobar(a);
           }
-          if (pagina.continuacion !== null && deserializarCursorListadoFotos(plan, pagina.continuacion).hasta !== cursor.hasta)
-            return fallar('formato-invalido');
+          if (pagina.continuacion !== null) {
+            const siguiente = destino === null ? deserializarCursorListadoFotos(plan, pagina.continuacion)
+              : deserializarCursorListadoFotosDestino(plan, pagina.continuacion);
+            if (siguiente.hasta !== cursor.hasta) return fallar('formato-invalido');
+          }
         }
       } catch (e) { if (e instanceof Fallida) throw e; return fallar('formato-invalido'); }
       comprobar(a); // Incluye decode, codec, copias de plan, rango y DTO congelado.
-      terminar(a, { tipo: 'pagina', pagina });
+      if (pagina.tipo === 'listado-respaldos-destino') terminar(a, { tipo: 'pagina', pagina });
+      else terminar(a, { tipo: 'pagina', pagina });
     } catch (e) {
       if (respuesta) descartar(a, respuesta);
       cancelarReader(a);
@@ -368,21 +401,28 @@ export function crearClienteListadoFotos(opciones: OpcionesListadoFotosCliente):
       a.trabajoTerminado = true; soltar(a);
     }
   }
-  return Object.freeze({
-    listar(continuacion: string | null): Promise<ResultadoListadoFotosCliente> {
+  function iniciar(continuacion: string | null, destino: DestinoFoto | null): Promise<ResultadoAccionListado> {
       if (cerrada) return Promise.resolve({ tipo: 'detenida', motivo: 'cerrada' });
       if (activa) return Promise.resolve({ tipo: 'fallida', motivo: 'ocupada' });
       let inicio: number;
       try { inicio = reloj(); } catch { return Promise.resolve({ tipo: 'fallida', motivo: 'infraestructura' }); }
-      let publicar!: (r: ResultadoListadoFotosCliente) => void;
-      const fin = new Promise<ResultadoListadoFotosCliente>((ok) => { publicar = ok; });
+      let publicar!: (r: ResultadoAccionListado) => void;
+      const fin = new Promise<ResultadoAccionListado>((ok) => { publicar = ok; });
       const a: Accion = { controlador: new AbortController(), fin, publicar, inicio, ultimo: inicio,
         temporizador: null, detenida: null, terminada: false, trabajoTerminado: false, externos: 0,
         lector: null, leyendo: false, cancelando: false, liberado: false, url: raiz };
       activa = a;
       a.temporizador = setTimeout(() => detener(a, 'plazo'), p.plazoMs);
-      void ejecutar(a, continuacion);
+      void ejecutar(a, continuacion, destino);
       return a.fin;
+  }
+  return Object.freeze({
+    listar(continuacion: string | null): Promise<ResultadoListadoFotosCliente> {
+      return iniciar(continuacion, null) as Promise<ResultadoListadoFotosCliente>;
+    },
+    listarDestino(destino: DestinoFoto, continuacion: string | null): Promise<ResultadoListadoFotosDestinoCliente> {
+      if (destino === null || destino === undefined) return Promise.resolve({ tipo: 'fallida', motivo: 'argumentos-invalidos' });
+      return iniciar(continuacion, destino) as Promise<ResultadoListadoFotosDestinoCliente>;
     },
     cancelar(): void { if (activa) detener(activa, 'cancelada'); },
     cerrar(): void { cerrada = true; if (activa) detener(activa, 'cerrada'); },

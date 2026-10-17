@@ -1,6 +1,8 @@
 // Puerta /entrar en un móvil simulado. La página sale de la función real del servidor; /api/sesion
 // y «/» se simulan con page.route: aquí no hay Worker, base de datos ni cookies de verdad.
+import { createServer } from 'node:http';
 import { type Page, expect, test } from '@playwright/test';
+import { comprobarOrigen, FalloHttp, respuestaJson } from '../servidor/http';
 import { CLAVE_IDENTIFICADOR_DISPOSITIVO, proveerRespuestaEntrada } from '../servidor/entrada';
 
 // Con espacios y no ASCII: la UI no la recorta ni la transforma.
@@ -51,6 +53,90 @@ const almacenado = (page: Page) => page.evaluate(() => {
   const todo: Record<string, string | null> = {};
   for (const s of [localStorage, sessionStorage]) for (let i = 0; i < s.length; i++) todo[s.key(i)!] = s.getItem(s.key(i)!);
   return todo;
+});
+
+test('Origin nativo: la entrada supera el validador real y abre el itinerario', async ({ browser }) => {
+  // HTTP loopback prueba solo Origin: no sustituye el gate HTTPS del Worker ni autentica.
+  let origen = '';
+  const observadas: { origen: string | null; estado: number }[] = [];
+  const errores: string[] = [];
+  const servidor = createServer(async (peticion, salida) => {
+    try {
+      const url = new URL(peticion.url!, origen);
+      const cabeceras = new Headers();
+      for (let i = 0; i < peticion.rawHeaders.length; i += 2) {
+        cabeceras.append(peticion.rawHeaders[i], peticion.rawHeaders[i + 1]);
+      }
+      const solicitud = new Request(url, { method: peticion.method, headers: cabeceras });
+      let respuesta: Response;
+      if (url.pathname === '/entrar' && peticion.method === 'GET') {
+        respuesta = await proveerRespuestaEntrada(solicitud);
+      } else if (url.pathname === '/api/sesion' && peticion.method === 'POST') {
+        const recibido = cabeceras.get('Origin');
+        try {
+          // Conservar las cabeceras nativas y validar ANTES de consumir el cuerpo HTTP.
+          comprobarOrigen(solicitud);
+          const trozos: Buffer[] = [];
+          for await (const trozo of peticion) trozos.push(Buffer.from(trozo));
+          const cuerpo = JSON.parse(Buffer.concat(trozos).toString('utf8')) as Cuerpo;
+          expect(cuerpo.clave).toBe('clave-test');
+          expect(cuerpo.dispositivoId).toMatch(UUID);
+          // DTO exclusivamente sintético: no hay DB, autenticación ni cookie persistida.
+          respuesta = respuestaJson({ sesion: sesionDe(cuerpo) }, 201);
+        } catch (error) {
+          if (!(error instanceof FalloHttp)) throw error;
+          respuesta = respuestaJson({ error: error.message }, error.codigo);
+        }
+        observadas.push({ origen: recibido, estado: respuesta.status });
+      } else if (url.pathname === '/' && peticion.method === 'GET') {
+        respuesta = new Response('<!doctype html><title>Destino sintético</title><p id="viaje">Itinerario sintético</p>', {
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        });
+      } else {
+        respuesta = new Response(null, { status: 404 });
+      }
+      salida.writeHead(respuesta.status, Object.fromEntries(respuesta.headers));
+      salida.end(Buffer.from(await respuesta.arrayBuffer()));
+    } catch (error) {
+      errores.push(String(error));
+      salida.writeHead(500);
+      salida.end();
+    }
+  });
+  let contexto: Awaited<ReturnType<typeof browser.newContext>> | undefined;
+  try {
+    await new Promise<void>((resolver, rechazar) => {
+      servidor.once('error', rechazar);
+      servidor.listen(0, '127.0.0.1', resolver);
+    });
+    const direccion = servidor.address();
+    if (!direccion || typeof direccion === 'string') throw new Error('No hay puerto local asignado.');
+    origen = `http://127.0.0.1:${direccion.port}`;
+    contexto = await browser.newContext({ serviceWorkers: 'block' });
+    // No interceptar la API: permitir HTTP real únicamente hacia este servidor propio.
+    await contexto.route('**/*', (ruta) =>
+      new URL(ruta.request().url()).origin === origen ? ruta.continue() : ruta.abort());
+    const pagina = await contexto.newPage();
+    await pagina.goto(`${origen}/entrar`);
+    await pagina.getByLabel('Contraseña del viaje').fill('clave-test');
+    const respuesta = pagina.waitForResponse((r) => r.url() === `${origen}/api/sesion`);
+    await pagina.getByRole('button', { name: 'Entrar' }).click();
+    const recibida = await respuesta;
+    expect(errores).toEqual([]);
+    expect(observadas).toEqual([{ origen, estado: 201 }]);
+    expect(recibida.status()).toBe(201);
+    await expect(pagina).toHaveURL(`${origen}/`);
+    await expect(pagina.locator('#viaje')).toHaveText('Itinerario sintético');
+  } finally {
+    try {
+      await contexto?.close();
+    } finally {
+      await new Promise<void>((resolver, rechazar) => {
+        servidor.close((error) => error ? rechazar(error) : resolver());
+        servidor.closeAllConnections();
+      });
+    }
+  }
 });
 
 test('entra con la contraseña exacta, guarda solo el identificador y va a «/»', async ({ page }) => {

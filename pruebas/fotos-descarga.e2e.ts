@@ -137,8 +137,13 @@ test('GET nativo conserva binario completo y reopen; schemas/progreso/respaldo/c
       });
       const tablas = [...db.objectStoreNames];
       const tx = db.transaction(tablas);
-      const detalle = tablas.map((nombre) => { const t = tx.objectStore(nombre);
-        return { nombre, keyPath: t.keyPath, autoIncrement: t.autoIncrement, indices: [...t.indexNames] }; });
+      const detalle = await Promise.all(tablas.map((nombre) => new Promise<{ nombre: string; keyPath: string | string[] | null;
+        autoIncrement: boolean; indices: string[]; filas: number }>((ok, no) => {
+        const t = tx.objectStore(nombre); const n = t.count();
+        n.onsuccess = () => ok({ nombre, keyPath: t.keyPath, autoIncrement: t.autoIncrement, indices: [...t.indexNames],
+          filas: n.result });
+        n.onerror = () => no(n.error);
+      })));
       schemas.push({ nombre: db.name, version: db.version, tablas, detalle }); db.close();
     }
     return { tipo: resultado.tipo, recibidos: resultado.bytesRecibidos, longitud: bytes.length,
@@ -156,8 +161,10 @@ test('GET nativo conserva binario completo y reopen; schemas/progreso/respaldo/c
   expect(r.final).toMatchObject({ nombre: '\0 e\u0301 ', mimeDeclarado: 'image/heic', miniatura: { tipo: 'pendiente' } });
   expect(r.basesDespues).toEqual(r.basesAntes); expect(r.schemas).toHaveLength(3);
   const foto = r.schemas.find((s) => s.nombre.startsWith('itinerario-fotos:'))!;
-  expect(foto).toMatchObject({ version: 1, tablas: ['metadatos', 'miniaturas', 'originales'] });
+  expect(foto).toMatchObject({ version: 2, tablas: ['metadatos', 'miniaturas', 'originales', 'procedencias'] });
   expect(foto.detalle.every((t) => t.keyPath === null && !t.autoIncrement && t.indices.length === 0)).toBe(true);
+  // Descargada: nunca gana procedencia de cámara o galería.
+  expect(foto.detalle.find((t) => t.nombre === 'procedencias')?.filas).toBe(0);
   expect(r.schemas.find((s) => s.nombre === 'itinerario-progreso')).toMatchObject({ version: 1, tablas: ['viajes'] });
   expect(r.schemas.find((s) => s.nombre.startsWith('itinerario-respaldo-fotos:'))).toMatchObject({ version: 1, tablas: ['respaldos'] });
   expect(solicitudes).toEqual([{ ruta: '/api/fotos/12345678-1234-4123-8123-123456789abc/original',

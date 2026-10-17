@@ -84,8 +84,16 @@ test('original nativo A/B, atestación, two connections/reopen y prueba local de
           return { clave: t.keyPath, incremento: t.autoIncrement, indices: t.indexNames.length };
         }) }); db.close();
     }
+    // La fuente se guardó con la biblioteca sin vía: ninguna marca de procedencia.
+    const marcas = await new Promise<number>((ok, no) => {
+      const s = indexedDB.open(`itinerario-fotos:${encodeURIComponent(itinerario.id)}`); s.onerror = () => no(s.error);
+      s.onsuccess = () => {
+        const n = s.result.transaction('procedencias').objectStore('procedencias').count();
+        n.onsuccess = () => { s.result.close(); ok(n.result); }; n.onerror = () => { s.result.close(); no(n.error); };
+      };
+    });
     const despues = await avance.leer(); avance.cerrar(); fuente.cerrar(); final.cerrar();
-    return { colisionBytes, sinFalsoPreparado, derivadaNoRetarget, antesIO, incierta,
+    return { colisionBytes, marcas, sinFalsoPreparado, derivadaNoRetarget, antesIO, incierta,
       confirmada, repetida, durable, cargaOriginal, signo: Object.is(durable.original.incorporada, -0),
       nombre: durable.original.nombre, sinBlob: !Object.hasOwn(durable, 'blob'), esquemas,
       antes, despues, cacheAntes, cacheDespues: await caches.keys() };
@@ -94,9 +102,11 @@ test('original nativo A/B, atestación, two connections/reopen y prueba local de
     antesIO: { fase: 'enviada', enviada: true, recibo: null }, incierta: { fase: 'enviada', enviada: true, pausada: true },
     confirmada: { fase: 'respaldada', enviada: true }, cargaOriginal: 0, signo: true, nombre: '\0 é ', sinBlob: true });
   expect(r.repetida).toEqual(r.confirmada); expect(r.durable).toEqual(r.confirmada);
+  expect(r.marcas).toBe(0);
   expect(r.esquemas).toEqual([
     { version: 1, tablas: ['respaldos'], estructuras: [{ clave: null, incremento: false, indices: 0 }] },
-    { version: 1, tablas: ['metadatos', 'miniaturas', 'originales'], estructuras: Array(3).fill({ clave: null, incremento: false, indices: 0 }) },
+    { version: 2, tablas: ['metadatos', 'miniaturas', 'originales', 'procedencias'],
+      estructuras: Array(4).fill({ clave: null, incremento: false, indices: 0 }) },
     { version: 1, tablas: ['viajes'], estructuras: [{ clave: null, incremento: false, indices: 0 }] },
   ]);
   expect(r.despues).toEqual(r.antes); expect(r.despues.formato).toBe(3); expect(r.cacheDespues).toEqual(r.cacheAntes);

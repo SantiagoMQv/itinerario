@@ -17,3 +17,5 @@ dist
 # Pruebas
 test-results/
 playwright-report/
+# Local Pi runtime state
+.atl/

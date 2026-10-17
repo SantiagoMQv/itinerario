@@ -4,9 +4,11 @@ import { copiarMetadatos, crearCapturaFoto, esDestinoFoto, esFotoBorrada, tamano
 import { abrirFotosLocal, type FotosLocal } from './fotos-local';
 import { LIMITES_IMAGEN, crearMiniatura, inspeccionarImagen, type InspeccionImagen, type MiniaturaImagen,
   type MotorMiniatura } from './fotos-imagen';
-import { avisoBorradoRespaldo, componerRespaldoFotos, crearSeccionFotosViaje, textoEstadoRespaldo,
+import { avisoBorradoRespaldo, componerFotosRemotas, componerRespaldoFotos, crearSeccionFotosViaje, textoEstadoRespaldo,
   textoResultadoRespaldo, type CambioRespaldo, type ComposicionRespaldoFotos, type EstadoRespaldo,
-  type RespaldoFotos, type SeccionFotosViaje } from './fotos-respaldo-interfaz';
+  type ResultadoGuardado, type RespaldoFotos, type SeccionFotosViaje } from './fotos-respaldo-interfaz';
+import { NOTA_VISOR_REMOTA, textoCeldaRemota, textoEstadoRemotas, textoLocalRemota, textoVisorRemota,
+  type FotoRemota, type FotosRemotas, type SesionRemota, type VistaRemota } from './fotos-remotas';
 
 /**
  * Fotos locales en la interfaz del viaje. Dos piezas:
@@ -17,7 +19,9 @@ import { avisoBorradoRespaldo, componerRespaldoFotos, crearSeccionFotosViaje, te
  *    con nombres de archivo ni textos de error.
  * Cero red por sí mismas: las fotos no viajan ni se mezclan con el progreso compartido. Solo con la composición
  * EXPLÍCITA del respaldo (`OpcionesFotosUi.respaldo`; la web publicada pasa null) aparecen el respaldo manual en
- * el visor y «Fotos del viaje» en «Todo», y cada envío o consulta empieza con un toque.
+ * el visor, «Fotos del viaje» en «Todo» y, en cada bloque «Fotos», las compartidas de ESE destino: al abrirlo se
+ * consulta su primera página y cada celda pide su original solo a la vista, para una vista temporal que no se
+ * guarda. «Guardar sin conexión» es otra acción, con la descarga duradera de siempre.
  */
 
 export type ClaveDestino = string;
@@ -312,7 +316,9 @@ export function crearFotosInterfaz(dependencias: DependenciasFotos): FotosInterf
     const almacen = local;
     if (intentos.get(intento.clave) !== intento || !almacen || fase !== 'lista') return { tipo: 'no-lista' };
     try {
-      const r = await almacen.guardarOriginal(intento.captura);
+      // Lo elegido con «Tomar foto» o «Elegir de la galería» (los dos acaban aquí) queda con su procedencia
+      // positiva, en la MISMA transacción. Descargas e importaciones guardan sin vía: nunca la obtienen.
+      const r = await almacen.guardarOriginal(intento.captura, 'camara-galeria');
       if (r.tipo !== 'guardada') throw new Error('Respuesta inesperada');
       return confirmar(intento, r.metadatos);
     } catch (e) {
@@ -618,6 +624,10 @@ export interface FotosUi {
   pintarCuentas(): void;
   /** Cierra el visor si está abierto; devuelve si lo estaba. */
   cerrarVisor(desdeHistorial?: boolean): boolean;
+  /** Ciclo de vida: la ficha (o el sitio de dentro) que contiene estos bloques se pliega. Sus «Fotos» abiertas se
+   * cierran de verdad: consultas y originales cortados, vistas soltadas y URLs revocadas; las fotos de este móvil
+   * no se tocan y el bloque se puede volver a abrir (con una consulta nueva). */
+  cerrarEn(contenedor: Element): void;
 }
 
 const escapar = (texto: string) => texto.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
@@ -667,8 +677,19 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
   const composicion = opciones.respaldo ?? null;
   const respaldo: RespaldoFotos | null = componerRespaldoFotos(composicion, { plan,
     puerto: () => controlador.puerto?.() ?? null,
-    incorporar: (m) => controlador.incorporar?.(m),
+    incorporar: (m) => {
+      controlador.incorporar?.(m);
+      // Guardada desde el catálogo o desde la ficha: deja de repetirse como compartida. Con su visor abierto,
+      // se vuelve a clasificar al cerrarlo (su vista temporal sigue a la vista hasta entonces).
+      if (!(visorRemoto && visorFoto === m.fotoId)) void remotas?.sesion(m.destino)?.reclasificar(m.fotoId);
+    },
     alCambiar: (que) => alCambiarRespaldo(que) });
+  // Compartidas de cada ficha, con la MISMA composición (null: ni recepción, ni listado, ni red). Sin IO al crearse.
+  const remotas: FotosRemotas | null = componerFotosRemotas(composicion, { plan,
+    puerto: () => controlador.puerto?.() ?? null,
+    alCambiar: (destino) => alCambiarRemotas(destino),
+    // Un 401 de las compartidas suelta también las candidatas del catálogo global (y lo pendiente del visor).
+    alPerderSesion: () => perderSesionUi('remotas') });
   let seccion: SeccionFotosViaje | null = null;
 
   function alCambiar(clave: ClaveDestino | null) {
@@ -685,13 +706,47 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
   }
   /** Repinta desde lo ya leído del ledger (0 IO): la línea del visor de ESA foto y «Fotos del viaje». */
   function alCambiarRespaldo(que: CambioRespaldo): void {
+    // Un 401 del catálogo o de «Guardar sin conexión»: fuera todas las vistas y candidatas compartidas.
+    if (que.tipo === 'sin-sesion') { perderSesionUi('respaldo'); return; }
     if (que.tipo === 'foto' && visorFoto === que.fotoId && respaldo) pintarRespaldo(que.fotoId, respaldo.estado(que.fotoId));
     seccion?.alCambiar(que);
   }
+  /** Repinta las compartidas de ese destino (null: de todos) y, si es la suya, el visor abierto. */
+  function alCambiarRemotas(destino: DestinoFoto | null) {
+    const clave = destino ? claveDestino(destino) : null;
+    for (const [c, bloque] of abiertos) {
+      if (clave !== null && c !== clave) continue;
+      if (bloque.isConnected) pintarPanel(c, bloque);
+      else cerrarAbierto(c);
+    }
+    if (visorFoto && visorRemoto && (clave === null || claveDestino(visorRemoto) === clave)) actualizarVisorRemoto();
+  }
   function cerrarAbierto(clave: ClaveDestino) {
+    const bloque = abiertos.get(clave);
     abiertos.delete(clave);
     const destino = destinoDeClave(plan, clave);
     if (destino) controlador.cerrarVisita(destino);
+    // Cerrar el bloque cierra su consulta, corta su original en curso y revoca sus vistas temporales.
+    if (bloque) for (const b of bloque.querySelectorAll('[data-foto-remota]')) observador?.unobserve(b);
+    if (destino) remotas?.cerrar(destino);
+  }
+  /** Solo lo que de verdad se ve pide su original: el observador avisa a la sesión de su destino. */
+  const observador: IntersectionObserver | null = remotas && typeof IntersectionObserver === 'function'
+    ? new IntersectionObserver((entradas) => {
+      for (const e of entradas) {
+        const celda = e.target as HTMLElement;
+        const destino = destinoDeClave(plan, celda.closest<HTMLElement>('[data-fotos-destino]')?.dataset.fotosDestino ?? '');
+        const id = celda.dataset.fotoRemota;
+        if (destino && id) remotas.sesion(destino)?.visible(id, e.isIntersecting && celda.isConnected);
+      }
+    }) : null;
+  if (remotas) {
+    // En segundo plano se corta el original en curso; al salir de la página se sueltan todas las vistas temporales.
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') remotas.suspender(); else remotas.reanudar();
+    });
+    addEventListener('pagehide', () => { remotas.suspender(); remotas.soltarVistas(); });
+    addEventListener('pageshow', () => { if (document.visibilityState !== 'hidden') remotas.reanudar(); });
   }
 
   // ----- Bloque y panel -----
@@ -727,15 +782,19 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       const vacio = elemento('p', 'fotos-vacio');
       const error = elemento('div', 'fotos-error');
       const acciones = elemento('div', 'acciones-bloque fotos-acciones');
-      const anadir = boton('', 'mini', { 'fotos-anadir': '' });
-      anadir.insertAdjacentHTML('afterbegin', ICONO_CAMARA);
-      anadir.append('Añadir foto');
-      acciones.append(anadir);
-      panel.replaceChildren(estado, error, lista, sesion, vacio, acciones,
+      // Las dos abren el mismo selector de archivos: «Tomar foto» con la pista de cámara trasera y la galería sin ella.
+      const camara = boton('', 'mini', { 'fotos-camara': '' });
+      camara.insertAdjacentHTML('afterbegin', ICONO_CAMARA);
+      camara.append('Tomar foto');
+      acciones.append(camara, boton('Elegir de la galería', 'mini', { 'fotos-anadir': '' }));
+      // Compartidas (solo con composición): junto a las de este móvil, con su propia línea de estado estable.
+      const compartidas = remotas ? [esqueletoRemotas()] : [];
+      panel.replaceChildren(estado, error, lista, sesion, vacio, ...compartidas, acciones,
         elemento('p', 'cifras fotos-nota', respaldo ? NOTA_RESPALDO : NOTA));
     }
     const foco = document.activeElement instanceof HTMLElement && panel.contains(document.activeElement) ? document.activeElement : null;
-    const huella = (e: Element) => ['data-foto-id', 'data-foto-reintentar', 'data-foto-descartar', 'data-fotos-anadir', 'data-fotos-reabrir']
+    const huella = (e: Element) => ['data-foto-id', 'data-foto-reintentar', 'data-foto-descartar', 'data-fotos-camara', 'data-fotos-anadir', 'data-fotos-reabrir',
+      'data-foto-remota', 'data-remotas-mas', 'data-remotas-reintentar']
       .map((a) => `${a}=${e.getAttribute(a)}`).join('|');
     const buscada = foco ? huella(foco) : '';
 
@@ -749,7 +808,8 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     // Sin base abierta no hay nada que añadir: la acción no aparece (ni engaña con un botón muerto).
     const acciones = panel.querySelector<HTMLElement>('.fotos-acciones')!;
     acciones.hidden = fase !== 'lista';
-    anadir.setAttribute('aria-label', `Añadir foto de «${nombre}»`);
+    panel.querySelector('[data-fotos-camara]')!.setAttribute('aria-label', `Tomar foto para «${nombre}»`);
+    anadir.setAttribute('aria-label', `Elegir de la galería una foto para «${nombre}»`);
 
     error.replaceChildren();
     error.hidden = fase !== 'fallo';
@@ -802,12 +862,102 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
         : [mensajes.get(clave) ?? '', sinAnotar ? 'Una vista previa falló y no se pudo anotar: se volverá a intentar al abrir otra vez la app.' : '']
           .filter(Boolean).join(' ');
     if (estado.textContent !== texto) estado.textContent = texto;
+    pintarRemotas(destino, panel);
 
     if (foco && !foco.isConnected) {
-      const igual = [...panel.querySelectorAll<HTMLElement>('button')].find((b) => huella(b) === buscada);
-      (igual ?? anadir).focus();
+      const igual = [...panel.querySelectorAll<HTMLElement>('button, a')].find((b) => huella(b) === buscada);
+      // «Ver más» que ya no hace falta: el foco pasa a la última compartida, si la hay.
+      const ultima = [...panel.querySelectorAll<HTMLElement>('[data-foto-remota]')].pop();
+      (igual ?? (foco.hasAttribute('data-remotas-mas') ? ultima : undefined) ?? anadir).focus();
     }
   }
+
+  // ----- Compartidas de este destino (solo con composición) -----
+  function esqueletoRemotas(): HTMLElement {
+    const caja = elemento('div', 'fotos-remotas');
+    caja.hidden = true;
+    const linea = elemento('p', 'fotos-remotas-estado');
+    linea.setAttribute('role', 'status');
+    caja.append(elemento('p', 'subs-titulo', 'Compartidas'), linea, elemento('ul', 'fotos-lista fotos-remotas-lista'),
+      elemento('div', 'acciones-bloque fotos-remotas-acciones'));
+    return caja;
+  }
+  const firmaVista = (v: VistaRemota) => (v.tipo === 'lista' ? `lista:${v.url}` : v.tipo);
+  const ESTADO_CELDA: Record<VistaRemota['tipo'], string> = { 'pendiente': 'sin cargar', 'en-cola': 'en espera',
+    'cargando': 'cargando', 'lista': 'vista temporal', 'sin-vista': 'sin vista segura', 'fallida': 'no se pudo cargar',
+    'sin-hueco': 'sin hueco para su vista temporal' };
+  /** Una celda por referencia, reutilizada mientras exista (foco y observador estables); solo cambia su vista. */
+  function pintarCeldaRemota(li: HTMLElement, f: FotoRemota) {
+    const b = li.querySelector<HTMLElement>('[data-foto-remota]')!;
+    const nombre = f.original.nombre;
+    b.setAttribute('aria-label', `Foto compartida «${nombre}», ${peso(f.original.bytesOriginal)}: ${ESTADO_CELDA[f.vista.tipo]}. Abrir.`);
+    const firma = firmaVista(f.vista);
+    if (b.dataset.firma === firma) return;
+    b.dataset.firma = firma;
+    const vista = elemento('span', 'foto-vista');
+    if (f.vista.tipo === 'lista') {
+      const img = elemento('img');
+      img.alt = '';
+      img.decoding = 'async';
+      img.addEventListener('error', () => { vista.replaceChildren(elemento('span', 'foto-texto', 'Sin vista segura')); }, { once: true });
+      img.src = f.vista.url;
+      vista.append(img);
+    } else vista.append(elemento('span', 'foto-texto', textoCeldaRemota(f.vista)));
+    b.replaceChildren(vista);
+  }
+  function pintarRemotas(destino: DestinoFoto, panel: HTMLElement) {
+    const caja = panel.querySelector<HTMLElement>('.fotos-remotas');
+    if (!caja || !remotas) return;
+    const s = remotas.sesion(destino);
+    // Hasta que la sesión exista (se abre tras las fotos de este móvil, para no duplicar), no se enseña nada.
+    caja.hidden = !s;
+    if (!s) return;
+    const linea = caja.querySelector<HTMLElement>('.fotos-remotas-estado')!;
+    const lista = caja.querySelector<HTMLElement>('.fotos-remotas-lista')!;
+    const acciones = caja.querySelector<HTMLElement>('.fotos-remotas-acciones')!;
+    const fotos = s.fotos;
+    const texto = textoEstadoRemotas(s.estado, fotos.length, nombreDe(destino));
+    if (linea.textContent !== texto) linea.textContent = texto;
+    const previas = new Map([...lista.querySelectorAll<HTMLElement>(':scope > li')].map((li) => [li.dataset.remota ?? '', li]));
+    const filas = fotos.map((f) => {
+      let li = previas.get(f.original.fotoId);
+      previas.delete(f.original.fotoId);
+      if (!li) {
+        li = elemento('li', 'foto foto-remota');
+        li.dataset.remota = f.original.fotoId;
+        li.append(boton('', 'foto-abrir', { 'foto-remota': f.original.fotoId }));
+      }
+      pintarCeldaRemota(li, f);
+      return li;
+    });
+    for (const li of previas.values()) {
+      const b = li.querySelector('[data-foto-remota]');
+      if (b) observador?.unobserve(b);
+    }
+    if (filas.length !== lista.children.length || filas.some((li, i) => lista.children[i] !== li)) lista.replaceChildren(...filas);
+    for (const li of filas) {
+      const b = li.querySelector<HTMLElement>('[data-foto-remota]')!;
+      if (b.dataset.observada) continue;
+      b.dataset.observada = '1';
+      // Sin observador no se sabe qué se ve: ningún original se pide solo (falla cerrado). Tocar la celda abre su
+      // visor, que pide ESA foto.
+      observador?.observe(b);
+    }
+    const botones: HTMLElement[] = [];
+    const e = s.estado;
+    if (e.tipo === 'lista' && e.hayMas) botones.push(boton('Ver más compartidas', 'mini', { 'remotas-mas': '' }));
+    else if (e.tipo === 'sin-conexion' || (e.tipo === 'fallo' && e.motivo !== 'sin-sesion')) {
+      botones.push(boton('Reintentar', 'mini', { 'remotas-reintentar': '' }));
+    } else if (e.tipo === 'fallo' && e.motivo === 'sin-sesion' && enLinea()) {
+      // Solo un enlace: la navegación es de quien lo toca, nunca una redirección sola.
+      const a = elemento('a', 'mini', 'Entrar');
+      a.href = '/entrar';
+      botones.push(a);
+    }
+    const firma = botones.map((b) => b.outerHTML).join('');
+    if (acciones.dataset.firma !== firma) { acciones.dataset.firma = firma; acciones.replaceChildren(...botones); }
+  }
+  const enLinea = () => typeof navigator === 'undefined' || navigator.onLine !== false;
 
   async function alternar(bloque: HTMLElement) {
     const clave = bloque.dataset.fotosDestino ?? '';
@@ -816,20 +966,30 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     const panel = bloque.querySelector<HTMLElement>('.fotos-panel');
     if (!destino || !control || !panel) return;
     const abrir = control.getAttribute('aria-expanded') !== 'true';
-    control.setAttribute('aria-expanded', String(abrir));
-    panel.hidden = !abrir;
-    if (!abrir) {
-      cerrarAbierto(clave);
-      panel.replaceChildren();
-      return;
-    }
+    if (!abrir) { plegarBloque(bloque); return; }
+    control.setAttribute('aria-expanded', 'true');
+    panel.hidden = false;
     abiertos.set(clave, bloque);
     pintarPanel(clave, bloque);
     // La visita existe ya: si la base aún abre, el controlador la carga al terminar.
     controlador.abrirVisita(destino);
     // Tras un fallo no se reintenta solo: se ve el error y el reintento es del usuario.
     if (controlador.fase === 'cerrada' || controlador.fase === 'abriendo') await controlador.abrir();
-    if (abiertos.get(clave) === bloque) pintarPanel(clave, bloque);
+    if (abiertos.get(clave) !== bloque) return;
+    // Compartidas de ESTE destino, una vez abiertas las de este móvil (así no se repite lo que ya está aquí).
+    remotas?.abrir(destino);
+    pintarPanel(clave, bloque);
+  }
+
+  /** Pliega un bloque abierto: cierra su visita y sus compartidas (consultas y originales cortados, vistas y URLs
+   * soltadas) y vacía su panel. Las fotos de este móvil siguen guardadas. */
+  function plegarBloque(bloque: HTMLElement) {
+    const control = bloque.querySelector<HTMLElement>('[data-fotos-alternar]');
+    const panel = bloque.querySelector<HTMLElement>('.fotos-panel');
+    control?.setAttribute('aria-expanded', 'false');
+    if (panel) panel.hidden = true;
+    cerrarAbierto(bloque.dataset.fotosDestino ?? '');
+    panel?.replaceChildren();
   }
 
   // ----- Selector de archivo: el destino se fija al abrirlo -----
@@ -871,7 +1031,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     if (!abiertos.has(clave)) anunciar(texto);
     alCambiar(clave);
   }
-  function elegir(bloque: HTMLElement) {
+  function elegir(bloque: HTMLElement, origen: 'camara' | 'galeria') {
     const clave = bloque.dataset.fotosDestino ?? '';
     const destino = destinoDeClave(plan, clave);
     if (!destino) return;
@@ -883,6 +1043,9 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     const input = selector();
     intento = { destino, clave, usado: false };
     input.value = '';
+    // Pista de cámara trasera solo para «Tomar foto»: la galería nunca la hereda de la vez anterior.
+    if (origen === 'camara') input.setAttribute('capture', 'environment');
+    else input.removeAttribute('capture');
     input.click();
   }
 
@@ -1026,25 +1189,31 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
   }
   /** Repinta el estado del visor sin perder la imagen (p. ej. cuando termina la vista previa). */
   function actualizarVisor() {
-    if (!visorFoto || !visor) return;
+    if (!visorFoto || !visor || visorRemoto) return;
     const datos = datosFoto(visorFoto);
     if (!datos) return;
     const texto = visor.querySelector('.visor-texto');
     if (texto && !visor.querySelector('.visor-imagen img')) texto.textContent = TEXTO_ESTADO[datos.entrada.estado];
   }
-  async function abrirVisor(id: string, origen: HTMLElement) {
-    if (!datosFoto(id)) return;
-    visor ??= crearVisor();
-    soltarVisor();
-    const gen = ++genVisor;
-    visorFoto = id;
-    abridor = origen;
-    pintarVisor(id);
+  /** Pantalla completa como la tarjeta del taxista: el resto inerte, una entrada de historial y el foco en ✕. */
+  function mostrarVisor() {
+    if (!visor) return;
     visor.hidden = false;
     for (const n of document.body.children) if (n !== visor && n.tagName !== 'SCRIPT') (n as HTMLElement).inert = true;
     history.pushState({ visorFoto: true }, '');
     historial = true;
     visor.querySelector<HTMLElement>('[data-visor-cerrar]')?.focus();
+  }
+  async function abrirVisor(id: string, origen: HTMLElement) {
+    if (!datosFoto(id)) return;
+    visor ??= crearVisor();
+    soltarVisor();
+    soltarRemotaDelVisor();
+    const gen = ++genVisor;
+    visorFoto = id;
+    abridor = origen;
+    pintarVisor(id);
+    mostrarVisor();
     // Solo el ledger local (0 red): abrir el visor nunca envía, consulta ni reintenta nada.
     cargarRespaldo(id);
     const url = await controlador.verMiniatura(id);
@@ -1060,16 +1229,208 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     visor.replaceChildren();
     soltarVisor();
     const id = visorFoto;
+    const guardada = guardadaRemota !== null && guardadaRemota === id ? visorRemoto : null;
+    soltarRemotaDelVisor();
     visorFoto = null;
     for (const n of document.body.children) (n as HTMLElement).inert = false;
     if (historial && !desdeHistorial && history.state?.visorFoto) history.back();
     historial = false;
-    // Si la miniatura se repintó mientras tanto, el foco vuelve a la misma foto.
-    const destino = abridor?.isConnected ? abridor
-      : [...contenido.querySelectorAll<HTMLElement>('[data-foto-id]')].find((b) => b.dataset.fotoId === id) ?? null;
+    // Si la miniatura se repintó mientras tanto, el foco vuelve a la misma foto. Una compartida recién guardada
+    // ya es de este móvil: el foco va a su celda local y la compartida deja de repetirse.
+    const local = [...contenido.querySelectorAll<HTMLElement>('[data-foto-id]')].find((b) => b.dataset.fotoId === id) ?? null;
+    const destino = guardada && local ? local : abridor?.isConnected ? abridor : local;
     abridor = null;
     destino?.focus();
+    if (guardada && id) void remotas?.sesion(guardada)?.reclasificar(id);
     return true;
+  }
+
+  // ----- Visor de una compartida: vista temporal y «Guardar sin conexión» como acción aparte -----
+  let visorRemoto: DestinoFoto | null = null;
+  /** Guardada sin conexión desde ESTE visor: se reclasifica al cerrarlo (su vista sigue a la vista hasta entonces). */
+  let guardadaRemota: string | null = null;
+  /** Hay un «Guardar sin conexión» en curso (la descarga admite uno a la vez). */
+  let guardandoRemota: string | null = null;
+  /** Bytes de un guardado fallido de esta sesión, solo para descargarlos como archivo. */
+  let archivoRemoto: string | null = null;
+  /** Época de autorización de la interfaz: sube con cada sesión perdida, venga de donde venga. Un resultado que llega
+   * después (p. ej. el de un «Guardar sin conexión» en curso) ya no deja archivo, botones ni estado de compartida. */
+  let autorizacionUi = 0;
+  /** Sesión perdida: fuera el archivo pendiente del visor y lo temporal del OTRO controlador (sin volver a avisar al
+   * que la detectó: no hay eco), y el visor se repinta. Lo guardado en este móvil sigue. */
+  function perderSesionUi(origen: 'respaldo' | 'remotas') {
+    autorizacionUi++;
+    archivoRemoto = null;
+    if (origen === 'respaldo') remotas?.invalidarSesion();
+    else respaldo?.invalidarSesion();
+    actualizarVisorRemoto();
+  }
+  function soltarRemotaDelVisor() {
+    if (visorRemoto) remotas?.sesion(visorRemoto)?.fijar(null);
+    visorRemoto = null;
+    guardadaRemota = null;
+    archivoRemoto = null;
+  }
+  function remotaDelVisor(): { readonly sesion: SesionRemota; readonly foto: FotoRemota } | null {
+    if (!visorRemoto || !visorFoto || !remotas) return null;
+    const sesion = remotas.sesion(visorRemoto);
+    const foto = sesion?.fotos.find((f) => f.original.fotoId === visorFoto);
+    return sesion && foto ? { sesion, foto } : null;
+  }
+  function abrirVisorRemoto(sesion: SesionRemota, id: string, origen: HTMLElement) {
+    const foto = sesion.fotos.find((f) => f.original.fotoId === id);
+    if (!foto) return;
+    visor ??= crearVisor();
+    soltarVisor();
+    soltarRemotaDelVisor();
+    ++genVisor;
+    visorFoto = id;
+    visorRemoto = sesion.destino;
+    abridor = origen;
+    const cabecera = elemento('div', 'visor-cabecera');
+    const titulo = elemento('h2', '', `Foto de «${nombreDe(sesion.destino)}»`);
+    titulo.id = 'visor-foto-titulo';
+    const nombre = elemento('p', 'visor-nombre', foto.original.nombre);
+    nombre.id = 'visor-foto-nombre';
+    const cerrar = boton('', 'visor-cerrar', { 'visor-cerrar': '' });
+    cerrar.setAttribute('aria-label', 'Cerrar la foto');
+    cerrar.insertAdjacentHTML('afterbegin', ICONO_CERRAR);
+    cabecera.append(titulo, nombre, cerrar);
+    const aviso = elemento('p', 'visor-aviso');
+    aviso.setAttribute('role', 'status');
+    const pie = elemento('div', 'visor-pie');
+    pie.append(elemento('p', 'visor-pesos'), aviso, elemento('p', 'visor-remota-nota'), elemento('div', 'visor-acciones'));
+    visor.replaceChildren(cabecera, elemento('div', 'visor-imagen'), pie);
+    actualizarVisorRemoto();
+    mostrarVisor();
+    // Su vista temporal se pide (o se conserva) mientras el visor siga abierto. Abrirlo no guarda nada.
+    sesion.fijar(id);
+  }
+  function textoGuardadoRemota(r: ResultadoGuardado): string {
+    switch (r.tipo) {
+      case 'guardada': return 'Guardada en este móvil: ya se puede ver sin conexión.';
+      case 'comprobada': return 'Ya estaba en este móvil: es la misma foto.';
+      case 'no-guardada':
+        if (r.causa === 'sin-sesion') return 'Este móvil no tiene sesión en el servidor: no se ha guardado nada.';
+        if (r.causa === 'plazo') return 'Tardó demasiado; no se ha guardado nada.';
+        return r.captura
+          ? 'No se pudo guardar en este móvil (puede faltar espacio). Puedes descargar el archivo: no queda en las fotos de este móvil.'
+          : 'No se pudo guardar en este móvil; no se ha guardado nada.';
+      case 'detenida': return 'Se detuvo; no se da nada por guardado.';
+      case 'ocupada': return 'Ya se está guardando otra foto; espera a que termine.';
+      case 'no-disponible': return 'No se pudo guardar ahora; no se da nada por guardado.';
+    }
+  }
+  /** Imagen, pesos, nota y acciones según lo que la sesión sabe ahora; los botones solo se sustituyen si cambian. */
+  function actualizarVisorRemoto() {
+    if (!visor || !visorFoto || !visorRemoto) return;
+    const imagen = visor.querySelector<HTMLElement>('.visor-imagen');
+    const pesos = visor.querySelector<HTMLElement>('.visor-pesos');
+    const nota = visor.querySelector<HTMLElement>('.visor-remota-nota');
+    const acciones = visor.querySelector<HTMLElement>('.visor-acciones');
+    if (!imagen || !pesos || !nota || !acciones) return;
+    const id = visorFoto;
+    const datos = remotaDelVisor();
+    const botones: HTMLButtonElement[] = [];
+    if (!datos) {
+      // Sin sesión o consulta cerrada: fuera la vista temporal, sin copia de reserva.
+      const sinSesion = remotas?.sesion(visorRemoto)?.estado;
+      imagen.dataset.firma = 'ninguna';
+      imagen.replaceChildren(elemento('p', 'visor-texto', sinSesion?.tipo === 'fallo' && sinSesion.motivo === 'sin-sesion'
+        ? 'Este móvil no tiene sesión en el servidor: la foto compartida ya no se puede ver.'
+        : 'Esta foto compartida ya no se puede ver aquí.'));
+      pesos.textContent = '';
+      nota.textContent = '';
+    } else {
+      const f = datos.foto;
+      const firma = firmaVista(f.vista);
+      if (imagen.dataset.firma !== firma) {
+        imagen.dataset.firma = firma;
+        if (f.vista.tipo === 'lista') {
+          const img = elemento('img');
+          img.alt = `Vista temporal de «${f.original.nombre}»`;
+          img.addEventListener('error', () => {
+            imagen.replaceChildren(elemento('p', 'visor-texto', 'No se pudo mostrar la vista temporal.'));
+          }, { once: true });
+          img.src = f.vista.url;
+          imagen.replaceChildren(img);
+        } else imagen.replaceChildren(elemento('p', 'visor-texto', textoVisorRemota(f.vista)));
+      }
+      pesos.textContent = `Original ${peso(f.original.bytesOriginal)}${f.vista.tipo === 'lista' ? ` · vista temporal ${peso(f.vista.bytes)}` : ''}`;
+      nota.textContent = guardadaRemota === id ? 'Ya está en este móvil.' : textoLocalRemota(f.local) ?? NOTA_VISOR_REMOTA;
+      if (guardadaRemota !== id) {
+        if (guardandoRemota === id) botones.push(boton('Cancelar el guardado', 'boton', { 'visor-cancelar-remota': '' }));
+        else if (f.local === 'ausente') {
+          const b = boton(`Guardar sin conexión (${peso(f.original.bytesOriginal)})`, 'boton', { 'visor-guardar-remota': '' });
+          b.setAttribute('aria-label', `Guardar «${f.original.nombre}» en este móvil para verla sin conexión (descarga ${peso(f.original.bytesOriginal)})`);
+          botones.push(b);
+        }
+        if (f.vista.tipo === 'fallida' || f.vista.tipo === 'sin-hueco') {
+          botones.push(boton('Reintentar la vista', 'boton', { 'visor-reintentar-remota': '' }));
+        }
+      }
+    }
+    if (archivoRemoto === id) botones.push(boton('Descargar archivo', 'boton', { 'visor-archivo-remota': '' }));
+    const firma = botones.map((b) => b.outerHTML).join('');
+    if (acciones.dataset.firma === firma) return;
+    const foco = document.activeElement instanceof HTMLElement && acciones.contains(document.activeElement)
+      ? document.activeElement.getAttributeNames().find((a) => a.startsWith('data-visor-')) ?? null : null;
+    acciones.dataset.firma = firma;
+    acciones.replaceChildren(...botones);
+    acciones.hidden = botones.length === 0;
+    // El botón pulsado cambia (Guardar → Cancelar → ninguno): el foco pasa al mismo, al primero o a ✕.
+    if (foco) (acciones.querySelector<HTMLElement>(`[${foco}]`) ?? botones[0] ?? visor.querySelector<HTMLElement>('[data-visor-cerrar]'))?.focus();
+  }
+  async function guardarRemota() {
+    const datos = remotaDelVisor();
+    if (!datos || !respaldo || guardandoRemota) return;
+    if (!enLinea()) { avisoVisor('Sin conexión: no se puede guardar ahora.'); return; }
+    const { original } = datos.foto;
+    const id = original.fotoId;
+    const gen = genVisor;
+    const epoca = autorizacionUi;
+    guardandoRemota = id;
+    avisoVisor('Guardando sin conexión…');
+    actualizarVisorRemoto();
+    let r: ResultadoGuardado;
+    try { r = await respaldo.guardar(id, original); } catch { r = { tipo: 'no-disponible' }; }
+    guardandoRemota = null;
+    // Otra autorización (hubo un 401 mientras tanto): solo se dice lo que pasó de verdad, sin ofrecer ningún archivo.
+    const autorizada = epoca === autorizacionUi;
+    if (!autorizada && r.captura) r = { tipo: r.tipo, ...(r.causa ? { causa: r.causa } : {}) };
+    const texto = textoGuardadoRemota(r);
+    const vigente = gen === genVisor && visorFoto === id && visorRemoto !== null;
+    const ok = r.tipo === 'guardada' || r.tipo === 'comprobada';
+    if (!vigente) {
+      // Visor cerrado o sustituido: el resultado se dice fuera, con el nombre de la foto; este visor no se toca.
+      if (ok && autorizada) void remotas?.sesion(datos.sesion.destino)?.reclasificar(id);
+      anunciar(`«${original.nombre}»: ${texto}`);
+      return;
+    }
+    // Un guardado que sí terminó en PhotoDB es una copia deliberada aunque la sesión se perdiera después; pero el
+    // estado de compartida (guardada, archivo) solo lo fija un resultado de la autorización vigente.
+    if (autorizada) {
+      if (ok) guardadaRemota = id;
+      if (r.captura) archivoRemoto = id;
+    }
+    avisoVisor(texto);
+    actualizarVisorRemoto();
+  }
+  function descargarArchivoRemoto(id: string) {
+    // Solo el archivo que este visor ofreció en la autorización vigente (un 401 lo quita).
+    if (archivoRemoto !== id) return;
+    const d = respaldo?.descargarArchivo(id);
+    if (!d || !respaldo) return;
+    const a = elemento('a');
+    a.href = d.url;
+    a.download = d.nombre.trim() || 'foto';
+    a.hidden = true;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    // Se libera después de que el navegador haya tomado la descarga.
+    setTimeout(() => respaldo.soltarUrl(d.url), 60_000);
+    avisoVisor('Descarga pedida al navegador; el archivo no queda en las fotos de este móvil.');
   }
   async function clicVisor(objetivo: Element) {
     const id = visorFoto;
@@ -1081,6 +1442,14 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     // Si la foto ya no está (la borró un visor anterior), se dice en vez de afirmar que sigue guardada.
     const siSigue = (texto: string) => datosFoto(id) ? texto : 'Esta foto ya no está en este móvil.';
     if (objetivo.closest('[data-visor-cerrar]')) { cerrarVisor(); return; }
+    if (visorRemoto) {
+      // Compartida: ver no guarda nada; guardar sin conexión es su propia acción.
+      if (objetivo.closest('[data-visor-guardar-remota]')) void guardarRemota();
+      else if (objetivo.closest('[data-visor-cancelar-remota]')) respaldo?.cancelarGuardado();
+      else if (objetivo.closest('[data-visor-reintentar-remota]')) remotaDelVisor()?.sesion.reintentarVista(id);
+      else if (objetivo.closest('[data-visor-archivo-remota]')) descargarArchivoRemoto(id);
+      return;
+    }
     if (objetivo.closest('[data-visor-original]')) {
       const r = await controlador.verOriginal(id);
       if (!vigenteVisor()) { if (r.tipo === 'lista') controlador.soltarUrl(r.url); return; }
@@ -1191,7 +1560,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
         return;
       }
       if (r === 'borrada') {
-        // La miniatura ya no existe: el foco va a «Añadir foto» de su bloque.
+        // La miniatura ya no existe: el foco va a «Elegir de la galería» de su bloque.
         abridor = datos?.bloque?.querySelector<HTMLElement>('[data-fotos-anadir]') ?? abridor;
         cerrarVisor();
         // Tras cerrar el visor (fuera del modal), para que la línea de estado se anuncie.
@@ -1224,7 +1593,8 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       const bloque = objetivo.closest<HTMLElement>('[data-fotos-destino]');
       if (!bloque || !contenido.contains(bloque)) return false;
       if (objetivo.closest('[data-fotos-alternar]')) { void alternar(bloque); return true; }
-      if (objetivo.closest('[data-fotos-anadir]')) { elegir(bloque); return true; }
+      if (objetivo.closest('[data-fotos-camara]')) { elegir(bloque, 'camara'); return true; }
+      if (objetivo.closest('[data-fotos-anadir]')) { elegir(bloque, 'galeria'); return true; }
       if (objetivo.closest('[data-fotos-reabrir]')) {
         const clave = bloque.dataset.fotosDestino ?? '';
         void controlador.abrir().then(() => alCambiar(clave));
@@ -1237,6 +1607,12 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       }
       const descartar = objetivo.closest<HTMLElement>('[data-foto-descartar]');
       if (descartar) { controlador.descartar(descartar.dataset.fotoDescartar ?? ''); return true; }
+      const destinoBloque = destinoDeClave(plan, bloque.dataset.fotosDestino ?? '');
+      const sesionBloque = destinoBloque ? remotas?.sesion(destinoBloque) ?? null : null;
+      if (objetivo.closest('[data-remotas-mas]')) { sesionBloque?.verMas(); return true; }
+      if (objetivo.closest('[data-remotas-reintentar]')) { sesionBloque?.reintentar(); return true; }
+      const remota = objetivo.closest<HTMLElement>('[data-foto-remota]');
+      if (remota && sesionBloque) { abrirVisorRemoto(sesionBloque, remota.dataset.fotoRemota ?? '', remota); return true; }
       const foto = objetivo.closest<HTMLElement>('[data-foto-id]');
       if (foto) { void abrirVisor(foto.dataset.fotoId ?? '', foto); return true; }
       // Cualquier otro clic dentro del bloque no debe plegar la ficha ni cambiar nada.
@@ -1253,5 +1629,8 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     },
     pintarCuentas,
     cerrarVisor,
+    cerrarEn(contenedor) {
+      for (const bloque of [...abiertos.values()]) if (contenedor.contains(bloque)) plegarBloque(bloque);
+    },
   };
 }

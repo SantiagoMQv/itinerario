@@ -1258,6 +1258,8 @@ function plegar(boton: HTMLElement, abrir = boton.getAttribute('aria-expanded') 
   boton.setAttribute('aria-expanded', String(abrir));
   const panel = document.getElementById(boton.getAttribute('aria-controls') ?? '');
   if (panel) panel.hidden = !abrir;
+  // Plegado de verdad: sus «Fotos» abiertas se cierran (consultas, originales y vistas temporales).
+  if (panel && !abrir) fotosUi.cerrarEn(panel);
 }
 
 /** Despliega una subparada de la lista (y su grupo, si es de «si da tiempo»). */
@@ -1349,6 +1351,8 @@ function marcarLista(m: Momento, desplazar: 'si' | 'no' | 'si-se-veia' = 'si') {
     li.classList.toggle('actual', id === actual);
     li.classList.toggle('abierta', id === abierta);
     li.querySelector('.fila')?.setAttribute('aria-expanded', String(id === abierta));
+    // Ficha plegada (o sustituida por otra del mismo día): sus «Fotos» abiertas se cierran de verdad.
+    if (id !== abierta) fotosUi.cerrarEn(li);
     li.classList.toggle('hecha', e === 'hecha' && id !== actual);
     li.classList.toggle('saltada', e === 'saltada');
     const marca = marcaDe(p) ?? 'pendiente';
@@ -2154,6 +2158,12 @@ pantallaAncha.addEventListener('change', () => {
 });
 new ResizeObserver(recolocarHoja).observe(el.cabecera);
 new ResizeObserver(ajustarMargenes).observe(el.barra);
+// Con la hoja alta, la lista se acaba por encima de las píldoras del pie: su alto real (una fila o dos, con la
+// píldora de la conexión o sin ella) va en --alto-pildoras.
+const medirPildoras = () =>
+  document.documentElement.style.setProperty('--alto-pildoras', `${Math.ceil(el.pildoras.getBoundingClientRect().height)}px`);
+medirPildoras();
+new ResizeObserver(medirPildoras).observe(el.pildoras);
 
 // ---------- Botones del mapa ----------
 
