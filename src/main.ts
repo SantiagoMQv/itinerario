@@ -1714,7 +1714,7 @@ function bloqueAntes(): string {
 const COMO_FUNCIONA = `
   <section class="seccion como">
     <h3>Cómo funciona</h3>
-    <p>Durante el viaje la app sigue el horario del plan con la hora real. Si no coincide con lo que haces, díselo: «Hecha» al terminar antes, «Saltar», «Llegué» o «Sigo aquí». Las marcas y las casillas se guardan en este móvil y se comparten con el otro al sincronizar, si hay sesión.</p>
+    <p>Durante el viaje la app sigue el horario del plan con la hora real. Si no coincide con lo que haces, díselo: «Hecha» al terminar antes, «Saltar», «Llegué» o «Sigo aquí». Las marcas y las casillas se guardan en este móvil. Solo en el piloto privado se comparten al sincronizar, si hay sesión.</p>
     <p>Si en un móvil no se marca nada, sigue el plan en silencio y no pregunta: es lo cómodo para quien solo mira. Lo que marca el otro móvil no cambia eso.</p>
     <p>Arrastrar la línea de tiempo o mirar otro día es un repaso del plan (la hora sale en contorno); «Volver a ahora» te devuelve.</p>
     ${LEYENDA}
