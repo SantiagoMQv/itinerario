@@ -3,7 +3,7 @@ import { createServer, request as solicitarHttps, type Server } from 'node:https
 import type { IncomingMessage } from 'node:http';
 import { TLSSocket } from 'node:tls';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { crearControladorFotos } from '../../servidor/api-fotos';
@@ -129,7 +129,8 @@ test.beforeAll(async () => {
   const salida = (Array.isArray(resultado) ? resultado[0] : resultado) as Rollup.RollupOutput;
   const archivos = new Map(salida.output.filter((a) => a.type === 'chunk').map((a) => [a.fileName, a.code]));
   temporal = await mkdtemp(join(tmpdir(), 'itinerario-tls-prueba-'));
-  execFileSync('/usr/bin/openssl', ['req','-x509','-newkey','rsa:2048','-nodes','-sha256','-days','1','-config','/dev/stdin','-keyout',join(temporal,'clave-prueba.pem'),'-out',join(temporal,'certificado-prueba.pem')], {input: `[req]
+  // Un archivo real evita reabrir /dev/stdin, que falla desde Node en Linux.
+  await writeFile(join(temporal, 'configuracion-tls.cnf'), `[req]
 prompt = no
 distinguished_name = dn
 x509_extensions = extensiones
@@ -140,7 +141,8 @@ subjectAltName = IP:127.0.0.1
 basicConstraints = critical,CA:FALSE
 keyUsage = critical,digitalSignature,keyEncipherment
 extendedKeyUsage = serverAuth
-`,stdio:['pipe','pipe','pipe']});
+`);
+  execFileSync('/usr/bin/openssl', ['req','-x509','-newkey','rsa:2048','-nodes','-sha256','-days','1','-config',join(temporal, 'configuracion-tls.cnf'),'-keyout',join(temporal,'clave-prueba.pem'),'-out',join(temporal,'certificado-prueba.pem')], {stdio:['pipe','pipe','pipe']});
   certificado = await readFile(join(temporal, 'certificado-prueba.pem'));
   servidor = createServer({ key: await readFile(join(temporal, 'clave-prueba.pem')), cert: certificado,
     highWaterMark: 65536 }, async (req, res) => {

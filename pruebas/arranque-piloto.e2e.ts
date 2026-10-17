@@ -11,7 +11,7 @@
 import { test, expect, type Page } from '@playwright/test';
 import { createServer, type Server } from 'node:https';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -273,9 +273,11 @@ window.fixtureArranque = {
       .replace('</head>', `${estilos.map((c) => `<link rel="stylesheet" href="/${c}">`).join('')}</head>`);
     // Sólo este proceso genera, lee y borra estos archivos del fixture.
     temporal = await mkdtemp(join(tmpdir(), 'itinerario-arranque-piloto-tls-'));
+    // Un archivo real evita reabrir /dev/stdin, que falla desde Node en Linux.
+    await writeFile(join(temporal, 'configuracion-tls.cnf'), '[req]\nprompt=no\ndistinguished_name=dn\nx509_extensions=ext\n[dn]\nCN=127.0.0.1\n[ext]\nsubjectAltName=IP:127.0.0.1\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n');
     execFileSync('/usr/bin/openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-sha256', '-days', '1',
-      '-config', '/dev/stdin', '-keyout', join(temporal, 'clave-fixture.pem'), '-out', join(temporal, 'certificado-fixture.pem')],
-    { input: '[req]\nprompt=no\ndistinguished_name=dn\nx509_extensions=ext\n[dn]\nCN=127.0.0.1\n[ext]\nsubjectAltName=IP:127.0.0.1\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n', stdio: ['pipe', 'pipe', 'pipe'] });
+      '-config', join(temporal, 'configuracion-tls.cnf'), '-keyout', join(temporal, 'clave-fixture.pem'), '-out', join(temporal, 'certificado-fixture.pem')],
+    { stdio: ['pipe', 'pipe', 'pipe'] });
     servidor = createServer({ key: await readFile(join(temporal, 'clave-fixture.pem')),
       cert: await readFile(join(temporal, 'certificado-fixture.pem')) }, (req, res) => {
       const ruta = new URL(req.url!, 'https://local').pathname;

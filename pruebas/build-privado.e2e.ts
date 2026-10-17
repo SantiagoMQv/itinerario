@@ -131,9 +131,11 @@ test.describe('montaje privado local', () => {
   test.beforeAll(async () => {
     // Sólo este proceso crea, usa y borra esta raíz temporal y todo lo que hay dentro.
     temporal = await realpath(await mkdtemp(join(tmpdir(), 'itinerario-build-privado-')));
+    // Un archivo real evita reabrir /dev/stdin, que falla desde Node en Linux.
+    await writeFile(join(temporal, 'configuracion-tls.cnf'), '[req]\nprompt=no\ndistinguished_name=dn\nx509_extensions=ext\n[dn]\nCN=127.0.0.1\n[ext]\nsubjectAltName=IP:127.0.0.1\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n');
     execFileSync('/usr/bin/openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-sha256', '-days', '1',
-      '-config', '/dev/stdin', '-keyout', join(temporal, 'clave-fixture.pem'), '-out', join(temporal, 'certificado-fixture.pem')],
-    { input: '[req]\nprompt=no\ndistinguished_name=dn\nx509_extensions=ext\n[dn]\nCN=127.0.0.1\n[ext]\nsubjectAltName=IP:127.0.0.1\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n', stdio: ['pipe', 'pipe', 'pipe'] });
+      '-config', join(temporal, 'configuracion-tls.cnf'), '-keyout', join(temporal, 'clave-fixture.pem'), '-out', join(temporal, 'certificado-fixture.pem')],
+    { stdio: ['pipe', 'pipe', 'pipe'] });
     servidor = createServer({ key: await readFile(join(temporal, 'clave-fixture.pem')),
       cert: await readFile(join(temporal, 'certificado-fixture.pem')) }, (req, res) => {
       // Sirve SOLO la salida construida (la página en /, sus archivos debajo); lo demás, /api incluido, da 404.

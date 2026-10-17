@@ -11,7 +11,7 @@ import { createServer, type Server } from 'node:https';
 import type { IncomingMessage } from 'node:http';
 import { TLSSocket } from 'node:tls';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { deflateSync } from 'node:zlib';
 import { join } from 'node:path';
@@ -364,9 +364,11 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
     };
     // Sólo el proceso padre ejecuta generación/lectura/limpieza de estos archivos de fixture.
     temporal = await mkdtemp(join(tmpdir(), 'itinerario-respaldo-ui-tls-'));
+    // Un archivo real evita reabrir /dev/stdin, que falla desde Node en Linux.
+    await writeFile(join(temporal, 'configuracion-tls.cnf'), '[req]\nprompt=no\ndistinguished_name=dn\nx509_extensions=ext\n[dn]\nCN=127.0.0.1\n[ext]\nsubjectAltName=IP:127.0.0.1\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n');
     execFileSync('/usr/bin/openssl', ['req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-sha256', '-days', '1',
-      '-config', '/dev/stdin', '-keyout', join(temporal, 'clave-fixture.pem'), '-out', join(temporal, 'certificado-fixture.pem')],
-    { input: '[req]\nprompt=no\ndistinguished_name=dn\nx509_extensions=ext\n[dn]\nCN=127.0.0.1\n[ext]\nsubjectAltName=IP:127.0.0.1\nbasicConstraints=critical,CA:FALSE\nkeyUsage=critical,digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n', stdio: ['pipe', 'pipe', 'pipe'] });
+      '-config', join(temporal, 'configuracion-tls.cnf'), '-keyout', join(temporal, 'clave-fixture.pem'), '-out', join(temporal, 'certificado-fixture.pem')],
+    { stdio: ['pipe', 'pipe', 'pipe'] });
     servidor = createServer({ key: await readFile(join(temporal, 'clave-fixture.pem')),
       cert: await readFile(join(temporal, 'certificado-fixture.pem')), highWaterMark: 65536 }, async (req, res) => {
       const ruta = new URL(req.url!, origen).pathname;
