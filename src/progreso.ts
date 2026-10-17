@@ -94,16 +94,20 @@ function firma(op: Operacion): string {
  * aceptado sigue dando «duplicada», pero una operación nueva sobre ellos es inválida y no se aplica.
  */
 export function aplicarOperacion(plan: Itinerario, estado: EstadoProgreso, op: Operacion): ResultadoOperacion {
-  return aplicar(plan, estado, op, false);
+  return aplicar(plan, estado, op, () => false);
 }
 /**
- * SOLO para comprobar la integridad de lo ya guardado (`proyectarColaGuardada`): reproduce una operación con las
- * reglas con las que se guardó, cuando sus retiradas aún eran del plan. Nunca para operar, enviar ni acusar.
+ * SOLO para comprobar la integridad de lo ya guardado (`proyectarColaGuardada`). Una operación sobre una retirada se
+ * reproduce únicamente si lo guardado atestigua que se aplicó cuando se guardó (`aplicada`: su acuse está en el estado
+ * guardado; cada versión del plan pudo retirar cosas distintas). Ese testigo no es autoridad: quien llama compara
+ * después la reproducción ENTERA, firmas y cambios incluidos. Nunca para operar, enviar ni acusar.
  */
-export function aplicarOperacionGuardada(plan: Itinerario, estado: EstadoProgreso, op: Operacion): ResultadoOperacion {
-  return aplicar(plan, estado, op, true);
+export function aplicarOperacionGuardada(plan: Itinerario, estado: EstadoProgreso, op: Operacion,
+  aplicada: (operacionId: string) => boolean): ResultadoOperacion {
+  return aplicar(plan, estado, op, aplicada);
 }
-function aplicar(plan: Itinerario, estado: EstadoProgreso, op: Operacion, comoGuardada: boolean): ResultadoOperacion {
+function aplicar(plan: Itinerario, estado: EstadoProgreso, op: Operacion,
+  retiradaAplicada: (operacionId: string) => boolean): ResultadoOperacion {
   const invalida = (motivo: string): ResultadoOperacion => ({ tipo: 'invalida', estado, motivo });
   const conflicto = (motivo: string): ResultadoOperacion => ({ tipo: 'conflicto', estado, motivo });
   const { ids } = catalogo(plan);
@@ -130,7 +134,7 @@ function aplicar(plan: Itinerario, estado: EstadoProgreso, op: Operacion, comoGu
   const huella = firma(op);
   const acuse = propia(estado.operaciones, op.id);
   if (acuse) return acuse.firma === huella ? { tipo: 'duplicada', estado } : invalida('ID reutilizado con otro contenido');
-  if (retirada && !comoGuardada) return invalida('Ya no está en el plan: no se aplica');
+  if (retirada && !retiradaAplicada(op.id)) return invalida('Ya no está en el plan: no se aplica');
   const registros: Cambio[] = [];
   let cambioAqui: Cambios['aqui'];
   if (op.tipo === 'parada') {

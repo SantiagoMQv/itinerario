@@ -61,15 +61,16 @@ const objeto = (v: unknown): v is Record<string, unknown> =>
 function validarV1(plan: Itinerario, valor: unknown): RegistroV1 {
   try {
     if (!campos(valor, ['formato', 'confirmado', 'estado', 'cola'], ['legado']) || valor.formato !== 1 || !densa(valor.cola)
-      || !iguales(valor.confirmado, crearProgreso(plan))) throw new Error();
+      || !iguales(valor.confirmado, crearProgreso(plan)) || !esEstadoProgreso(plan, valor.estado)) throw new Error();
+    const guardado = valor.estado;
     let estado = crearProgreso(plan);
     const ids: string[] = [];
     for (const entrada of valor.cola) {
       if (!campos(entrada, ['operacion', 'dependeDe']) || !esOperacion(entrada.operacion)
         || !iguales(entrada.dependeDe, ids)) throw new Error();
       const operacion = entrada.operacion;
-      // Solo validar lo guardado: con las reglas de cuando se guardó (sus retiradas aún eran del plan).
-      const resultado = aplicarOperacionGuardada(plan, estado, operacion);
+      // Solo validar lo guardado: una retirada cuenta si su acuse consta en lo guardado; la igualdad final lo comprueba.
+      const resultado = aplicarOperacionGuardada(plan, estado, operacion, (id) => Object.hasOwn(guardado.operaciones, id));
       if (resultado.tipo !== 'aplicada' && resultado.tipo !== 'sin-cambio') throw new Error();
       estado = resultado.estado;
       ids.push(operacion.id);
@@ -121,10 +122,11 @@ function validar(plan: Itinerario, valor: unknown, formato: 2 | 3 = 3): Registro
     const raiz = valor as unknown as RegistroLocal;
     const resultado = proyectarCola(plan, comoCola(raiz));
     if (!resultado.cola || !resultado.proyeccion) throw new Error();
-    // Guardada con un plan anterior del mismo viaje: su proyección se hizo cuando sus retiradas aún eran del plan.
-    // Vale solo si es EXACTAMENTE esa reproducción; la que usa la app sigue siendo la estricta y no se reescribe nada.
+    // Guardada con versiones anteriores del plan del mismo viaje (cada una pudo retirar cosas distintas): vale solo si
+    // es EXACTAMENTE la reproducción de su cola con lo que ese estado atestigua aplicado; la que usa la app sigue
+    // siendo la estricta y no se reescribe nada.
     if (!iguales(valor.estado, resultado.proyeccion.estado)
-      && !iguales(valor.estado, proyectarColaGuardada(plan, comoCola(raiz)).proyeccion?.estado)) throw new Error();
+      && !iguales(valor.estado, proyectarColaGuardada(plan, comoCola(raiz), raiz.estado).proyeccion?.estado)) throw new Error();
     if (!historiaCoherente(resultado.cola)) throw new Error();
     validarLegado(valor);
     // El helper materializa el dominio; el legado conserva su clon estructurado, no se normaliza.

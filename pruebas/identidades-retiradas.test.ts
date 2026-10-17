@@ -1,4 +1,4 @@
-import { IDBFactory } from 'fake-indexeddb';
+import { IDBFactory, IDBObjectStore } from 'fake-indexeddb';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { aplicarOperacion, crearProgreso, importarLegado, type EstadoProgreso, type Operacion } from '../src/progreso';
 import { esEstadoProgreso, esInstantaneaProgreso, iguales, type InstantaneaProgreso } from '../src/progreso-validacion';
@@ -353,6 +353,176 @@ describe('Catálogo de retiradas: una sola verdad tipada, estricta y determinist
     const plan = structuredClone(despues);
     plan.dias[0].paradas[2] = { ...plan.dias[0].paradas[2], id: 'p1' };
     expect(() => crearProgreso(plan)).toThrow('Identidad del itinerario vacía o duplicada');
+  });
+});
+
+describe('R7 · retiradas sucesivas: lo guardado entre dos versiones del plan se sigue abriendo', () => {
+  // Tres versiones del MISMO viaje: P0 tiene A, B y C (y las casillas X, Y); P1 retira A y X; P2 retira también B e Y.
+  const VIAJE = 'viaje-sintetico';
+  const p = (id: string): Parada => ({ id, nombre: id, hora: '09:00', categoria: 'otro', lat: 31, lng: 121 });
+  const version = (activas: string[], retiradasP: string[], casillas: string[] = [], casillasRetiradas: string[] = []): Itinerario => ({
+    id: VIAJE, titulo: 'Sintético', dias: [{ fecha: '2026-10-21', titulo: 'Día', paradas: activas.map(p) }],
+    ...(casillas.length ? { pendientes: casillas.map((id) => ({ id, texto: id })) } : {}),
+    ...(retiradasP.length || casillasRetiradas.length ? { retiradas: {
+      paradas: retiradasP.map((id) => ({ id, nombre: id })), pendientes: casillasRetiradas.map((id) => ({ id })) } } : {}),
+  });
+  const P0 = version(['A', 'B', 'C'], []);
+  const P1 = version(['B', 'C'], ['A']);
+  const P2 = version(['C'], ['A', 'B']);
+  const Q0 = version(['A', 'B', 'C'], [], ['X', 'Y']);
+  const Q1 = version(['B', 'C'], ['A'], ['Y'], ['X']);
+  const Q2 = version(['C'], ['A', 'B'], [], ['X', 'Y']);
+  const op = (id: string, paradaId: string, extra: Partial<Extract<Operacion, { tipo: 'parada' }>> = {}): Operacion =>
+    ({ id, dispositivoId: 'movil-sintetico', tipo: 'parada', paradaId, marca: 'hecha', revision: 0, ...extra });
+  const casillaS = (id: string, pendienteId: string, revision = 0): Operacion =>
+    ({ id, dispositivoId: 'movil-sintetico', tipo: 'pendiente', pendienteId, hecho: true, revision });
+  type Raiz = { estado: EstadoProgreso; confirmado: EstadoProgreso; cola: { operacion: Operacion; dependeDe: string[]; enviada: boolean }[] };
+  function base() {
+    const fabrica = new IDBFactory();
+    const opciones = { fabrica, nombre: 'repro-sintetico', dispositivoId: 'movil-sintetico' };
+    const crudo = () => new Promise<Raiz>((ok, ko) => {
+      const s = fabrica.open('repro-sintetico');
+      s.onsuccess = () => {
+        const g = s.result.transaction('viajes').objectStore('viajes').get(VIAJE);
+        g.onsuccess = () => { s.result.close(); ok(g.result as Raiz); };
+        g.onerror = () => ko(g.error);
+      };
+      s.onerror = () => ko(s.error);
+    });
+    const guardarCrudo = (valor: unknown) => new Promise<void>((ok, ko) => {
+      const s = fabrica.open('repro-sintetico');
+      s.onsuccess = () => {
+        const tx = s.result.transaction('viajes', 'readwrite');
+        tx.objectStore('viajes').put(valor, VIAJE);
+        tx.oncomplete = () => { s.result.close(); ok(); };
+        tx.onabort = () => ko(tx.error);
+      };
+      s.onerror = () => ko(s.error);
+    });
+    const abrir = (plan: Itinerario) => abrirProgresoLocal(plan, opciones);
+    return { crudo, guardarCrudo, abrir };
+  }
+  const portable = (valor: unknown) => ({ presente: true, tablas: { viajes: [{ clave: VIAJE, valor }] } });
+
+  /** El repro del verificador: A y B sin enviar con P0; con P1 (A retirada) se registra C; P2 retira también B. */
+  async function reproduccion() {
+    const b = base();
+    const v0 = await b.abrir(P0);
+    expect((await v0.registrar(op('op-A', 'A'))).tipo).toBe('aplicada');
+    expect((await v0.registrar(op('op-B', 'B'))).tipo).toBe('aplicada');
+    v0.cerrar();
+    const v1 = await b.abrir(P1);
+    expect((await v1.leer()).estado.paradas.B.marca).toBe('hecha');
+    expect((await v1.registrar(op('op-C', 'C'))).tipo).toBe('aplicada');
+    v1.cerrar();
+    return b;
+  }
+
+  it('P0 → P1 → P2: la raíz (B y C guardadas, A ya no) se abre con P2 sin reescribirla y lo efectivo es solo C', async () => {
+    const b = await reproduccion();
+    const antesDeAbrir = await b.crudo();
+    expect(Object.keys(antesDeAbrir.estado.paradas).sort()).toEqual(['B', 'C']);
+    expect(antesDeAbrir.cola.map((e) => [e.operacion.id, e.enviada, e.dependeDe])).toEqual([
+      ['op-A', false, []], ['op-B', false, []], ['op-C', false, []]]);
+    expect(esEstadoProgreso(P2, antesDeAbrir.estado)).toBe(true);
+    // Abrir y leer no escriben NADA en la base (ni un put): la proyección estricta solo vive en memoria.
+    const put = vi.spyOn(IDBObjectStore.prototype, 'put');
+    const v2 = await b.abrir(P2);
+    const leido = await v2.leer();
+    v2.cerrar();
+    expect(put).not.toHaveBeenCalled();
+    put.mockRestore();
+    expect(await b.crudo()).toEqual(antesDeAbrir);
+    // Nada retirado vuelve a lo efectivo: la proyección que usa la app es la estricta.
+    expect(Object.keys(leido.estado.paradas)).toEqual(['C']);
+    expect(Object.keys(leido.estado.operaciones)).toEqual(['op-C']);
+    expect(leido.cola).toEqual(antesDeAbrir.cola);
+    expect(leido.confirmado).toEqual(antesDeAbrir.confirmado);
+    expect(() => validarProgresoPortable(P2, portable(antesDeAbrir))).not.toThrow();
+  });
+
+  it('casillas retiradas por partes, escrituras entre versiones, un acuse y una cola sin enviar', async () => {
+    const b = base();
+    const v0 = await b.abrir(Q0);
+    for (const o of [op('op-A', 'A'), op('op-B', 'B'), casillaS('op-X', 'X')]) expect((await v0.registrar(o)).tipo).toBe('aplicada');
+    v0.cerrar();
+    const v1 = await b.abrir(Q1);
+    // Con Q1 se envía y se confirma op-B (sigue activa), y se registran C e Y.
+    expect((await v1.marcarEnviada('op-B')).tipo).toBe('enviada');
+    const conB = aplicar(Q1, crearProgreso(Q1), op('op-B', 'B'));
+    expect((await v1.recibirAcuse({ operacionId: 'op-B', persistida: true, instantanea: { revisionServidor: 1, estado: conB } })).tipo)
+      .toBe('confirmada');
+    expect((await v1.registrar(op('op-C', 'C'))).tipo).toBe('aplicada');
+    expect((await v1.registrar(casillaS('op-Y', 'Y'))).tipo).toBe('aplicada');
+    v1.cerrar();
+    const guardada = await b.crudo();
+    expect(Object.keys(guardada.estado.pendientes)).toEqual(['Y']);
+    const v2 = await b.abrir(Q2);
+    expect(await b.crudo()).toEqual(guardada);
+    const leido = await v2.leer();
+    expect(leido.estado.paradas.B.marca).toBe('hecha'); // confirmada por el servidor: es historia, no una intención
+    expect(Object.keys(leido.estado.pendientes)).toEqual([]);
+    // Salidas de siempre: descartar lo no enviado; una activa nueva depende solo de lo efectivo y se escribe normal.
+    expect((await v2.cancelarIntencion('op-X')).tipo).toBe('cancelada');
+    expect((await v2.registrar(op('op-C2', 'C', { marca: 'saltada', revision: 1 }))).tipo).toBe('aplicada');
+    const despuesDeEscribir = await b.crudo();
+    expect(despuesDeEscribir.cola.map((e) => e.operacion.id)).toEqual(['op-A', 'op-C', 'op-Y', 'op-C2']);
+    expect(despuesDeEscribir.cola.find((e) => e.operacion.id === 'op-C2')!.dependeDe).toEqual(['op-C']);
+    v2.cerrar();
+    const otraVez = await b.abrir(Q2);
+    expect((await otraVez.leer()).estado.paradas.C.marca).toBe('saltada');
+    otraVez.cerrar();
+  });
+
+  it('enviada, no-op, deshacer y aquí cruzando la retirada de B', async () => {
+    const b = base();
+    const v0 = await b.abrir(P0);
+    expect((await v0.registrar(op('op-A', 'A'))).tipo).toBe('aplicada');
+    expect((await v0.registrar(op('op-B', 'B'))).tipo).toBe('aplicada');
+    v0.cerrar();
+    const v1 = await b.abrir(P1);
+    expect((await v1.registrar(op('op-B-igual', 'B', { revision: 1 }))).tipo).toBe('sin-cambio');
+    expect((await v1.marcarEnviada('op-B')).tipo).toBe('enviada');
+    const recibo = (await v1.leer()).estado.operaciones['op-B'].cambios!;
+    expect((await v1.registrar({ id: 'op-B-deshacer', dispositivoId: 'movil-sintetico', tipo: 'deshacer', cambios: recibo })).tipo)
+      .toBe('aplicada');
+    expect((await v1.registrar(op('op-aqui-B', 'B', { marca: 'aqui', revision: 2, revisionAqui: 0 }))).tipo).toBe('aplicada');
+    expect((await v1.registrar(op('op-aqui-C', 'C', { marca: 'aqui', revisionAqui: 1, revisionAnterior: 3 }))).tipo).toBe('aplicada');
+    v1.cerrar();
+    const guardada = await b.crudo();
+    expect(guardada.estado.aqui.paradaId).toBe('C');
+    expect(guardada.estado.paradas.B).toEqual({ marca: 'hecha', revision: 4 });
+    expect(Object.keys(guardada.estado.operaciones)).toEqual(['op-B', 'op-B-igual', 'op-B-deshacer', 'op-aqui-B', 'op-aqui-C']);
+    const v2 = await b.abrir(P2);
+    expect(await b.crudo()).toEqual(guardada);
+    const leido = await v2.leer();
+    // Estricto con P2: lo que dependía de B (ya retirada) no se aplica, tampoco el «aquí» en C que salía de B.
+    expect(leido.estado.aqui).toEqual({ paradaId: null, revision: 0 });
+    expect(Object.keys(leido.estado.paradas)).toEqual([]);
+    expect(leido.cola).toEqual(guardada.cola);
+    // La salida de siempre: descartar el cambio que no salió del móvil y quedó bloqueado.
+    expect((await v2.cancelarIntencion('op-aqui-C')).tipo).toBe('cancelada');
+    v2.cerrar();
+  });
+
+  it.each([
+    ['la firma de un acuse guardado', (r: any) => { r.estado.operaciones['op-B'].firma = '["otra"]'; }],
+    ['los cambios de un acuse guardado', (r: any) => {
+      r.estado.operaciones['op-B'].cambios.registros[0].despues.marca = 'saltada'; }],
+    ['un acuse inventado para lo que no se aplicó', (r: any) => {
+      r.estado.operaciones['op-A'] = { firma: JSON.stringify(['op-A', 'movil-sintetico', 'parada', 'A', 'hecha', null, 0, null, null]) }; }],
+    ['un registro sin su acuse', (r: any) => { delete r.estado.operaciones['op-B']; }],
+    ['la identidad de una operación de la cola', (r: any) => { r.cola[1].operacion.id = 'op-otra'; }],
+    ['sus dependencias', (r: any) => { r.cola[2].dependeDe = ['op-A']; }],
+    ['una operación hacia una parada desconocida', (r: any) => { r.cola[1].operacion.paradaId = 'Z'; }],
+    ['el viaje', (r: any) => { r.estado.viajeId = 'otro'; }],
+  ])('sigue rechazando la raíz y el archivo si se manipula %s', async (_, manipular) => {
+    const b = await reproduccion();
+    const r = structuredClone(await b.crudo()) as any;
+    manipular(r);
+    expect(() => validarProgresoPortable(P2, portable(r))).toThrow();
+    await b.guardarCrudo(r);
+    await expect(b.abrir(P2)).rejects.toThrow('Registro de progreso corrupto');
   });
 });
 

@@ -221,13 +221,17 @@ export function proyectarCola(plan: Itinerario, valor: unknown): ResultadoCola {
 }
 /**
  * SOLO integridad de una raíz ya guardada (progreso-local): reproduce la MISMA cola como se proyectó al guardarla,
- * cuando sus retiradas conocidas aún eran del plan. No sirve para operar, elegir envíos ni acusar: la proyección
- * efectiva es siempre la de proyectarCola.
+ * aunque entre medias el plan retirara cosas en varias versiones. Una intención sobre una retirada cuenta como
+ * aplicada solo si `guardado` (el estado que la raíz dice haber proyectado) tiene su acuse; quien llama compara la
+ * reproducción entera con `guardado`. No sirve para operar, elegir envíos ni acusar: la proyección efectiva es
+ * siempre la de proyectarCola.
  */
-export function proyectarColaGuardada(plan: Itinerario, valor: unknown): ResultadoCola {
+export function proyectarColaGuardada(plan: Itinerario, valor: unknown, guardado: EstadoProgreso): ResultadoCola {
   if (!validarCola(plan, valor)) return invalida('Cola inválida');
   const cola = capturar(valor);
-  return { tipo: 'proyectada', cola, proyeccion: proyectar(plan, cola, aplicarOperacionGuardada).proyeccion };
+  const aplicada = (operacionId: string) => Object.hasOwn(guardado.operaciones, operacionId);
+  return { tipo: 'proyectada', cola, proyeccion: proyectar(plan, cola,
+    (p, estado, op) => aplicarOperacionGuardada(p, estado, op, aplicada)).proyeccion };
 }
 export function agregarIntencion(plan: Itinerario, valor: unknown, operacion: unknown): ResultadoCola {
   if (!validarCola(plan, valor) || !esOperacion(operacion)) return invalida('Cola u operación inválida');
