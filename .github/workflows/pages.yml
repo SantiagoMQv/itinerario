@@ -56,3 +56,103 @@ jobs:
       - uses: actions/configure-pages@v5
       - id: despliegue
         uses: actions/deploy-pages@v4
+
+  publicar_piloto:
+    name: Publicar código del piloto privado
+    if: github.ref == 'refs/heads/main'
+    needs: comprobar
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    # Independiente de Pages: un fallo de Cloudflare no bloquea su publicación.
+    concurrency:
+      group: cloudflare-itinerario-piloto
+      cancel-in-progress: false
+    steps:
+      # Configuración humana: secreto Actions CLOUDFLARE_API_TOKEN, limitado a editar
+      # el Worker existente itinerario-piloto. Nunca crear recursos ni subir fotos.
+      - id: acceso
+        name: Comprobar si está configurado Cloudflare
+        env:
+          TOKEN_PUBLICACION: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [ -n "$TOKEN_PUBLICACION" ]; then
+            echo 'habilitado=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'habilitado=false' >> "$GITHUB_OUTPUT"
+            echo '::notice::Piloto sin publicar: falta configurar CLOUDFLARE_API_TOKEN en los secretos de Actions.'
+          fi
+      - if: steps.acceso.outputs.habilitado == 'true'
+        uses: actions/checkout@v5
+      - if: steps.acceso.outputs.habilitado == 'true'
+        uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - if: steps.acceso.outputs.habilitado == 'true'
+        run: npm ci
+      - id: montaje
+        if: steps.acceso.outputs.habilitado == 'true'
+        name: Construir el piloto sin secretos ni cambios de variables remotas
+        run: |
+          node --input-type=module <<'JS'
+          import { mkdtempSync, realpathSync, readFileSync, writeFileSync, appendFileSync } from 'node:fs';
+          import { join } from 'node:path';
+          import { spawnSync } from 'node:child_process';
+          const repo = realpathSync(process.cwd());
+          const padre = realpathSync(mkdtempSync(join(realpathSync(process.env.RUNNER_TEMP), 'itinerario-publicacion-')));
+          const salida = join(padre, 'piloto');
+          const cuenta = 'd1a72d59f68595354ab5c265a709d3b9';
+          function ejecutar(programa, argumentos) {
+            const resultado = spawnSync(programa, argumentos, { cwd: repo, stdio: 'inherit' });
+            if (resultado.status !== 0) process.exit(resultado.status ?? 1);
+          }
+          ejecutar(process.execPath, [join(repo, 'scripts/preparar-despliegue-piloto.mjs'), cuenta, salida]);
+          ejecutar('npm', ['run', 'build:privado', '--', join(salida, 'perfil.json'), join(salida, 'web')]);
+          const config = JSON.parse(readFileSync(join(salida, 'wrangler.privado.json'), 'utf8'));
+          const campos = ['name', 'account_id', 'main', 'workers_dev', 'compatibility_date', 'assets', 'r2_buckets', 'vars'];
+          if (Object.keys(config).sort().join('|') !== campos.sort().join('|')
+            || config.name !== 'itinerario-piloto' || config.account_id !== cuenta || config.workers_dev !== true
+            || config.main !== join(repo, 'servidor/worker.ts') || config.compatibility_date !== '2026-10-11'
+            || config.assets?.binding !== 'ASSETS' || config.assets.directory !== join(salida, 'web')
+            || config.assets.run_worker_first !== true || config.r2_buckets?.length !== 1
+            || config.r2_buckets[0].binding !== 'FOTOS_BUCKET'
+            || config.r2_buckets[0].bucket_name !== 'itinerario-piloto-fotos') {
+            throw new Error('El destino del piloto no coincide con el Worker existente.');
+          }
+          // El despliegue SOLO cambia código/assets: conserva presupuestos, origen y secretos actuales.
+          delete config.vars;
+          writeFileSync(join(salida, 'wrangler.codigo.json'), JSON.stringify(config, null, 2) + '\n', { flag: 'wx' });
+          appendFileSync(process.env.GITHUB_OUTPUT, `salida=${salida}\n`);
+          JS
+      - if: steps.acceso.outputs.habilitado == 'true'
+        name: Publicar en el Worker existente conservando sus variables
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          SALIDA_PILOTO: ${{ steps.montaje.outputs.salida }}
+        run: |
+          node --input-type=module <<'JS'
+          import { existsSync, realpathSync } from 'node:fs';
+          import { dirname, join } from 'node:path';
+          import { spawnSync } from 'node:child_process';
+          const repo = realpathSync(process.env.GITHUB_WORKSPACE);
+          const salida = realpathSync(process.env.SALIDA_PILOTO);
+          // CWD/config externos y sin dotenv aplicable; nunca leer sus contenidos.
+          for (let carpeta = salida; ; carpeta = dirname(carpeta)) {
+            if (['.env', '.env.local', '.dev.vars'].some((nombre) => existsSync(join(carpeta, nombre)))) {
+              throw new Error('Publicación detenida: hay un archivo de entorno aplicable.');
+            }
+            if (dirname(carpeta) === carpeta) break;
+          }
+          const entorno = { ...process.env };
+          delete entorno.WRANGLER_OUTPUT_FILE_DIRECTORY;
+          delete entorno.WRANGLER_OUTPUT_FILE_PATH;
+          entorno.WRANGLER_SEND_METRICS = 'false';
+          entorno.CLOUDFLARE_LOAD_DEV_VARS_FROM_DOT_ENV = 'false';
+          // Registro absoluto fuera de web/bundle; no se lee ni publica como artefacto.
+          entorno.WRANGLER_LOG_PATH = join(dirname(salida), 'wrangler-publicacion.log');
+          const resultado = spawnSync(process.execPath, [join(repo, 'node_modules/wrangler/bin/wrangler.js'),
+            'deploy', '--config', join(salida, 'wrangler.codigo.json'), '--keep-vars'],
+            { cwd: salida, env: entorno, stdio: 'inherit' });
+          process.exit(resultado.status ?? 1);
+          JS
