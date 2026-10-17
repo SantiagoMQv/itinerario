@@ -376,11 +376,25 @@ describe('propiedad del reader, deadlines y errores privados', () => {
     expect(maximo).toBe(1); expect(body.locked).toBe(false); lector.releaseLock();
   });
   it('deadline durante prefijo cancela reader propio aunque cancel cuelgue', async () => {
-    let cancelados = 0;
-    const body = new ReadableStream<Uint8Array>({ pull() { return new Promise<void>(() => {}); },
-      cancel() { cancelados++; return new Promise<void>(() => {}); } }, { highWaterMark: 0 });
-    await expect(lectura({ key: clave, size: marco().length, bodyUsed: false, body }).leer(clave, texto(), contexto(presupuesto, new AbortController().signal, 10))).rejects.toMatchObject({ codigo: 503 });
-    expect(cancelados).toBe(1); await Promise.resolve(); expect(body.locked).toBe(false);
+    vi.useFakeTimers();
+    let c: ContextoObjetosFotos | undefined;
+    try {
+      let cancelados = 0; let iniciada: () => void = () => {};
+      const entrada = new Promise<void>((ok) => { iniciada = ok; });
+      const body = new ReadableStream<Uint8Array>({ pull() { iniciada(); return new Promise<void>(() => {}); },
+        cancel() { cancelados++; return new Promise<void>(() => {}); } }, { highWaterMark: 0 });
+      c = contexto(presupuesto, new AbortController().signal, 10);
+      const pendiente = lectura({ key: clave, size: marco().length, bodyUsed: false, body }).leer(clave, texto(), c);
+      const rechazo = expect(pendiente).rejects.toMatchObject({ codigo: 503 });
+      // El plazo vence sólo cuando el lector propio ya está esperando el prefijo.
+      await entrada; expect(body.locked).toBe(true); expect(cancelados).toBe(0);
+      await vi.advanceTimersByTimeAsync(10);
+      await rechazo;
+      expect(cancelados).toBe(1); await Promise.resolve(); expect(body.locked).toBe(false);
+    } finally {
+      c?.vigencia.cerrar();
+      vi.useRealTimers();
+    }
   });
   it('abort tras prefijo libera bloqueo y no emite remainder', async () => {
     const abort = new AbortController(); let cancelados = 0; const b = marco();
