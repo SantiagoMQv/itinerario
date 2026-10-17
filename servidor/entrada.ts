@@ -443,7 +443,10 @@ const SCRIPT_ENTRADA = String.raw`document.addEventListener('DOMContentLoaded', 
         credentials: 'same-origin',
         cache: 'no-store',
         redirect: 'error',
-        referrerPolicy: 'no-referrer',
+        // La política no-referrer convertiría Origin en null en este POST.
+        // El referrer vacío omite Referer sin perder el Origin del mismo sitio.
+        referrerPolicy: 'same-origin',
+        referrer: '',
         signal: control.signal,
       });
       fin = desenlace(respuesta.status, await leerJson(respuesta), cuerpo);

@@ -30,7 +30,7 @@ describe('página pública /entrar', () => {
     expect(respuesta.headers.has('Set-Cookie')).toBe(false);
   });
 
-  it('el fetch de sesión es same-origin en modo y credenciales y omite Referer; el documento conserva no-referrer', async () => {
+  it('el fetch conserva Origin de mismo sitio sin Referer; el documento mantiene no-referrer', async () => {
     const respuesta = await proveerRespuestaEntrada(solicitar());
     const html = await respuesta.text();
     expect(respuesta.headers.get('Referrer-Policy')).toBe('no-referrer');
@@ -40,7 +40,8 @@ describe('página pública /entrar', () => {
     expect(opciones).toContain("mode: 'same-origin'");
     expect(opciones).toContain("credentials: 'same-origin'");
     expect(opciones).toContain("redirect: 'error'");
-    expect(opciones).toContain("referrerPolicy: 'no-referrer'");
+    expect(opciones).toContain("referrerPolicy: 'same-origin'");
+    expect(opciones).toContain("referrer: ''");
     expect(html.match(/referrerPolicy:/g)).toHaveLength(1);
   });
 

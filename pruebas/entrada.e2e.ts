@@ -55,10 +55,10 @@ const almacenado = (page: Page) => page.evaluate(() => {
   return todo;
 });
 
-test('Origin nativo: la entrada supera el validador real y abre el itinerario', async ({ browser }) => {
-  // HTTP loopback prueba solo Origin: no sustituye el gate HTTPS del Worker ni autentica.
+test('Origin exacto y Referer ausente nativos: la entrada supera el validador real y abre el itinerario', async ({ browser }) => {
+  // HTTP loopback prueba cabeceras nativas: no sustituye el gate HTTPS del Worker ni autentica.
   let origen = '';
-  const observadas: { origen: string | null; estado: number }[] = [];
+  const observadas: { origen: string | null; referencia: string | null; estado: number }[] = [];
   const errores: string[] = [];
   const servidor = createServer(async (peticion, salida) => {
     try {
@@ -87,7 +87,7 @@ test('Origin nativo: la entrada supera el validador real y abre el itinerario', 
           if (!(error instanceof FalloHttp)) throw error;
           respuesta = respuestaJson({ error: error.message }, error.codigo);
         }
-        observadas.push({ origen: recibido, estado: respuesta.status });
+        observadas.push({ origen: recibido, referencia: cabeceras.get('Referer'), estado: respuesta.status });
       } else if (url.pathname === '/' && peticion.method === 'GET') {
         respuesta = new Response('<!doctype html><title>Destino sintético</title><p id="viaje">Itinerario sintético</p>', {
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
@@ -123,7 +123,7 @@ test('Origin nativo: la entrada supera el validador real y abre el itinerario', 
     await pagina.getByRole('button', { name: 'Entrar' }).click();
     const recibida = await respuesta;
     expect(errores).toEqual([]);
-    expect(observadas).toEqual([{ origen, estado: 201 }]);
+    expect(observadas).toEqual([{ origen, referencia: null, estado: 201 }]);
     expect(recibida.status()).toBe(201);
     await expect(pagina).toHaveURL(`${origen}/`);
     await expect(pagina.locator('#viaje')).toHaveText('Itinerario sintético');

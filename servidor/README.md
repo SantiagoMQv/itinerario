@@ -18,6 +18,10 @@ HTTP falla con 400 antes de leer bindings; configuración fallida responde 503 p
 sin reflejar secretos ni servir HTML/assets como fallback. Origin, cuerpo, señal y cookie
 permanecen en el Request original. Los assets requieren sesión vigente comprobada en DB.
 
+La entrada conserva `no-referrer` en el documento. Solo su POST a `/api/sesion` usa
+`referrerPolicy: 'same-origin'` y `referrer: ''`: mantiene el `Origin` exacto exigido
+por el servidor sin enviar `Referer`. No admite orígenes nulos, ausentes o ajenos.
+
 | Binding privado | Contrato |
 | --- | --- |
 | `CLAVE_COMPARTIDA` | Clave exacta y material HMAC del contrato existente de credenciales; sin segunda clave MAC. Generar fuera del repositorio con CSPRNG en T7. |
