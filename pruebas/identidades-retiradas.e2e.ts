@@ -102,7 +102,83 @@ async function captura(page: Page, info: TestInfo, nombre: string) {
   await page.screenshot({ path: info.outputPath(`${nombre}.png`), fullPage: false });
 }
 
+/** El foco está en ese elemento, conectado, a la vista y por encima de las píldoras del pie (no en body). */
+async function focoVisible(objetivo: import('@playwright/test').Locator) {
+  await expect(objetivo).toBeFocused();
+  await expect(objetivo).toBeVisible();
+  const medida = await objetivo.evaluate((e) => {
+    const r = e.getBoundingClientRect();
+    const pildoras = document.getElementById('pildoras');
+    const p = pildoras && getComputedStyle(pildoras).display !== 'none' ? pildoras.getBoundingClientRect() : null;
+    return { conectado: e.isConnected, cuerpo: document.activeElement === document.body, abajo: r.bottom,
+      pildoras: p && p.height > 0 ? p.top : null };
+  });
+  expect(medida.conectado).toBe(true);
+  expect(medida.cuerpo).toBe(false);
+  if (medida.pildoras !== null) expect(medida.abajo).toBeLessThanOrEqual(medida.pildoras);
+}
+/** Abre la foto del bloque en el visor y la borra, con el dedo (clic) o con el teclado (Enter en cada paso). */
+async function borrarDesdeVisor(page: Page, bloque: import('@playwright/test').Locator, teclado = false) {
+  const pulsar = async (l: import('@playwright/test').Locator) => {
+    if (teclado) { await l.focus(); await page.keyboard.press('Enter'); } else await l.click();
+  };
+  const alternar = bloque.locator('[data-fotos-alternar]');
+  await alternar.scrollIntoViewIfNeeded();
+  if ((await alternar.getAttribute('aria-expanded')) !== 'true') await pulsar(alternar);
+  await pulsar(bloque.locator('[data-foto-id]'));
+  const visor = page.locator('#visor-foto');
+  await expect(visor).toBeVisible();
+  await pulsar(visor.locator('[data-visor-borrar]'));
+  await pulsar(visor.locator('[data-visor-confirmar]'));
+  await expect(visor).toBeHidden();
+}
+
 test.describe('fotos de sitios que ya no están en el plan (web publicada)', () => {
+  for (const [ancho, alto, tema] of [[390, 844, 'light'], [360, 640, 'dark']] as const) {
+    test(`borrar desde el visor la última foto de un sitio deja el foco en un título visible: ${ancho}×${alto} ${
+      tema === 'light' ? 'de día' : 'de noche'}`, async ({ browser }, info) => {
+      const { contexto, page, peticiones, errores } = await movil(browser, ancho, alto, tema);
+      try {
+        await verTodo(page);
+        await sembrar(page);
+        await page.reload();
+        await expect(page.locator('#contenido')).not.toBeEmpty();
+        await verTodo(page);
+        await hojaAlta(page);
+        const seccion = page.locator('#fotos-retiradas');
+        await expect(seccion.locator('[data-fotos-destino]')).toHaveCount(2);
+        // La fila desaparece y la sección sigue (queda Sihang): el foco va al título de la sección.
+        await borrarDesdeVisor(page, seccion.locator(`[data-fotos-destino="p:${TOP_BANANA}"]`));
+        await expect(seccion.locator(`[data-fotos-destino="p:${TOP_BANANA}"]`)).toHaveCount(0);
+        await expect(seccion.locator('[data-fotos-destino]')).toHaveCount(1);
+        await focoVisible(seccion.locator('h3'));
+        await captura(page, info, `foco-fila-${ancho}x${alto}-${tema}`);
+        // Desaparece la sección entera (esta vez con el teclado): el foco va al título del viaje en «Todo», nunca a
+        // body ni a algo oculto, y se ve su contorno de foco.
+        await borrarDesdeVisor(page, seccion.locator(`[data-fotos-destino="s:${JOY_CITY}:${SIHANG}"]`), true);
+        await expect(seccion).toBeHidden();
+        const titulo = page.locator('#ahora .titulo-viaje');
+        await focoVisible(titulo);
+        expect(await titulo.evaluate((e) => parseFloat(getComputedStyle(e).outlineWidth))).toBeGreaterThanOrEqual(2);
+        await captura(page, info, `foco-seccion-${ancho}x${alto}-${tema}`);
+        // La foto del sitio ACTUAL de Top Banana sigue viva en este móvil (las borradas quedan como tombstone).
+        const viva = await page.evaluate(async ({ nombre, id }) => new Promise<unknown>((ok, ko) => {
+          const s = indexedDB.open(nombre);
+          s.onsuccess = () => {
+            const g = s.result.transaction('metadatos').objectStore('metadatos').get(id);
+            g.onsuccess = () => { s.result.close(); ok(g.result); };
+            g.onerror = () => ko(g.error);
+          };
+          s.onerror = () => ko(s.error);
+        }), { nombre: BASE_FOTOS, id: SEMBRADAS[2].fotoId });
+        expect(viva).toMatchObject({ fotoId: SEMBRADAS[2].fotoId, destino: enSitio(SIJI, TOP_BANANA) });
+        expect(peticiones.filter((r) => r.startsWith('/api/'))).toEqual([]);
+        expect(errores).toEqual([]);
+      } finally {
+        await contexto.close();
+      }
+    });
+  }
   for (const [ancho, alto, tema] of [[390, 844, 'light'], [360, 640, 'dark']] as const) {
     test(`se ven, se abren y se descargan sin captura ni red: ${ancho}×${alto} ${tema === 'light' ? 'de día' : 'de noche'}`,
       async ({ browser }, info) => {

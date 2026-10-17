@@ -613,6 +613,9 @@ export interface OpcionesFotosUi {
   /** Respaldo manual y catálogo, solo con composición EXPLÍCITA. null u omitido (la web publicada): ni red,
    * ni ledger, ni texto nuevo. No hay flag de compilación, entorno ni URL que lo active. */
   readonly respaldo?: ComposicionRespaldoFotos | null;
+  /** Último refugio del foco al cerrar el visor cuando ya no existe lo que lo abrió ni la sección de sitios retirados
+   * (main: el título de «Todo»). */
+  readonly focoDeReserva?: () => HTMLElement | null;
 }
 export interface FotosUi {
   readonly controlador: FotosInterfaz;
@@ -1262,6 +1265,13 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     urlsVisor.push(url);
     mostrarEnVisor(url, `Vista previa de «${datosFoto(id)?.entrada.nombre ?? ''}»`);
   }
+  /** Si ya no existe lo que abrió el visor ni su foto (se borró la última de un sitio retirado y con ella su fila o
+   * la sección entera): el título visible de la sección de sitios retirados o, si tampoco está, el de quien compone. */
+  function refugioFoco(): HTMLElement | null {
+    const c = retiradas?.contenedor;
+    const titulo = c && c.isConnected && !c.hidden ? c.querySelector<HTMLElement>('h3') : null;
+    return titulo ?? opciones.focoDeReserva?.() ?? null;
+  }
   function cerrarVisor(desdeHistorial = false): boolean {
     if (!visor || visor.hidden) return false;
     genVisor++;
@@ -1278,7 +1288,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     // Si la miniatura se repintó mientras tanto, el foco vuelve a la misma foto. Una compartida recién guardada
     // ya es de este móvil: el foco va a su celda local y la compartida deja de repetirse.
     const local = [...contenido.querySelectorAll<HTMLElement>('[data-foto-id]')].find((b) => b.dataset.fotoId === id) ?? null;
-    const destino = guardada && local ? local : abridor?.isConnected ? abridor : local;
+    const destino = guardada && local ? local : abridor?.isConnected ? abridor : local ?? refugioFoco();
     abridor = null;
     destino?.focus();
     if (guardada && id) void remotas?.sesion(guardada)?.reclasificar(id);
@@ -1601,10 +1611,13 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       }
       if (r === 'borrada') {
         // La miniatura ya no existe: el foco va a «Elegir de la galería» de su bloque (o, en un sitio retirado, que no
-        // tiene galería, a su botón «Fotos»).
-        abridor = (datos && esDestinoActivo(plan, datos.destino)
-          ? datos.bloque?.querySelector<HTMLElement>('[data-fotos-anadir]')
-          : datos?.bloque?.querySelector<HTMLElement>('[data-fotos-alternar]')) ?? abridor;
+        // tiene galería, a su botón «Fotos»), buscado en la página de AHORA: borrar la última foto de un sitio retirado
+        // quita su fila. Si ya no hay bloque, cerrarVisor usa su refugio (título de la sección o de «Todo»).
+        const clave = datos ? claveDestino(datos.destino) : null;
+        const bloque = datos?.bloque?.isConnected ? datos.bloque : [...contenido.querySelectorAll<HTMLElement>('[data-fotos-destino]')]
+          .find((b) => b.dataset.fotosDestino === clave);
+        abridor = (datos && bloque ? bloque.querySelector<HTMLElement>(esDestinoActivo(plan, datos.destino)
+          ? '[data-fotos-anadir]' : '[data-fotos-alternar]') : null) ?? abridor;
         cerrarVisor();
         // Tras cerrar el visor (fuera del modal), para que la línea de estado se anuncie.
         if (datos) {

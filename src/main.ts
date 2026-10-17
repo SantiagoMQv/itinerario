@@ -155,6 +155,8 @@ const fotosUi = crearFotosUi({
   // Respaldo manual y catálogo: la composición de la entrada. La web publicada pasa null (ni red, ni ledger,
   // ni texto nuevo); no hay flag, entorno ni URL que la cambie.
   respaldo,
+  // Si al cerrar el visor ya no existe la fila ni la sección del sitio retirado, el foco va al título de «Todo».
+  focoDeReserva: () => el.ahora.querySelector<HTMLElement>('.titulo-viaje'),
 });
 
 // ---------- Almacenamiento en este móvil ----------
@@ -1725,7 +1727,7 @@ function pintarResumen() {
   ultimoAhora = '';
   el.ahora.innerHTML = `
     <div class="bloque viaje">
-      <h2 class="titulo-viaje">${esc(modelo.titulo)}</h2>
+      <h2 class="titulo-viaje" tabindex="-1">${esc(modelo.titulo)}</h2>
       ${modelo.subtitulo ? `<p class="detalle-ahora">${esc(modelo.subtitulo)}</p>` : ''}
       <p class="cifras">${modelo.dias.length} días · ${paradas(visitas)}${saltadas ? ` · ${saltadas} saltada${saltadas === 1 ? '' : 's'}` : ''} · ${esc(textoPlan)}</p>
     </div>`;
