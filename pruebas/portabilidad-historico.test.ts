@@ -29,6 +29,19 @@ async function archivoFoto(bytes = new Uint8Array([1, 2, 3])) {
     progreso: { presente: false, tablas: {} }, respaldos: { presente: false, tablas: {} },
     legado: { marcas: '\0 e\u0301 ', 'marcas-hora': '', 'pendientes-hechos': null } }, limites)).archivo;
 }
+/** Primer índice distinto (con ambos bytes) o null si son iguales; otra longitud cuenta desde el final del común. */
+function primeraDiferencia(actual: Uint8Array, esperado: Uint8Array) {
+  const n = Math.min(actual.length, esperado.length);
+  for (let i = 0; i < n; i++) if (actual[i] !== esperado[i]) return { indice: i, actual: actual[i], esperado: esperado[i] };
+  return actual.length === esperado.length ? null : { indice: n, actual: actual[n] ?? null, esperado: esperado[n] ?? null };
+}
+/** Todos los bytes, sin el toEqual profundo: con un Uint8Array de 1 MiB, toEqual compara cada elemento y además
+ * Object.entries de ambos (≈1 s medido, el 99 % de la prueba). Mismo tipo, longitud y cada byte. */
+function esperarMismosBytes(actual: Uint8Array, esperado: Uint8Array) {
+  expect(actual.constructor).toBe(esperado.constructor);
+  expect(actual.length).toBe(esperado.length);
+  expect(primeraDiferencia(actual, esperado)).toBeNull();
+}
 describe('historia durable separada y manual', () => {
   it.each([-1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1])('presupuesto histórico inseguro %s se rechaza sin IO', (n) => {
     const fabrica = new IDBFactory(); const abrir = vi.spyOn(fabrica, 'open');
@@ -152,7 +165,7 @@ describe('restauración portable dedicada: lote PhotoDB, nunca progreso ni ledge
     const restaurador = fotos.crearRestauradorFotosPortable(itinerario, limites, { fabrica });
     const r = await restaurador.restaurar(base(bytes));
     expect(r).toMatchObject({ tipo: 'observadas', transaccion: 'confirmada', fotos: [{ fotoId, tipo: 'nueva', derivacion: 'igual' }] });
-    expect(new Uint8Array(await (await original(fabrica))!.arrayBuffer())).toEqual(bytes);
+    esperarMismosBytes(new Uint8Array(await (await original(fabrica))!.arrayBuffer()), bytes);
     const f = await fotos.abrirFotosLocal(itinerario, { fabrica });
     const m = await f.leerMetadatos(fotoId); f.cerrar();
     expect(m).toMatchObject({ nombre: '\0 e\u0301 ', mimeDeclarado: 'image/heic' });
@@ -178,7 +191,7 @@ describe('restauración portable dedicada: lote PhotoDB, nunca progreso ni ledge
     (b.tablas.originales as { clave: string; valor: unknown }[]).push({ clave: otraId, valor: new Blob(['abc'], { type: 'image/heic' }) });
     expect(await restaurador.restaurar(b)).toMatchObject({ tipo: 'conflicto-preflight', transaccion: 'no-intentada' });
     expect(await original(fabrica, otraId)).toBeNull();
-    expect(new Uint8Array(await (await original(fabrica))!.arrayBuffer())).toEqual(bytes);
+    esperarMismosBytes(new Uint8Array(await (await original(fabrica))!.arrayBuffer()), bytes);
   });
   it('original igual conserva miniatura local distinta y devuelve diferencias, tombstone nunca resucita', async () => {
     const fabrica = new IDBFactory(); const restaurador = fotos.crearRestauradorFotosPortable(itinerario, limites, { fabrica });
@@ -348,5 +361,30 @@ describe('restauración portable sobre PhotoDB v2', () => {
       expect(new Uint8Array(await (await f.leerOriginal(fotoId))!.arrayBuffer())).toEqual(new Uint8Array([1, 2, 3]));
       expect(await f.leerProcedencia?.(fotoId)).toBe('camara-galeria');
     } finally { f.cerrar(); }
+  });
+});
+describe('comparación de bytes de las pruebas: todos, con el primer índice distinto', () => {
+  const n = (1 << 20) + 5;
+  const lleno = () => { const b = new Uint8Array(n); b.fill(23); return b; };
+  it('iguales: ninguna diferencia y la aserción pasa', () => {
+    const a = lleno();
+    expect(primeraDiferencia(a.slice(), a)).toBeNull();
+    esperarMismosBytes(a.slice(), a);
+  });
+  it.each([0, n >> 1, n - 1])('un byte distinto en %s se informa con ambos valores y la aserción falla', (i) => {
+    const a = lleno(); const b = a.slice(); b[i] = 254;
+    expect(primeraDiferencia(b, a)).toEqual({ indice: i, actual: 254, esperado: 23 });
+    expect(() => esperarMismosBytes(b, a)).toThrow();
+  });
+  it('otra longitud falla aunque coincida el prefijo, en los dos sentidos', () => {
+    const a = lleno();
+    expect(primeraDiferencia(a.subarray(0, n - 1), a)).toEqual({ indice: n - 1, actual: null, esperado: 23 });
+    expect(primeraDiferencia(a, a.subarray(0, n - 1))).toEqual({ indice: n - 1, actual: 23, esperado: null });
+    expect(() => esperarMismosBytes(a.subarray(0, n - 1), a)).toThrow();
+    expect(() => esperarMismosBytes(a, a.subarray(0, n - 1))).toThrow();
+  });
+  it('otro tipo de vista con los mismos valores falla', () => {
+    const a = lleno();
+    expect(() => esperarMismosBytes(new Uint8ClampedArray(a) as unknown as Uint8Array, a)).toThrow();
   });
 });
