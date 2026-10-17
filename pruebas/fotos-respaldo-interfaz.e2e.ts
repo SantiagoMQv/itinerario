@@ -6,7 +6,7 @@
 // 2. «publicada»: la web compilada (vite preview, 4173) con respaldo: null → 0 red de fotos, 0 ledger, 0 texto nuevo.
 // El padre ejecuta este archivo y posee sus temporales (mkdtemp itinerario-respaldo-ui-tls-*, borrado en afterAll).
 // No prueba despliegue, COMMIT remoto, cuota física, SameSite entre sitios ni teléfono real.
-import { test, expect, type Browser, type Locator, type Page } from '@playwright/test';
+import { test, expect, type Browser, type Locator, type Page, type Request as PeticionNavegador } from '@playwright/test';
 import { createServer, type Server } from 'node:https';
 import type { IncomingMessage } from 'node:http';
 import { TLSSocket } from 'node:tls';
@@ -1317,8 +1317,6 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
       { s: remota(fotoDos, 'remota-dos.png', D_SUB, 'image/png', pngVista), bytes: pngVista }]);
     await instrumentar(page);
     await abrirDestinos(page);
-    const fallidas: string[] = [];
-    page.on('requestfailed', (r) => fallidas.push(new URL(r.url()).pathname));
     const plegarDe = (d: DestinoFoto) => page.evaluate((sel) => window.fixtureUi!.cerrarEn(sel), `[data-fotos-destino="${claveDe(d)}"]`);
 
     // 1 · Vista ya lista: plegar suelta su URL y deja el bloque plegado; reabrir consulta de nuevo.
@@ -1332,26 +1330,29 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
     // 2 · Consulta pendiente (sitio de dentro): la petición LLEGA al Worker real (queda en su registro) y lo que se
     // retiene es su respuesta; al plegar se corta en el navegador y la página que llega después no se pinta.
     // Retenerla antes de llegar no valdría: el aborto del plegado la cancelaría sin que el servidor la viera nunca.
-    let llegada!: () => void;
-    const llego = new Promise<void>((ok) => { llegada = ok; });
+    let llegada!: (peticion: PeticionNavegador) => void;
+    const llego = new Promise<PeticionNavegador>((ok) => { llegada = ok; });
     let soltarConsulta!: () => void;
     const consulta = new Promise<void>((ok) => { soltarConsulta = ok; });
     const delSitio = (u: URL) => u.pathname === '/api/fotos/listado' && (u.searchParams.get('destino') ?? '').includes('subparada');
     await page.route(delSitio, async (r) => {
       const respuesta = await r.fetch();
-      llegada();
+      llegada(r.request());
       await consulta;
       // La página ya la abortó al plegar: entregarla falla y nada llega a la interfaz.
       await r.fulfill({ response: respuesta }).catch(() => {});
     });
     const sitio = await abrirFotos(page, D_SUB);
-    await llego;
+    const peticionConsulta = await llego;
     // Barrera de llegada: el servidor del fixture ya la registró (y el Worker contestó) ANTES de plegar.
     expect(consultados(llamadas)).toEqual([D_PARADA, D_SUB]);
     await expect(sitio.locator('.fotos-remotas-estado')).toHaveText('Buscando fotos compartidas…');
+    // Solo ESTA petición: un aborto anterior del mismo endpoint no prueba ni invalida su cierre.
+    const consultaAbortada = page.waitForEvent('requestfailed', {
+      predicate: (r) => r === peticionConsulta, timeout: 5000,
+    });
     await plegarDe(D_SUB);
-    // El plegado aborta la consulta en el navegador.
-    await expect.poll(() => fallidas.filter((f) => f === '/api/fotos/listado').length).toBe(1);
+    expect((await consultaAbortada).failure()?.errorText).toBe('net::ERR_ABORTED');
     soltarConsulta();
     await page.waitForTimeout(400);
     await expect(sitio.locator('[data-fotos-alternar]')).toHaveAttribute('aria-expanded', 'false');
@@ -1362,21 +1363,29 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
     await page.unroute(delSitio);
 
     // 3 · Original pendiente (otra ficha): al plegar se aborta; lo que llegue después no crea URL ni vista.
+    let llegadaOriginal!: (peticion: PeticionNavegador) => void;
+    const llegoOriginal = new Promise<PeticionNavegador>((ok) => { llegadaOriginal = ok; });
     let soltarOriginal!: () => void;
     const original = new Promise<void>((ok) => { soltarOriginal = ok; });
-    await page.route((u) => u.pathname === `/api/fotos/${fotoUno}/original`, async (r) => {
+    const delOriginal = (u: URL) => u.pathname === `/api/fotos/${fotoUno}/original`;
+    await page.route(delOriginal, async (r) => {
+      llegadaOriginal(r.request());
       await original; await r.continue().catch(() => {});
     });
     const otra = await abrirFotos(page, D_PARADA);
     await expect(otra.locator(`[data-foto-remota="${fotoUno}"]`)).toContainText('Cargando…');
+    const peticionOriginal = await llegoOriginal;
+    const originalAbortado = page.waitForEvent('requestfailed', {
+      predicate: (r) => r === peticionOriginal, timeout: 5000,
+    });
     await plegarDe(D_PARADA);
-    await expect.poll(() => fallidas.filter((f) => f === `/api/fotos/${fotoUno}/original`).length).toBe(1);
+    expect((await originalAbortado).failure()?.errorText).toBe('net::ERR_ABORTED');
     soltarOriginal();
     await page.waitForTimeout(400);
     await expect(otra.locator('[data-foto-remota]')).toHaveCount(0);
     expect(await urlsVivas(page)).toBe(0);
     // Reabrir es una instancia limpia: consulta nueva y su original otra vez a la vista.
-    await page.unroute((u) => u.pathname === `/api/fotos/${fotoUno}/original`);
+    await page.unroute(delOriginal);
     const reabierta = await abrirFotos(page, D_PARADA);
     await expect(reabierta.locator(`[data-foto-remota="${fotoUno}"] img`)).toHaveCount(1);
     expect(consultados(llamadas)).toEqual([D_PARADA, D_SUB, D_PARADA, D_PARADA]);
