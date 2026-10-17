@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { itinerario as plan } from '../../src/datos/itinerario';
 import { serializarSolicitudRespaldo, type SolicitudRespaldo } from '../../src/fotos-protocolo';
 import { admitirMarcoObjetoFotos, clavePrivadaFotos, MAGIC_OBJETO_FOTOS,
@@ -337,13 +337,25 @@ describe('propiedad del reader, deadlines y errores privados', () => {
     expect(bucket.llamadas).toEqual([]);
   });
   it('PUT pendiente que persiste tarde no se reintenta ni inicia GET', async () => {
-    let resolver: (v: { key: string; size: number } | null) => void = () => {}; const bucket = new BucketLocal();
-    bucket.put = (k, b) => { bucket.llamadas.push('put'); bucket.objetos.set(k, b);
-      return new Promise((ok) => { resolver = ok; }); };
-    await expect(crearObjetosFotosR2({ plan, bucket }).ponerSiAusente(clave, new Blob([new Uint8Array([1, 2, 3])]), texto(),
-      contexto(presupuesto, new AbortController().signal, 10))).rejects.toMatchObject({ codigo: 503 });
-    resolver({ key: clave, size: marco().length }); await Promise.resolve(); await Promise.resolve();
-    expect(bucket.llamadas).toEqual(['put']); expect(bucket.objetos.size).toBe(1);
+    vi.useFakeTimers();
+    let c: ContextoObjetosFotos | undefined;
+    try {
+      c = contexto(presupuesto, new AbortController().signal, 10);
+      let resolver: (v: { key: string; size: number } | null) => void = () => {}; const bucket = new BucketLocal();
+      bucket.put = (k, b) => { bucket.llamadas.push('put'); bucket.objetos.set(k, b);
+        return new Promise((ok) => { resolver = ok; }); };
+      const pendiente = crearObjetosFotosR2({ plan, bucket }).ponerSiAusente(clave, new Blob([new Uint8Array([1, 2, 3])]), texto(), c);
+      const rechazo = expect(pendiente).rejects.toMatchObject({ codigo: 503 });
+      // El caso exige un PUT ya iniciado: la validación previa no puede consumir el plazo por carga del equipo.
+      expect(bucket.llamadas).toEqual(['put']);
+      await vi.advanceTimersByTimeAsync(10);
+      await rechazo;
+      resolver({ key: clave, size: marco().length }); await Promise.resolve(); await Promise.resolve();
+      expect(bucket.llamadas).toEqual(['put']); expect(bucket.objetos.size).toBe(1);
+    } finally {
+      c?.vigencia.cerrar();
+      vi.useRealTimers();
+    }
   });
   it('máximo un read pendiente aunque consumidor solicite varios', async () => {
     const b = marco(); let paso = 0; let activos = 0; let maximo = 0;
