@@ -156,3 +156,78 @@ jobs:
             { cwd: salida, env: entorno, stdio: 'inherit' });
           process.exit(resultado.status ?? 1);
           JS
+
+  diagnosticar_piloto:
+    name: Diagnóstico de metadatos (solo lectura)
+    if: github.ref == 'refs/heads/diagnostico-cloudflare-main'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22.22.2'
+      - id: lecturas
+        name: Consultar solo los metadatos que pide Wrangler
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          node --input-type=module <<'JS'
+          import { appendFileSync } from 'node:fs';
+          const token = process.env.CLOUDFLARE_API_TOKEN;
+          const resultados = [];
+          const base = 'https://api.cloudflare.com/client/v4/accounts/d1a72d59f68595354ab5c265a709d3b9/workers';
+          const worker = 'itinerario-piloto';
+          function terminar() {
+            appendFileSync(process.env.GITHUB_OUTPUT, `resumen=${resultados.join('; ')}\n`);
+          }
+          async function consultar(alias, ruta) {
+            let http = 'red';
+            try {
+              const respuesta = await fetch(base + ruta, { method: 'GET', redirect: 'error',
+                headers: { Authorization: `Bearer ${token}` }, signal: AbortSignal.timeout(10000) });
+              http = respuesta.status;
+              const lector = respuesta.body.getReader();
+              const partes = [];
+              let total = 0;
+              while (true) {
+                const { done, value } = await lector.read();
+                if (done) break;
+                total += value.byteLength;
+                if (total > 1048576) { await lector.cancel(); throw new Error('limite'); }
+                partes.push(value);
+              }
+              const datos = JSON.parse(Buffer.concat(partes, total).toString('utf8'));
+              const codigos = Array.isArray(datos.errors)
+                ? datos.errors.map((e) => e?.code).filter(Number.isInteger).slice(0, 2) : [];
+              resultados.push(`${alias}=${http}${codigos.length ? '(' + codigos.join(',') + ')' : ''}`);
+              return http === 200 && datos.success !== false ? datos.result : null;
+            } catch {
+              // Nunca imprimir errores, cabeceras, cuerpos, bindings ni valores del proveedor.
+              resultados.push(`${alias}=${http}/lectura-fallida`);
+              return null;
+            }
+          }
+          if (!token) {
+            resultados.push('sin-token');
+          } else {
+            const servicio = await consultar('servicio', `/services/${worker}`);
+            const entorno = servicio?.default_environment?.environment;
+            if (typeof entorno !== 'string' || !/^[A-Za-z0-9_-]{1,128}$/.test(entorno)) {
+              resultados.push('sin-entorno-valido');
+            } else {
+              const ruta = `/services/${worker}/environments/${entorno}`;
+              for (const [alias, destino] of [
+                ['bindings', ruta + '/bindings'],
+                ['rutas', ruta + '/routes?show_zonename=true'],
+                ['dominios', `/domains/records?page=0&per_page=5&service=${worker}&environment=${entorno}`],
+                ['subdominio', ruta + '/subdomain'],
+                ['entorno', ruta],
+                ['horarios', `/scripts/${worker}/schedules`],
+              ]) await consultar(alias, destino);
+            }
+          }
+          terminar();
+          JS
+      - name: "Resultado: ${{ steps.lecturas.outputs.resumen }}"
+        run: ':'
