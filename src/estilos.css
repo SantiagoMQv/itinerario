@@ -3068,17 +3068,43 @@ body.reproduciendo li.hecha .marca {
 #utilidades[hidden] { display: none; }
 .utilidades-cabecera { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: calc(12px + var(--arriba)) calc(16px + var(--der)) 12px calc(16px + var(--izq)); border-bottom: 1px solid var(--borde-fuerte); }
 .utilidades-cabecera h2 { margin: 0; font-size: 24px; }
-.utilidades-contenido { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 16px max(16px, calc((100vw - 860px) / 2)) calc(24px + var(--abajo)); }
+.utilidades-contenido { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 16px max(calc(16px + var(--der)), calc((100vw - 860px) / 2)) calc(24px + var(--abajo)) max(calc(16px + var(--izq)), calc((100vw - 860px) / 2)); }
 .utilidades-contenido > p { max-width: 60ch; }
 .utilidades-contenido .seccion:first-child { margin-top: 0; }
 .opcion-datos { min-height: 48px; display: flex; align-items: center; gap: 12px; font-weight: 700; }
 .opcion-datos input { width: 22px; height: 22px; accent-color: var(--tinta); }
-.album-dia { border-bottom: 1px solid var(--borde-fuerte); }
-.album-dia > summary { min-height: 52px; padding: 14px 0; font-size: 18px; font-weight: 750; cursor: pointer; }
-.album-parada { padding: 14px 0 22px; border-top: 1px solid var(--borde); }
-.album-parada h3 { margin: 0 0 8px; font-size: 18px; }
-.album-sitio { margin: 12px 0 0 12px; border-left: 1px solid var(--borde); padding-left: 12px; }
-.album-sitio h4 { margin-bottom: 6px; }
+/* El álbum deja el primer plano a las imágenes; las fichas conservan su captura directa. */
+.album-navegacion { position: sticky; top: 0; z-index: 1; padding: 0 0 10px; background: var(--papel); }
+.album-navegacion select { width: 100%; min-height: 44px; padding: 8px 36px 8px 12px; border: 1px solid var(--borde-fuerte); border-radius: 8px; background: var(--papel); color: var(--tinta); font: inherit; font-weight: 700; }
+.album-navegacion p { margin: 6px 0 0; font-variant-numeric: tabular-nums; }
+.album-dia { padding: 16px 0 20px; border-top: 1px solid var(--borde-fuerte); }
+.album-dia[hidden], .album-vacios[hidden], .album-inicio[hidden], .album-datos-estado[hidden] { display: none; }
+.album-dia-cabecera h3 { margin: 0; font-size: 20px; font-weight: 800; line-height: 1.15; text-wrap: balance; }
+.album-dia-cabecera p { margin: 6px 0 14px; }
+.album-lugares { display: flex; flex-direction: column; gap: 20px; }
+.album-lugar { min-width: 0; }
+.album-lugar h4 { margin: 0 0 8px; font-size: 16px; line-height: 1.3; }
+.album-contexto { margin: -4px 0 8px; }
+.fotos-album { margin: 0; }
+.fotos-album .fotos-panel { padding: 0; }
+.fotos-album > [data-fotos-alternar][aria-expanded="true"] { display: none; }
+.album-acciones > summary, .album-vacios > summary, .album-ayuda > summary { min-height: 44px; padding: 12px 0; cursor: pointer; font-size: 14px; line-height: 20px; }
+.album-acciones > summary { color: var(--tinta-suave); }
+.album-acciones .fotos-acciones { margin-top: 0; }
+.album-vacios { margin-top: 10px; border-top: 1px solid var(--borde); }
+.album-vacios > summary { font-weight: 650; }
+.album-vacios-lista { padding-top: 8px; }
+.album-vacios-lista .album-lugar { border-bottom: 1px solid var(--borde); }
+.album-vacios-lista .album-lugar h4 { margin-bottom: 0; }
+.album-ayuda { border-top: 1px solid var(--borde-fuerte); }
+.album-datos-estado { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 10px; }
+.album-inicio { margin: 8px 0 20px; max-width: 45ch; }
+#utilidades .fotos-album .fotos-rejilla { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px; }
+.fotos-album .foto-abrir { border: 0; border-radius: 3px; }
+@media (min-width: 560px) {
+  #utilidades .fotos-album .fotos-rejilla { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+  .album-dia-cabecera h3 { font-size: 24px; }
+}
 #utilidades .fotos-lista { max-width: none; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
 .acciones-ficha { margin: 4px 0 12px; align-items: center; }
 .foto-abrir { position: relative; }

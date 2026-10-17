@@ -191,6 +191,7 @@ test.describe('nativa con Worker real', () => {
   let entorno: EntornoWorker;
   let fetchAnterior: typeof fetch;
   let paginaFixture = '';
+  let paginaAlbum = '';
   let llamadas: string[] = [];
   let visitasDestino = 0;
   let pausaAcuse: Promise<void> | null = null;
@@ -265,6 +266,14 @@ import '@fontsource-variable/archivo/wdth.css';
 import ${fuente('../src/estilos.css')};
 import { itinerario } from ${fuente('../src/datos/itinerario.ts')};
 import { crearFotosUi } from ${fuente('../src/fotos-interfaz.ts')};
+import { arrancarItinerario } from ${fuente('../src/main.ts')};
+const composicion = { origen: location.origin, listado: { maxFilas: 1, maxBytesPagina: 524288, maxBytesChunk: 1048576,
+  maxBytesBackingChunk: 1048576, maxLecturas: 4096, maxBytesPlan: 4194304, maxBytesRetenidos: 134217728, plazoMs: 30000 } };
+// Rama exclusiva del fixture: HTML y main REALES, sin sembrar ni sustituir el álbum.
+if (new URLSearchParams(location.search).has('album')) {
+  arrancarItinerario({ respaldo: composicion, portabilidad: null, progreso: null });
+  window.fixtureUi = { listo: true };
+} else {
 const contenido = document.getElementById('contenido');
 const aviso = document.getElementById('aviso-fixture');
 const paradas = itinerario.dias.flatMap((d) => d.paradas);
@@ -276,8 +285,7 @@ const nombreDe = (d) => {
 // Página de 524288 B como el perfil operativo del piloto: cabe la página global (404231) y la filtrada (416521).
 const ui = crearFotosUi({ plan: itinerario, contenido, nombreDe,
   anunciar: (texto) => { aviso.textContent = texto; },
-  respaldo: { origen: location.origin, listado: { maxFilas: 1, maxBytesPagina: 524288, maxBytesChunk: 1048576,
-    maxBytesBackingChunk: 1048576, maxLecturas: 4096, maxBytesPlan: 4194304, maxBytesRetenidos: 134217728, plazoMs: 30000 } } });
+  respaldo: composicion });
 const destino = { tipo: 'parada', viajeId: itinerario.id, paradaId: paradas[0].id };
 // «?destinos»: una parada con sitios dentro, mucho papel debajo, su primer sitio y otra parada.
 const conSitios = paradas.find((p) => (p.subparadas ?? []).length > 0);
@@ -310,6 +318,7 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
   repintarTodo() { ui.desmontar(); ui.montarFotosViaje(nuevaSeccion()); },
   salirDeTodo() { ui.desmontar(); },
   volverATodo() { ui.montarFotosViaje(nuevaSeccion()); } };
+}
 `;
   const entradaVirtual: Plugin = { name: 'entrada-respaldo-ui-fixture',
     resolveId: (id) => (id === ENTRADA ? `\0${ENTRADA}` : null),
@@ -343,6 +352,10 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
 <link rel="stylesheet" href="/${css}"><style>#contenido{height:100dvh}</style></head>
 <body><main id="contenido" class="papel"></main><p id="aviso-fixture" role="status"></p>
 <script type="module" src="/ui.js"></script></body></html>`;
+    paginaAlbum = (await readFile(new URL('../index.html', import.meta.url), 'utf8'))
+      .replace('<script type="module" src="./src/publica.ts"></script>', '<script type="module" src="/ui.js"></script>')
+      .replace('</head>', `<link rel="stylesheet" href="/${css}"></head>`);
+
     fetchAnterior = globalThis.fetch;
     // Únicamente tráfico SDK -> SQL local admitido. Nunca llama al fetch anterior/Neon remoto.
     globalThis.fetch = async (entrada, opciones) => {
@@ -386,7 +399,7 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
       }
       if (ruta === '/fixture-respaldo') {
         res.setHeader('Content-Type', 'text/html; charset=utf-8'); res.setHeader('Cache-Control', 'no-store');
-        res.end(paginaFixture); return;
+        res.end(new URL(req.url!, origen).searchParams.has('album') ? paginaAlbum : paginaFixture); return;
       }
       if (ruta === '/destino-fixture') { visitasDestino++; res.end('No visitar'); return; }
       try {
@@ -519,6 +532,33 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
     for (const [k, b] of bucket.objetos) objetos.push([k, Buffer.from(await b.arrayBuffer()).toString('base64')]);
     return { sql, objetos };
   }
+
+  test('UX · álbum real: cero locales no oculta compartidas ni concede permiso, y filtrar suelta las vistas', async ({ page }) => {
+    await instrumentar(page);
+    await sembrarServidor(page, [{ s: remota(fotoUno, 'muestra-compartida.png', DESTINO_FIXTURE, 'image/png', pngVista), bytes: pngVista }]);
+    await abrirFixture(page, '?album');
+    await page.getByRole('button', { name: 'Abrir fotos del viaje' }).click();
+    const album = page.getByRole('dialog', { name: 'Fotos del viaje' });
+    const destino = album.locator(`[data-fotos-destino="${claveDe(DESTINO_FIXTURE)}"]`);
+    await expect(destino.locator('.album-acciones')).toBeVisible();
+    await expect(album.locator('[data-album-cuenta]')).toHaveText('0 fotos en este móvil · todo el viaje');
+    await expect(album.locator('.album-vacios:visible')).toHaveCount(0);
+    expect(consultados(llamadas)).toEqual([]); expect(originales(llamadas)).toEqual([]);
+    const urlsAntes = await urlsVivas(page);
+    await page.getByRole('button', { name: 'Opciones de datos' }).click();
+    await expect(album.locator('[data-datos-permitir]')).toHaveCount(1);
+    await page.getByRole('button', { name: 'Permitir fotos durante esta visita' }).click();
+    await album.getByRole('combobox', { name: 'Día de las fotos' }).selectOption('0');
+    await expect(destino.locator('[data-foto-remota] img')).toBeVisible();
+    await expect(album.locator('[data-album-cuenta]')).toHaveText('0 fotos en este móvil · todo el viaje');
+    expect(consultados(llamadas)).toContainEqual(DESTINO_FIXTURE);
+    expect(originales(llamadas)).toContain(`GET /api/fotos/${fotoUno}/original`);
+    await album.getByRole('combobox', { name: 'Día de las fotos' }).selectOption('1');
+    await expect(destino).toBeHidden();
+    await expect.poll(() => urlsVivas(page)).toBe(urlsAntes);
+    await page.getByRole('button', { name: 'Volver al itinerario' }).click();
+    expect(await fotoNavegador(page, fotoUno)).toEqual({ metadatos: null, original: null });
+  });
 
   test('UX · el teclado conserva el foco al cambiar ambos modos de datos', async ({ page }) => {
     await login(page, 'editor-uno');

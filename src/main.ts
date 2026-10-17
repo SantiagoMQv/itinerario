@@ -266,6 +266,9 @@ function abrirUtilidades(tipo: 'fotos' | 'ajustes', abridor: HTMLElement) {
   if (!utilidades.hidden) fotosUi.cerrarEn(utilidades);
   const cuerpo = utilidades.querySelector<HTMLElement>('.utilidades-contenido')!;
   $('utilidades-titulo').textContent = tipo === 'fotos' ? 'Fotos del viaje' : 'Ajustes';
+  const volver = utilidades.querySelector<HTMLElement>('[data-utilidades-cerrar]')!;
+  volver.textContent = tipo === 'fotos' ? 'Volver' : 'Volver al itinerario';
+  volver.setAttribute('aria-label', 'Volver al itinerario');
   utilidades.hidden = false;
   if (tipo === 'ajustes') {
     cuerpo.innerHTML = `${fotosUi.respaldoActivo ? '<section class="seccion" data-datos-fotos></section><section class="seccion fotos-viaje" id="fotos-viaje" data-fotos-viaje></section>' : '<p>Las fotos y las marcas se guardan en este móvil. Esta versión no las comparte.</p>'}
@@ -277,9 +280,22 @@ function abrirUtilidades(tipo: 'fotos' | 'ajustes', abridor: HTMLElement) {
     const copias = cuerpo.querySelector<HTMLElement>('[data-copia-movil]');
     if (copias) portabilidadUi?.montar(copias);
   } else {
-    cuerpo.innerHTML = '<p class="cifras">Recuerdos por día y lugar. Tus fotos y las compartidas, juntas en cada parada.</p>' + modelo.dias.map((dia) =>
-      `<details class="album-dia"${dia.idx === estado.dia ? ' open' : ''}><summary>Día ${dia.idx + 1} · ${esc(dia.d.titulo)}</summary>${dia.paradas.map((p) =>
-        `<section class="album-parada"><h3>${esc(p.p.nombre)}</h3><button class="mini suave" type="button" data-album-contexto="${p.id}">Ver parada en el itinerario</button>${fotosUi.html({ tipo: 'parada', viajeId: itinerario.id, paradaId: p.p.id }, 'album-')}${p.subs.map((x) => `<div class="album-sitio"><h4>${esc(x.s.nombre)}</h4>${fotosUi.html({ tipo: 'subparada', viajeId: itinerario.id, paradaId: p.p.id, subparadaId: x.s.id }, 'album-')}</div>`).join('')}</section>`).join('')}</details>`).join('') + '<section class="seccion fotos-retiradas" data-fotos-retiradas hidden></section>';
+    let ordenAlbum = 0;
+    cuerpo.innerHTML = `<div class="album-navegacion">
+      <label class="sr" for="album-dia">Día de las fotos</label>
+      <select id="album-dia" data-album-filtro><option value="todos">Todo el viaje</option>${modelo.dias.map((dia) =>
+        `<option value="${dia.idx}">Día ${dia.idx + 1} · ${esc(dia.d.titulo)}</option>`).join('')}</select>
+      <p class="cifras" data-album-cuenta role="status">Abriendo las fotos de este móvil…</p>
+    </div><p class="album-inicio" data-album-inicio hidden>Aún no has añadido fotos. Abre los lugares de un día para guardar tu primer recuerdo.</p>
+    <div class="album-datos-estado" data-album-datos-estado hidden><span class="cifras"></span><button type="button" class="mini suave" data-album-ver-datos>Opciones de datos</button></div>` + modelo.dias.map((dia) =>
+      `<section class="album-dia" data-album-dia="${dia.idx}" aria-labelledby="album-titulo-${dia.idx}">
+        <header class="album-dia-cabecera"><h3 id="album-titulo-${dia.idx}">Día ${dia.idx + 1} · ${esc(dia.d.titulo)}</h3>
+        <p class="cifras">${esc(fechaCorta(dia.d.fecha))}<span data-album-dia-cuenta></span></p></header>
+        <div class="album-lugares">${dia.paradas.map((p) =>
+          `<section class="album-lugar" data-album-lugar data-album-orden="${ordenAlbum++}"><h4>${esc(p.p.nombre)}</h4>${fotosUi.html({ tipo: 'parada', viajeId: itinerario.id, paradaId: p.p.id }, 'album-', p.id)}</section>${p.subs.map((x) =>
+            `<section class="album-lugar" data-album-lugar data-album-orden="${ordenAlbum++}"><h4>${esc(x.s.nombre)}</h4><p class="album-contexto cifras">En ${esc(p.p.nombre)}</p>${fotosUi.html({ tipo: 'subparada', viajeId: itinerario.id, paradaId: p.p.id, subparadaId: x.s.id }, 'album-', p.id)}</section>`).join('')}`).join('')}</div>
+        <details class="album-vacios" hidden><summary>Lugares sin fotos <span data-album-vacios-cuenta></span></summary><div class="album-lugares album-vacios-lista"></div></details>
+      </section>`).join('') + '<section class="seccion fotos-retiradas" data-fotos-retiradas hidden></section><details class="album-ayuda" data-album-ayuda><summary>Almacenamiento y datos</summary><div data-album-ayuda-contenido></div></details>';
     fotosUi.montarRetiradas(cuerpo.querySelector<HTMLElement>('[data-fotos-retiradas]')!);
     fotosUi.preparar();
     fotosUi.abrirAlbum(cuerpo);
@@ -292,6 +308,12 @@ function abrirUtilidades(tipo: 'fotos' | 'ajustes', abridor: HTMLElement) {
 utilidades.addEventListener('click', (e) => {
   const objetivo = e.target as HTMLElement;
   if (objetivo.closest('[data-utilidades-cerrar]')) return cerrarUtilidades();
+  if (objetivo.closest('[data-album-ver-datos]')) {
+    const ayuda = utilidades.querySelector<HTMLDetailsElement>('[data-album-ayuda]')!;
+    ayuda.open = true;
+    ayuda.querySelector('summary')?.focus();
+    return;
+  }
   const contexto = objetivo.closest<HTMLElement>('[data-album-contexto]');
   if (contexto) {
     const p = modelo.paradas[Number(contexto.dataset.albumContexto)];
@@ -300,9 +322,23 @@ utilidades.addEventListener('click', (e) => {
   if (fotosUi.manejarClic(objetivo)) return;
   portabilidadUi?.manejarClic(objetivo);
 });
+utilidades.addEventListener('change', (e) => {
+  const filtro = (e.target as HTMLElement).closest<HTMLSelectElement>('[data-album-filtro]');
+  if (!filtro) return;
+  const cuerpo = utilidades.querySelector<HTMLElement>('.utilidades-contenido')!;
+  for (const dia of cuerpo.querySelectorAll<HTMLElement>('[data-album-dia]')) {
+    const oculto = filtro.value !== 'todos' && filtro.value !== dia.dataset.albumDia;
+    if (oculto) fotosUi.cerrarEn(dia);
+    dia.hidden = oculto;
+  }
+  const retiradas = cuerpo.querySelector<HTMLElement>('[data-fotos-retiradas]');
+  if (retiradas) retiradas.hidden = filtro.value !== 'todos' || !retiradas.children.length;
+  cuerpo.scrollTop = 0;
+  fotosUi.abrirAlbum(cuerpo);
+});
 utilidades.addEventListener('keydown', (e) => {
   if (e.key !== 'Tab') return;
-  const pulsables = [...utilidades.querySelectorAll<HTMLElement>('button, summary, input, a')].filter((b) => !b.hidden && b.getClientRects().length && !b.hasAttribute('disabled'));
+  const pulsables = [...utilidades.querySelectorAll<HTMLElement>('button, summary, input, select, a')].filter((b) => !b.hidden && b.getClientRects().length && !b.hasAttribute('disabled'));
   const primero = pulsables[0]; const ultimo = pulsables.at(-1);
   if (e.shiftKey && document.activeElement === primero) { e.preventDefault(); ultimo?.focus(); }
   else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primero?.focus(); }
