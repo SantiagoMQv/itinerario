@@ -443,10 +443,9 @@ const SCRIPT_ENTRADA = String.raw`document.addEventListener('DOMContentLoaded', 
         credentials: 'same-origin',
         cache: 'no-store',
         redirect: 'error',
-        // La política no-referrer convertiría Origin en null en este POST.
-        // El referrer vacío omite Referer sin perder el Origin del mismo sitio.
+        // Vaciar referrer convierte Origin en null en Zen; conservar la referencia predeterminada.
+        // Referer puede incluir la query de esta página, pero solo se envía al mismo origen.
         referrerPolicy: 'same-origin',
-        referrer: '',
         signal: control.signal,
       });
       fin = desenlace(respuesta.status, await leerJson(respuesta), cuerpo);

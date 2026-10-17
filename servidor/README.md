@@ -19,8 +19,11 @@ sin reflejar secretos ni servir HTML/assets como fallback. Origin, cuerpo, seña
 permanecen en el Request original. Los assets requieren sesión vigente comprobada en DB.
 
 La entrada conserva `no-referrer` en el documento. Solo su POST a `/api/sesion` usa
-`referrerPolicy: 'same-origin'` y `referrer: ''`: mantiene el `Origin` exacto exigido
-por el servidor sin enviar `Referer`. No admite orígenes nulos, ausentes o ajenos.
+`referrerPolicy: 'same-origin'` y deja la referencia predeterminada: mantiene el
+`Origin` exacto exigido por el servidor también en Zen. Este POST puede enviar
+`Referer` con la URL de `/entrar`, incluida su query, pero solo al mismo origen.
+No añadir `referrer: ''`: en Zen produce `Origin: null` y rechaza la entrada.
+El servidor sigue sin admitir orígenes nulos, ausentes o ajenos.
 
 | Binding privado | Contrato |
 | --- | --- |

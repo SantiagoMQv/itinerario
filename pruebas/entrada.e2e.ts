@@ -1,9 +1,11 @@
 // Puerta /entrar en un móvil simulado. La página sale de la función real del servidor; /api/sesion
-// y «/» se simulan con page.route: aquí no hay Worker, base de datos ni cookies de verdad.
+// y «/» se simulan con page.route, salvo la prueba HTTP nativa con controlador y criptografía reales.
 import { createServer } from 'node:http';
+import { Readable } from 'node:stream';
 import { type Page, expect, test } from '@playwright/test';
-import { comprobarOrigen, FalloHttp, respuestaJson } from '../servidor/http';
+import { crearCredenciales } from '../servidor/credenciales';
 import { CLAVE_IDENTIFICADOR_DISPOSITIVO, proveerRespuestaEntrada } from '../servidor/entrada';
+import { crearControladorSesiones, type RegistroSesion } from '../servidor/sesiones';
 
 // Con espacios y no ASCII: la UI no la recorta ni la transforma.
 const CLAVE = '  clave del viaje ñ ✓  ';
@@ -55,11 +57,24 @@ const almacenado = (page: Page) => page.evaluate(() => {
   return todo;
 });
 
-test('Origin exacto y Referer ausente nativos: la entrada supera el validador real y abre el itinerario', async ({ browser }) => {
-  // HTTP loopback prueba cabeceras nativas: no sustituye el gate HTTPS del Worker ni autentica.
+test('Origin exacto nativo: la página entra mediante el controlador real', async ({ browser }) => {
+  // HTTP loopback, sin Worker/DB: no sustituye el gate HTTPS ni prueba cookies en producción.
   let origen = '';
   const observadas: { origen: string | null; referencia: string | null; estado: number }[] = [];
   const errores: string[] = [];
+  const registros: RegistroSesion[] = [];
+  const sesiones = crearControladorSesiones({
+    viajeId: 'viaje-sintetico',
+    credenciales: await crearCredenciales({ viajeId: 'viaje-sintetico', claveCompartida: CLAVE }),
+    repositorio: {
+      crear: async (registro) => { registros.push(registro); },
+      leer: async () => null,
+      revocar: async () => {},
+      admitirIntento: async () => true,
+      listar: async () => ({ tipo: 'sin-sesion' }),
+      revocarOtra: async () => 'sin-sesion',
+    },
+  });
   const servidor = createServer(async (peticion, salida) => {
     try {
       const url = new URL(peticion.url!, origen);
@@ -67,27 +82,18 @@ test('Origin exacto y Referer ausente nativos: la entrada supera el validador re
       for (let i = 0; i < peticion.rawHeaders.length; i += 2) {
         cabeceras.append(peticion.rawHeaders[i], peticion.rawHeaders[i + 1]);
       }
-      const solicitud = new Request(url, { method: peticion.method, headers: cabeceras });
+      const opciones = {
+        method: peticion.method, headers: cabeceras,
+        ...(peticion.method === 'POST' ? { body: Readable.toWeb(peticion) as ReadableStream<Uint8Array>, duplex: 'half' } : {}),
+      };
+      const solicitud = new Request(url, opciones);
       let respuesta: Response;
       if (url.pathname === '/entrar' && peticion.method === 'GET') {
         respuesta = await proveerRespuestaEntrada(solicitud);
       } else if (url.pathname === '/api/sesion' && peticion.method === 'POST') {
-        const recibido = cabeceras.get('Origin');
-        try {
-          // Conservar las cabeceras nativas y validar ANTES de consumir el cuerpo HTTP.
-          comprobarOrigen(solicitud);
-          const trozos: Buffer[] = [];
-          for await (const trozo of peticion) trozos.push(Buffer.from(trozo));
-          const cuerpo = JSON.parse(Buffer.concat(trozos).toString('utf8')) as Cuerpo;
-          expect(cuerpo.clave).toBe('clave-test');
-          expect(cuerpo.dispositivoId).toMatch(UUID);
-          // DTO exclusivamente sintético: no hay DB, autenticación ni cookie persistida.
-          respuesta = respuestaJson({ sesion: sesionDe(cuerpo) }, 201);
-        } catch (error) {
-          if (!(error instanceof FalloHttp)) throw error;
-          respuesta = respuestaJson({ error: error.message }, error.codigo);
-        }
-        observadas.push({ origen: recibido, referencia: cabeceras.get('Referer'), estado: respuesta.status });
+        // Cabeceras y flujo HTTP nativos: el controlador valida origen, cuerpo y clave.
+        respuesta = await sesiones.atender(solicitud, { identidadRed: 'red-sintetica' });
+        observadas.push({ origen: cabeceras.get('Origin'), referencia: cabeceras.get('Referer'), estado: respuesta.status });
       } else if (url.pathname === '/' && peticion.method === 'GET') {
         respuesta = new Response('<!doctype html><title>Destino sintético</title><p id="viaje">Itinerario sintético</p>', {
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
@@ -117,14 +123,17 @@ test('Origin exacto y Referer ausente nativos: la entrada supera el validador re
     await contexto.route('**/*', (ruta) =>
       new URL(ruta.request().url()).origin === origen ? ruta.continue() : ruta.abort());
     const pagina = await contexto.newPage();
-    await pagina.goto(`${origen}/entrar`);
-    await pagina.getByLabel('Contraseña del viaje').fill('clave-test');
+    await pagina.goto(`${origen}/entrar?ensayo=referencia#fragmento`);
+    await pagina.getByLabel('Contraseña del viaje').fill(CLAVE);
     const respuesta = pagina.waitForResponse((r) => r.url() === `${origen}/api/sesion`);
     await pagina.getByRole('button', { name: 'Entrar' }).click();
     const recibida = await respuesta;
     expect(errores).toEqual([]);
-    expect(observadas).toEqual([{ origen, referencia: null, estado: 201 }]);
+    expect(observadas).toEqual([{ origen, referencia: `${origen}/entrar?ensayo=referencia`, estado: 201 }]);
     expect(recibida.status()).toBe(201);
+    expect(registros).toHaveLength(1);
+    expect(registros[0].dispositivoId).toMatch(UUID);
+    expect(registros[0].viajeId).toBe('viaje-sintetico');
     await expect(pagina).toHaveURL(`${origen}/`);
     await expect(pagina.locator('#viaje')).toHaveText('Itinerario sintético');
   } finally {
