@@ -193,6 +193,8 @@ test.describe('nativa con Worker real', () => {
   let paginaFixture = '';
   let llamadas: string[] = [];
   let visitasDestino = 0;
+  let pausaAcuse: Promise<void> | null = null;
+  let bytesAcuse = 0;
   /** Corte de red DESPUÉS de que la consulta se aplicó: se pierde solo la respuesta (una vez). */
   let perdida: 'reserva' | 'final' | null = null;
   let modoListado: 'normal' | 'redirect' | 'invalido' = 'normal';
@@ -286,6 +288,11 @@ const bloques = varios ? [ui.html({ tipo: 'parada', viajeId: itinerario.id, para
   ui.html({ tipo: 'parada', viajeId: itinerario.id, paradaId: paradas.find((p) => p !== conSitios).id })] : [ui.html(destino)];
 contenido.innerHTML = bloques.join('') + '<section class="seccion fotos-viaje" id="fotos-viaje" data-fotos-viaje></section>';
 ui.montarFotosViaje(contenido.querySelector('[data-fotos-viaje]'));
+// Esta batería histórica ejercita el catálogo técnico; la app lo presenta plegado en Ajustes.
+contenido.querySelector('.fotos-avanzadas').open = true;
+// Las pruebas anteriores ejercen transferencias ya consentidas; ?ahorro prueba el valor inicial real.
+if (!new URLSearchParams(location.search).has('ahorro')) ui.permitirDatos();
+if (new URLSearchParams(location.search).has('datos')) { const ajustes = document.createElement('section'); contenido.prepend(ajustes); ui.montarDatos(ajustes); }
 contenido.addEventListener('click', (e) => { ui.manejarClic(e.target); });
 addEventListener('keydown', (e) => { if (e.key === 'Escape') ui.cerrarVisor(); });
 addEventListener('popstate', () => { ui.cerrarVisor(true); });
@@ -390,7 +397,14 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
         }
         res.writeHead(r.status, Object.fromEntries(r.headers));
         if (ruta === '/api/fotos/listado' && modoListado === 'invalido') { await r.body?.cancel(); res.end('false'); return; }
-        res.end(Buffer.from(await r.arrayBuffer()));
+        const cuerpo = Buffer.from(await r.arrayBuffer());
+        if (ruta === '/api/fotos/respaldo' && r.status === 201 && pausaAcuse) {
+          // El original ya llegó entero; solo se retiene el resto del acuse finito, después de las cabeceras.
+          bytesAcuse = cuerpo.length;
+          res.write(cuerpo.subarray(0, 1));
+          await pausaAcuse;
+          res.end(cuerpo.subarray(1));
+        } else res.end(cuerpo);
       } catch (e) { res.destroy(e instanceof Error ? e : new Error('Fixture fallido')); }
       finally { req.resume(); }
     });
@@ -422,7 +436,7 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
   });
   test.beforeEach(async ({ page }) => {
     await db.exec('BEGIN'); bucket = new BucketFixture(); entorno.FOTOS_BUCKET = bucket;
-    perdida = null; modoListado = 'normal'; llamadas = []; visitasDestino = 0;
+    perdida = null; modoListado = 'normal'; llamadas = []; visitasDestino = 0; pausaAcuse = null; bytesAcuse = 0;
     await page.route('**/*', (r) => new URL(r.request().url()).origin === origen ? r.continue() : r.abort());
     await page.goto(origen + '/entrar');
   });
@@ -506,12 +520,202 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
     return { sql, objetos };
   }
 
+  test('UX · el teclado conserva el foco al cambiar ambos modos de datos', async ({ page }) => {
+    await login(page, 'editor-uno');
+    await abrirFixture(page, '?ahorro&datos');
+    const ahorro = page.getByRole('radio', { name: 'Datos limitados' });
+    const ilimitados = page.getByRole('radio', { name: 'Datos ilimitados' });
+    await ahorro.focus();
+    await page.keyboard.press('ArrowDown');
+    await expect(ilimitados).toBeChecked();
+    await expect(ilimitados).toBeFocused();
+    await page.keyboard.press('ArrowUp');
+    await expect(ahorro).toBeChecked();
+    await expect(ahorro).toBeFocused();
+  });
+
+  for (const apartar of [false, true]) test(`UX · 28 compartidas con las primeras 26 locales avanzan solas tras páginas solo duplicadas${apartar ? ', con pausa fuera de pantalla' : ''}`, async ({ page }) => {
+    if (apartar) await page.setViewportSize({ width: 390, height: 400 });
+    const fotos = Array.from({ length: 28 }, (_, i) => ({
+      s: remota(`${(i + 1).toString(16).padStart(8, '0')}-1234-4123-8123-123456789abc`, `foto-${i + 1}.png`,
+        DESTINO_FIXTURE, 'image/png', pngVista), bytes: pngVista,
+    }));
+    await sembrarServidor(page, fotos);
+    await abrirFixture(page, '?ahorro');
+    await bloque(page).locator('[data-fotos-alternar]').click();
+    await expect(bloque(page).locator('.fotos-remotas-estado')).toContainText('Ahorro de datos');
+    // Copias sintéticas ya guardadas: misma identidad y bytes que en el servidor, sin alterar originales del usuario.
+    await page.evaluate(async ({ nombre, metadatos, bytes }) => {
+      const db = await new Promise<IDBDatabase>((ok, no) => {
+        const r = indexedDB.open(nombre); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error);
+      });
+      await new Promise<void>((ok, no) => {
+        const tx = db.transaction(['metadatos', 'originales'], 'readwrite');
+        for (const m of metadatos) {
+          tx.objectStore('metadatos').put({ ...m, miniatura: { tipo: 'pendiente' } }, m.fotoId);
+          tx.objectStore('originales').put(new Blob([new Uint8Array(bytes)]), m.fotoId);
+        }
+        tx.oncomplete = () => ok(); tx.onabort = () => no(tx.error);
+      });
+      db.close();
+    }, { nombre: BASE_FOTOS, metadatos: fotos.slice(0, 26).map((f) => f.s.original), bytes: [...pngVista] });
+    await abrirFixture(page);
+    llamadas = [];
+    const b = bloque(page);
+    await b.locator('[data-fotos-alternar]').click();
+    await expect(b.locator('[data-foto-id]')).toHaveCount(26);
+    let soltar = () => {};
+    let detenida = false;
+    const compuerta = new Promise<void>((ok) => { soltar = ok; });
+    if (apartar) await page.route((u) => u.pathname === '/api/fotos/listado' && u.searchParams.has('continuacion'), async (r) => {
+      detenida = true; await compuerta; await r.continue();
+    });
+    // El final de la galería visible es el permiso para continuar metadata, nunca un toque por página.
+    await b.locator('.fotos-remotas').scrollIntoViewIfNeeded();
+    if (apartar) {
+      try {
+        await expect.poll(() => detenida).toBe(true);
+        await b.locator('[data-fotos-alternar]').scrollIntoViewIfNeeded();
+        await expect(b.locator('[data-remotas-mas]')).not.toBeInViewport();
+        // Dejar al observador recibir la salida del viewport antes de resolver la página que estaba en curso.
+        await page.waitForTimeout(100);
+      } finally { soltar(); }
+      await expect.poll(() => consultados(llamadas).length).toBe(2);
+      await page.waitForTimeout(100);
+      expect(consultados(llamadas)).toHaveLength(2);
+      expect(originales(llamadas)).toEqual([]);
+      await b.locator('.fotos-remotas').scrollIntoViewIfNeeded();
+    }
+    await expect(b.locator('[data-foto-remota]')).toHaveCount(2);
+    expect(consultados(llamadas)).toHaveLength(28);
+    await expect(b.locator('[data-remotas-mas]')).toHaveCount(0);
+    expect(new Set(await b.locator('[data-foto-id], [data-foto-remota]').evaluateAll((es) => es.map((e) =>
+      (e as HTMLElement).dataset.fotoId ?? (e as HTMLElement).dataset.fotoRemota))).size).toBe(28);
+  });
+
+  test('UX · ocultar admite el acuse individual ya en vuelo, pero no otra petición ni original', async ({ page }) => {
+    await login(page, 'editor-uno');
+    await abrirFixture(page);
+    await anadirFoto(page);
+    const visor = await abrirVisor(page);
+    let soltar = () => {};
+    pausaAcuse = new Promise<void>((ok) => { soltar = ok; });
+    try {
+      const cabeceras = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/fotos/respaldo');
+      await visor.locator('[data-visor-respaldar]').click();
+      expect((await cabeceras).status()).toBe(201);
+      expect(bucket.eventos.filter((x) => x === 'put')).toHaveLength(1);
+      expect(bytesAcuse).toBeGreaterThan(0);
+      expect(bytesAcuse).toBeLessThan(4096);
+      const antes = [...llamadas];
+      await page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      soltar();
+      await expect.poll(async () => (await ledgerNavegador(page))[0]?.fase).toBe('respaldada');
+      expect(llamadas).toEqual(antes);
+      await page.evaluate(() => {
+        Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+        document.dispatchEvent(new Event('visibilitychange'));
+      });
+      await page.keyboard.press('Escape');
+      await expect(bloque(page).locator('.fotos-remotas-estado')).toContainText('Ahorro de datos');
+      await anadirVarias(page, ['pendiente.png']);
+      await page.waitForTimeout(100);
+      expect(llamadas).toEqual(antes);
+      expect(originales(llamadas)).toEqual([]);
+    } finally { soltar(); pausaAcuse = null; }
+  });
+
+  test('UX · ahorro no consulta ni descarga fotos; permiso temporal deja verlas sin cambiar la preferencia', async ({ page }) => {
+    await login(page, 'editor-uno');
+    await abrirFixture(page, '?ahorro&datos'); llamadas = [];
+    const b = bloque(page);
+    await b.locator('[data-fotos-alternar]').click();
+    await expect(b.locator('.fotos-remotas-estado')).toContainText('Ahorro de datos');
+    expect(llamadas).toEqual([]);
+    await b.getByRole('button', { name: 'Permitir fotos durante esta visita' }).click();
+    await expect(b.locator('.fotos-remotas-estado')).not.toContainText('Ahorro de datos');
+    await expect(page.getByRole('radio', { name: 'Datos limitados' })).toBeChecked();
+  });
+
+  test('UX · ilimitados sube sin quedarse en Ajustes; ahorro corta la cola y no reenvía la incierta', async ({ page }) => {
+    await login(page, 'editor-uno');
+    await abrirFixture(page, '?ahorro&datos');
+    await anadirVarias(page, ['primera.png', 'segunda.png']);
+    llamadas = [];
+    const retenidas: (() => void)[] = [];
+    await page.route((u) => u.pathname === '/api/fotos/respaldo', async (r) => {
+      const respuesta = await r.fetch();
+      await new Promise<void>((ok) => retenidas.push(ok));
+      await r.fulfill({ response: respuesta }).catch(() => {});
+    });
+    await page.getByRole('radio', { name: 'Datos ilimitados' }).check();
+    await expect.poll(() => retenidas.length).toBe(1);
+    await page.getByRole('radio', { name: 'Datos limitados' }).check();
+    retenidas.shift()!();
+    await expect.poll(async () => (await ledgerNavegador(page))[0]?.fase).toBe('enviada');
+    await page.waitForTimeout(100);
+    expect(llamadas.filter((x) => x.startsWith('POST'))).toHaveLength(1);
+    await page.unrouteAll({ behavior: 'wait' });
+    await page.getByRole('radio', { name: 'Datos ilimitados' }).check();
+    await expect.poll(async () => (await ledgerNavegador(page)).map((x) => x.fase).sort()).toEqual(['enviada', 'respaldada']);
+    expect(llamadas.filter((x) => x.startsWith('POST'))).toHaveLength(2);
+    llamadas = [];
+    await abrirFixture(page, '?ahorro&datos');
+    await expect(page.getByRole('radio', { name: 'Datos ilimitados' })).toBeChecked();
+    await page.waitForTimeout(150);
+    expect(llamadas.filter((x) => x.startsWith('POST'))).toEqual([]);
+  });
+
+  test('UX · ocultar revoca el permiso temporal; volver conserva las locales sin transferencias', async ({ page }) => {
+    await login(page, 'editor-uno');
+    await abrirFixture(page, '?ahorro&datos'); llamadas = [];
+    await anadirVarias(page, ['local.png']);
+    expect(llamadas.filter((x) => x.startsWith('POST') || x.includes('/original'))).toEqual([]);
+    await page.locator('[data-datos-permitir]').first().click();
+    await expect.poll(() => consultados(llamadas).length).toBe(1);
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'hidden' });
+      document.dispatchEvent(new Event('visibilitychange'));
+      Object.defineProperty(document, 'visibilityState', { configurable: true, value: 'visible' });
+      document.dispatchEvent(new Event('visibilitychange'));
+    });
+    llamadas = [];
+    await expect(bloque(page).locator('.fotos-remotas-estado')).toContainText('Ahorro de datos');
+    await expect(bloque(page).locator('[data-foto-id] img')).toHaveCount(1);
+    await page.waitForTimeout(100);
+    expect(llamadas).toEqual([]);
+    await bloque(page).locator('[data-foto-id]').click();
+    await expect(page.locator('#visor-foto .visor-imagen img')).toHaveCount(1);
+    expect(llamadas).toEqual([]);
+  });
+
+  test('UX · la misma rejilla y visor recorren local y compartida sin duplicar ni perder el foco', async ({ page }) => {
+    await sembrarServidor(page, [{ s: remota(fotoUno, 'compartida.png', DESTINO_FIXTURE, 'image/png', pngVista), bytes: pngVista }]);
+    await abrirFixture(page);
+    await anadirVarias(page, ['local.png']);
+    const b = bloque(page);
+    await expect(b.locator('.fotos-rejilla [data-foto-remota]')).toHaveCount(1);
+    await b.locator('[data-foto-id]').click();
+    const visor = page.locator('#visor-foto');
+    await expect(visor.locator('.visor-navegacion')).toContainText('1 de 2 cargadas');
+    await visor.getByRole('button', { name: 'Siguiente', exact: true }).click();
+    await expect(visor.locator('.visor-navegacion')).toContainText('2 de 2 cargadas');
+    await expect(visor.locator('.visor-nombre')).toHaveText('compartida.png');
+    await visor.getByRole('button', { name: 'Anterior', exact: true }).click();
+    await expect(visor.locator('.visor-nombre')).toHaveText('local.png');
+    await page.keyboard.press('Escape');
+    await expect(b.locator('[data-foto-id]')).toBeFocused();
+  });
+
   test('N1 · «Respaldar» en el visor: un POST manual con 201 y, al recargar, nada sale solo', async ({ page }) => {
     await login(page, 'editor-uno'); llamadas = [];
     await abrirFixture(page);
     const b = await anadirFoto(page);
     await expect(b.locator('.fotos-nota'))
-      .toHaveText('Se guardan en este móvil y funcionan sin conexión. Puedes respaldar cada foto en el servidor del viaje desde su visor.');
+      .toHaveText('Tus fotos se guardan primero en este móvil. Las compartidas se ven según tu elección de datos en Ajustes.');
     const visor = await abrirVisor(page);
     await expect(visor.locator('.visor-respaldo-nota')).toHaveText('Sin respaldo confirmado en este móvil.');
     const respaldar = visor.locator('[data-visor-respaldar]');
@@ -999,10 +1203,12 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
     const antes = await escrituras(page);
     const b = await abrirFotos(page, D_PARADA);
     await expect(b.locator(`[data-foto-remota="${fotoUno}"] img`)).toHaveCount(1);
-    await expect.poll(() => urlsVivas(page)).toBe(1);
-    // La sesión deja de valer: «Ver más compartidas» recibe 401 y se limpian las vistas.
+    await expect(b.locator('[data-foto-remota] img')).toHaveCount(2);
+    // Reabrir consulta metadata nueva: el 401 limpia todas las vistas.
+    const originalesAntesDe401 = originales(llamadas);
     await page.context().clearCookies();
-    await b.getByRole('button', { name: 'Ver más compartidas' }).click();
+    await b.locator('[data-fotos-alternar]').click();
+    await b.locator('[data-fotos-alternar]').click();
     await expect(b.locator('.fotos-remotas-estado')).toHaveText(SIN_SESION_REMOTA);
     await expect(b.locator('[data-foto-remota]')).toHaveCount(0);
     await expect.poll(() => urlsVivas(page)).toBe(0);
@@ -1012,8 +1218,8 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
     await b.locator('[data-fotos-alternar]').click();
     await expect(b.locator('.fotos-remotas-estado')).toHaveText(SIN_SESION_REMOTA);
     await expect(b.locator('[data-foto-remota]')).toHaveCount(0);
-    expect(originales(llamadas)).toEqual([`GET /api/fotos/${fotoUno}/original`]);
-    expect(consultados(llamadas)).toEqual([D_PARADA, D_PARADA, D_PARADA]);
+    expect(originales(llamadas)).toEqual(originalesAntesDe401);
+    expect(consultados(llamadas)).toEqual([D_PARADA, D_PARADA, D_PARADA, D_PARADA]);
     expect((await escrituras(page)).slice(antes.length)).toEqual([]);
     expect(await rastro(page, [fotoUno, fotoDos])).toEqual([]);
   });
@@ -1027,7 +1233,7 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
       const b = await abrirFotos(page, D_PARADA);
       const celda = b.locator(`[data-foto-remota="${fotoUno}"]`);
       await expect(celda).toContainText('Sin vista segura');
-      await expect(b.locator('.fotos-remotas img')).toHaveCount(0);
+      await expect(b.locator('.fotos-remotas-lista img')).toHaveCount(0);
       expect(originales(llamadas)).toEqual([]);
       await celda.click();
       const visor = page.locator('#visor-foto');
@@ -1060,6 +1266,7 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
       const visor = page.locator('#visor-foto');
       await expect(visor.locator('.visor-imagen img')).toHaveCount(1);
       // La sesión deja de valer justo antes de guardar.
+      const originalesAntesDe401 = originales(llamadas);
       await page.context().clearCookies();
       await visor.locator('[data-visor-guardar-remota]').click();
       await expect(visor.locator('.visor-aviso')).toHaveText('Este móvil no tiene sesión en el servidor: no se ha guardado nada.');
@@ -1072,7 +1279,7 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
       await expect.poll(() => urlsVivas(page)).toBe(1);
       await expect(propia.locator('[data-foto-id] img')).toHaveCount(1);
       expect(await fotoNavegador(page, fotoUno)).toEqual({ metadatos: null, original: null });
-      expect(originales(llamadas)).toEqual([`GET /api/fotos/${fotoUno}/original`, `GET /api/fotos/${fotoUno}/original`]);
+      expect(originales(llamadas).slice(originalesAntesDe401.length)).toEqual([`GET /api/fotos/${fotoUno}/original`]);
     });
 
   test('N15 · sin IntersectionObserver no se pide ningún original hasta tocar una celda; el visor pide solo esa y plegar suelta su vista',
@@ -1086,7 +1293,7 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
         .toBe('undefined');
       const b = await abrirFotos(page, D_PARADA);
       await expect(b.locator(`[data-foto-remota="${fotoUno}"]`)).toHaveCount(1);
-      await b.getByRole('button', { name: 'Ver más compartidas' }).click();
+      await b.getByRole('button', { name: 'Cargar más fotos' }).click();
       await expect(b.locator('[data-foto-remota]')).toHaveCount(2);
       await page.waitForTimeout(400);
       // La metadata sí (dos consultas por toque); ningún original sin saber qué se ve.
@@ -1313,7 +1520,7 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
     await expect(lote.locator('.estado-lote')).toHaveText(
       `¿Respaldar 2 fotos añadidas aquí con la cámara o la galería (≈ ${pesoLegible(2 * pngVista.length)} de originales)?`);
     await expect(lote.locator('.detalle-lote')).toHaveText(
-      `Se envían de una en una al servidor del viaje; los datos móviles pueden tener coste. ${FUERA_UNA}`);
+      `Se envían de una en una al servidor del viaje; los datos móviles pueden tener coste. Confirmar permite transferencias durante esta visita, hasta ocultar la app. No detectamos wifi. ${FUERA_UNA}`);
     await expect(lote.getByRole('button', { name: 'Respaldar 2 fotos' })).toBeFocused();
     // Contar no consulta, prepara ni envía nada.
     expect(llamadas).toEqual([]);
@@ -1387,7 +1594,7 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
     await expect(page.locator('.estado-fotos-viaje')).toHaveText('1 respaldada · 1 sin confirmar');
   });
 
-  test('N21 · repintar «Todo» (como al cargar el mapa) no corta el lote; salir de «Todo» sí, y volver no lo reanuda',
+  test('N21 · repintar o salir de Ajustes no corta el lote confirmado mientras la app siga visible',
     async ({ page }) => {
       await login(page, 'editor-uno'); llamadas = [];
       await abrirFixture(page);
@@ -1415,17 +1622,14 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
       await expect.poll(() => llegadas).toBe(2);
       await expect(lote().locator('.estado-lote')).toHaveText('Respaldando: 1 de 3 confirmadas por el servidor.');
 
-      // Salir de «Todo» con la segunda en vuelo: se corta; al volver, nada se reanuda solo.
+      // Salir con la segunda en vuelo: la tercera sigue sin exigir permanecer en Ajustes.
       await page.evaluate(() => window.fixtureUi!.salirDeTodo());
       retenidas.shift()!();
       await page.evaluate(() => window.fixtureUi!.volverATodo());
-      // El estado final solo se pinta cuando el lote ya salió de su bucle: no puede salir ningún POST más.
-      await expect(lote().locator('.estado-lote')).toHaveText('Se detuvo al salir de esta vista: 1 de 3 confirmadas.');
-      await expect(lote().locator('.detalle-lote')).toHaveText(
-        'Para seguir, vuelve a respaldar las pendientes. 1 para revisar aparte (sin confirmar).');
-      await expect(lote().getByRole('button')).toHaveText(['Respaldar pendientes']);
-      expect(llegadas).toBe(2);
-      expect(llamadas).toEqual(['POST /api/fotos/respaldo', 'POST /api/fotos/respaldo']);
+      await expect.poll(() => llegadas).toBe(3);
+      retenidas.shift()!();
+      await expect(lote().locator('.estado-lote')).toHaveText('Lote terminado: 3 de 3 confirmadas por el servidor.');
+      expect(llamadas).toEqual(Array(3).fill('POST /api/fotos/respaldo'));
     });
 
   for (const [ancho, alto] of [[390, 844], [360, 640]] as const) {

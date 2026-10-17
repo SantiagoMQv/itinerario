@@ -1,3 +1,4 @@
+import { crearPoliticaFotos, MODOS_FOTOS } from './fotos-datos';
 import type { Itinerario } from './tipos';
 import { copiarMetadatos, crearCapturaFoto, esDestinoActivo, esDestinoFoto, esFotoBorrada, tamanoBlob, tipoBlob,
   type CapturaFoto, type DestinoFoto, type MetadatosFoto } from './fotos';
@@ -623,11 +624,15 @@ export interface FotosUi {
   readonly respaldoActivo: boolean;
   /** Monta «Fotos del viaje» en su sección de «Todo»; sin composición no hace nada. */
   montarFotosViaje(contenedor: HTMLElement): void;
+  montarDatos(contenedor: HTMLElement): void;
+  permitirDatos(): void;
+  tomar(destino: DestinoFoto): void;
+  abrirAlbum(contenedor: HTMLElement): void;
   /** «Sitios que ya no están en el plan» en «Todo»: el bloque «Fotos» de cada destino retirado con fotos en este móvil,
    * sin captura. Con o sin composición (también en la web publicada): solo lee metadata local, sin red. Vacía, oculta. */
   montarRetiradas(contenedor: HTMLElement): void;
   /** Bloque «Fotos» (solo atributos con IDs del plan y texto escapado) para incrustar en la ficha. */
-  html(destino: DestinoFoto): string;
+  html(destino: DestinoFoto, prefijo?: string): string;
   /** Delegación de clics: devuelve true si el clic era de fotos (va antes que los manejadores de fila). */
   manejarClic(objetivo: Element): boolean;
   /** Abre la base (solo metadata) y pinta los recuentos. */
@@ -663,7 +668,7 @@ const TEXTO_ESTADO: Record<EstadoEntrada, string> = {
 const ICONO_CAMARA = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l1.6-2.2h6.8L17 8h3v11H4z" /><circle cx="12" cy="13.2" r="3.4" /></svg>';
 const ICONO_CERRAR = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18" /></svg>';
 const NOTA = 'Se guardan solo en este móvil y funcionan sin conexión. Por ahora no se comparten con el otro móvil ni tienen copia de seguridad.';
-const NOTA_RESPALDO = 'Se guardan en este móvil y funcionan sin conexión. Puedes respaldar cada foto en el servidor del viaje desde su visor.';
+const NOTA_RESPALDO = 'Tus fotos se guardan primero en este móvil. Las compartidas se ven según tu elección de datos en Ajustes.';
 const NOTA_RETIRADA = 'Este sitio ya no está en el plan: sus fotos siguen guardadas en este móvil, pero no se pueden añadir nuevas.';
 const CONFIRMAR_BORRADO = '¿Borrar esta foto de este móvil? Se borran el original y su vista previa; no se puede deshacer.';
 
@@ -689,7 +694,18 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
   const controlador = opciones.controlador ?? crearFotosInterfaz({ plan, alCambiar: (clave) => alCambiar(clave) });
   // Gate de composición: con null no se construye nada (ni ledger, ni red, ni texto nuevo). Sin IO al crearse.
   const composicion = opciones.respaldo ?? null;
-  const respaldo: RespaldoFotos | null = componerRespaldoFotos(composicion, { plan,
+  const redPermitida = () => politica.permitida && navigator.onLine !== false;
+  const httpFotos: typeof fetch = async (entrada, init) => {
+    if (!redPermitida()) throw new Error('Transferencias de fotos pausadas.');
+    const control = new AbortController(); permisosEnCurso.add(control);
+    const abortar = () => control.abort();
+    const origen = init?.signal ?? (entrada instanceof Request ? entrada.signal : undefined);
+    origen?.addEventListener('abort', abortar, { once: true });
+    if (origen?.aborted) control.abort();
+    try { return await fetch(entrada, { ...init, signal: control.signal }); }
+    finally { permisosEnCurso.delete(control); /* El signal de origen conserva el aborto durante la lectura del cuerpo. */ }
+  };
+  const respaldo: RespaldoFotos | null = componerRespaldoFotos(composicion, { plan, fetch: httpFotos, enLinea: redPermitida,
     puerto: () => controlador.puerto?.() ?? null,
     incorporar: (m) => {
       controlador.incorporar?.(m);
@@ -699,7 +715,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     },
     alCambiar: (que) => alCambiarRespaldo(que) });
   // Compartidas de cada ficha, con la MISMA composición (null: ni recepción, ni listado, ni red). Sin IO al crearse.
-  const remotas: FotosRemotas | null = componerFotosRemotas(composicion, { plan,
+  const remotas: FotosRemotas | null = componerFotosRemotas(composicion, { plan, fetch: httpFotos, enLinea: redPermitida,
     puerto: () => controlador.puerto?.() ?? null,
     alCambiar: (destino) => alCambiarRemotas(destino),
     // Un 401 de las compartidas suelta también las candidatas del catálogo global (y lo pendiente del visor).
@@ -707,6 +723,78 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
   let seccion: SeccionFotosViaje | null = null;
   /** Sección de sitios retirados de «Todo» y la lista de destinos que pinta (solo se sustituye si cambia). */
   let retiradas: { contenedor: HTMLElement; firma: string } | null = null;
+
+  let almacenDatos: Storage | null = null;
+  try { almacenDatos = localStorage; } catch { /* Ahorro si no hay preferencias legibles. */ }
+  let datosContenedor: HTMLElement | null = null;
+  let automaticoOcupado = false;
+  let otraPasadaAutomatica = false;
+  let automatismoBloqueado = false;
+  const politica = crearPoliticaFotos(almacenDatos, aplicarDatos);
+  const permisosEnCurso = new Set<AbortController>();
+  if (composicion && !politica.permitida) remotas?.suspender();
+  function pintarDatos() {
+    if (!datosContenedor) return;
+    // Controles estables: cambiar el modo con las flechas no destruye el radio que conserva el foco.
+    if (!datosContenedor.querySelector('[name="datos-fotos"]')) datosContenedor.innerHTML = `<h3>Datos de las fotos</h3>
+      <p>Elige cuándo usar internet. La app no puede asegurar que estés en wifi.</p>
+      <label class="opcion-datos"><input type="radio" name="datos-fotos" value="ahorro"> Datos limitados</label>
+      <p class="cifras">Tus fotos siempre se ven. Las compartidas no se consultan ni descargan sin tu permiso.</p>
+      <label class="opcion-datos"><input type="radio" name="datos-fotos" value="ilimitados"> Datos ilimitados</label>
+      <p class="cifras">Sube las pendientes y carga las compartidas visibles, también con datos móviles. Solo mientras la app esté abierta y visible.</p>
+      <p role="status"></p>
+      <div data-datos-temporal><button class="boton" type="button" data-datos-permitir>Permitir fotos durante esta visita</button><p class="cifras">Puede consumir datos móviles (hasta 8 MB por foto). Al ocultar o salir de la app, tendrás que permitirlo otra vez.</p></div>`;
+    for (const input of datosContenedor.querySelectorAll<HTMLInputElement>('[name="datos-fotos"]')) {
+      input.checked = input.value === politica.modo;
+    }
+    datosContenedor.querySelector('[role="status"]')!.textContent = politica.permitida
+      ? 'Transferencias permitidas mientras usas la app.' : 'Ahorro activo. No se transfieren fotos.';
+    datosContenedor.querySelector<HTMLElement>('[data-datos-temporal]')!.hidden = politica.modo !== 'ahorro' || politica.permitida;
+  }
+  function aplicarDatos() {
+    if (!politica.permitida) {
+      for (const c of permisosEnCurso) c.abort();
+      remotas?.suspender(); respaldo?.abandonarLote(); respaldo?.cancelarGuardado(); respaldo?.cancelarListado();
+    } else {
+      remotas?.reanudar();
+      for (const clave of abiertos.keys()) {
+        const d = destinoDeClave(plan, clave);
+        if (d && !visorFoto) { const sesion = remotas?.sesion(d); if (sesion) void sesion.refrescar(); else remotas?.abrir(d); }
+      }
+      automatismoBloqueado = false;
+      void subirAutomaticamente();
+    }
+    pintarDatos();
+    for (const [clave, bloque] of abiertos) if (bloque.isConnected) pintarPanel(clave, bloque);
+  }
+  async function subirAutomaticamente() {
+    if (!respaldo || !politica.automatica || !redPermitida() || automatismoBloqueado || controlador.fase !== 'lista') return;
+    if (automaticoOcupado) { otraPasadaAutomatica = true; return; }
+    if (respaldo.lote.tipo === 'enviando' || respaldo.lote.tipo === 'contando') return;
+    automaticoOcupado = true;
+    try {
+      await respaldo.contarLote();
+      if (politica.automatica && redPermitida() && respaldo.lote.tipo === 'propuesta') {
+        await respaldo.confirmarLote();
+        if ((respaldo.lote as { tipo: string }).tipo === 'detenido') automatismoBloqueado = true;
+      }
+    } finally {
+      automaticoOcupado = false;
+      if (otraPasadaAutomatica) { otraPasadaAutomatica = false; void subirAutomaticamente(); }
+    }
+  }
+  if (composicion) {
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'hidden') politica.suspender(); else politica.reanudar();
+    });
+    addEventListener('pagehide', () => politica.suspender());
+    addEventListener('pageshow', () => { if (document.visibilityState !== 'hidden') politica.reanudar(); });
+    queueMicrotask(() => {
+      if (document.visibilityState === 'hidden') politica.suspender();
+      else if (politica.automatica) void controlador.abrir();
+    });
+    addEventListener('online', () => { if (document.visibilityState !== 'hidden') politica.reanudar(); });
+  }
 
   function alCambiar(clave: ClaveDestino | null) {
     for (const [c, bloque] of abiertos) {
@@ -719,7 +807,12 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     pintarCuentas();
     if (visorFoto) actualizarVisor();
     // Al abrirse (o fallar) las fotos de este móvil, «Fotos del viaje» ya puede leer su estado local.
-    if (clave === null) seccion?.alCambiar({ tipo: 'resumen' });
+    if (clave === null) {
+      seccion?.alCambiar({ tipo: 'resumen' }); void subirAutomaticamente();
+      if (controlador.fase === 'lista' && respaldo) void respaldo.resumen().then(() => {
+        for (const [c, bloque] of abiertos) if (bloque.isConnected) pintarPanel(c, bloque);
+      }).catch(() => {});
+    }
   }
   /** Repinta desde lo ya leído del ledger (0 IO): la línea del visor de ESA foto y «Fotos del viaje». */
   function alCambiarRespaldo(que: CambioRespaldo): void {
@@ -727,6 +820,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     if (que.tipo === 'sin-sesion') { perderSesionUi('respaldo'); return; }
     if (que.tipo === 'foto' && visorFoto === que.fotoId && respaldo) pintarRespaldo(que.fotoId, respaldo.estado(que.fotoId));
     seccion?.alCambiar(que);
+    for (const [c, bloque] of abiertos) if (bloque.isConnected && que.tipo === 'foto') pintarPanel(c, bloque);
   }
   /** Repinta las compartidas de ese destino (null: de todos) y, si es la suya, el visor abierto. */
   function alCambiarRemotas(destino: DestinoFoto | null) {
@@ -737,6 +831,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       else cerrarAbierto(c);
     }
     if (visorFoto && visorRemoto && (clave === null || claveDestino(visorRemoto) === clave)) actualizarVisorRemoto();
+    if (visorFoto) pintarNavegacionVisor();
   }
   function cerrarAbierto(clave: ClaveDestino) {
     const bloque = abiertos.get(clave);
@@ -744,7 +839,11 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     const destino = destinoDeClave(plan, clave);
     if (destino) controlador.cerrarVisita(destino);
     // Cerrar el bloque cierra su consulta, corta su original en curso y revoca sus vistas temporales.
-    if (bloque) for (const b of bloque.querySelectorAll('[data-foto-remota]')) observador?.unobserve(b);
+    if (bloque) {
+      for (const b of bloque.querySelectorAll('[data-foto-remota]')) observador?.unobserve(b);
+      const mas = bloque.querySelector('[data-remotas-mas]');
+      if (mas) { paginasObservador?.unobserve(mas); paginasVisibles.delete(mas); }
+    }
     if (destino) remotas?.cerrar(destino);
   }
   /** Solo lo que de verdad se ve pide su original: el observador avisa a la sesión de su destino. */
@@ -760,10 +859,10 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
   if (remotas) {
     // En segundo plano se corta el original en curso; al salir de la página se sueltan todas las vistas temporales.
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'hidden') remotas.suspender(); else remotas.reanudar();
+      if (document.visibilityState === 'hidden') remotas.suspender(); else if (politica.permitida) remotas.reanudar();
     });
     addEventListener('pagehide', () => { remotas.suspender(); remotas.soltarVistas(); });
-    addEventListener('pageshow', () => { if (document.visibilityState !== 'hidden') remotas.reanudar(); });
+    addEventListener('pageshow', () => { if (document.visibilityState !== 'hidden' && politica.permitida) remotas.reanudar(); });
   }
 
   // ----- Sitios que ya no están en el plan («Todo») -----
@@ -786,9 +885,9 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
   }
 
   // ----- Bloque y panel -----
-  function html(destino: DestinoFoto): string {
+  function html(destino: DestinoFoto, prefijo = ''): string {
     const clave = claveDestino(destino);
-    const id = `fotos-${clave.replace(/:/g, '-')}`;
+    const id = `${prefijo}fotos-${clave.replace(/:/g, '-')}`;
     return `<div class="fotos" data-fotos-destino="${escapar(clave)}">
       <button type="button" class="mini fotos-alternar" data-fotos-alternar aria-expanded="false" aria-controls="${escapar(id)}">${ICONO_CAMARA}Fotos<span class="fotos-cuenta"></span><span class="sr"> de «${escapar(nombreDe(destino))}»</span></button>
       <div class="fotos-panel" id="${escapar(id)}" hidden></div>
@@ -800,7 +899,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       const cuenta = bloque.querySelector('.fotos-cuenta');
       if (!destino || !cuenta) continue;
       const n = controlador.fase === 'lista' ? controlador.cuenta(destino) : 0;
-      const texto = n ? ` · ${n}` : '';
+      const texto = n ? ` · ${n} en este móvil` : '';
       if (cuenta.textContent !== texto) cuenta.textContent = texto;
     }
   }
@@ -825,7 +924,10 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       acciones.append(camara, boton('Elegir de la galería', 'mini', { 'fotos-anadir': '' }));
       // Compartidas (solo con composición): junto a las de este móvil, con su propia línea de estado estable.
       const compartidas = remotas ? [esqueletoRemotas()] : [];
-      panel.replaceChildren(estado, error, lista, sesion, vacio, ...compartidas, acciones,
+      const rejilla = elemento('div', 'fotos-rejilla');
+      rejilla.append(lista);
+      if (remotas) rejilla.append(elemento('ul', 'fotos-lista fotos-remotas-lista'));
+      panel.replaceChildren(acciones, estado, error, rejilla, sesion, vacio, ...compartidas,
         elemento('p', 'cifras fotos-nota', respaldo ? NOTA_RESPALDO : NOTA));
     }
     const foco = document.activeElement instanceof HTMLElement && panel.contains(document.activeElement) ? document.activeElement : null;
@@ -879,6 +981,13 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
         vista.append(elemento('span', 'foto-texto', e.estado === 'guardada' ? 'Vista previa' : TEXTO_ESTADO[e.estado]));
       }
       b.append(vista);
+      if (respaldo) {
+        const estado = respaldo.estado(e.fotoId)?.tipo;
+        const situacion = estado === 'respaldada' ? 'Compartida' : estado === 'enviando' ? 'Subiendo…'
+          : estado === 'sin-confirmar' ? 'Sin confirmar' : estado === 'pausado' ? 'En pausa'
+            : estado === 'bloqueada' || estado === 'ilegible' ? 'Revisar' : 'En este móvil';
+        b.append(elemento('span', 'foto-situacion', situacion));
+      }
       li.append(b);
       return li;
     }));
@@ -920,7 +1029,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     caja.hidden = true;
     const linea = elemento('p', 'fotos-remotas-estado');
     linea.setAttribute('role', 'status');
-    caja.append(elemento('p', 'subs-titulo', 'Compartidas'), linea, elemento('ul', 'fotos-lista fotos-remotas-lista'),
+    caja.append(linea,
       elemento('div', 'acciones-bloque fotos-remotas-acciones'));
     return caja;
   }
@@ -945,17 +1054,26 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       img.src = f.vista.url;
       vista.append(img);
     } else vista.append(elemento('span', 'foto-texto', textoCeldaRemota(f.vista)));
-    b.replaceChildren(vista);
+    b.replaceChildren(vista, elemento('span', 'foto-situacion', 'Compartida'));
   }
   function pintarRemotas(destino: DestinoFoto, panel: HTMLElement) {
     const caja = panel.querySelector<HTMLElement>('.fotos-remotas');
     if (!caja || !remotas) return;
+    if (!politica.permitida) {
+      caja.hidden = false;
+      const linea = caja.querySelector<HTMLElement>('.fotos-remotas-estado')!;
+      linea.textContent = 'Ahorro de datos: las fotos compartidas están pausadas. Tus fotos siguen aquí. Permitirlas puede consumir datos móviles (hasta 8 MB por foto); el permiso termina al ocultar o salir de la app. No podemos detectar wifi.';
+      panel.querySelector('.fotos-remotas-lista')?.replaceChildren();
+      caja.querySelector<HTMLElement>('.fotos-remotas-acciones')!.dataset.firma = 'ahorro';
+      caja.querySelector('.fotos-remotas-acciones')!.replaceChildren(boton('Permitir fotos durante esta visita', 'boton', { 'datos-permitir': '' }));
+      return;
+    }
     const s = remotas.sesion(destino);
     // Hasta que la sesión exista (se abre tras las fotos de este móvil, para no duplicar), no se enseña nada.
     caja.hidden = !s;
     if (!s) return;
     const linea = caja.querySelector<HTMLElement>('.fotos-remotas-estado')!;
-    const lista = caja.querySelector<HTMLElement>('.fotos-remotas-lista')!;
+    const lista = panel.querySelector<HTMLElement>('.fotos-remotas-lista')!;
     const acciones = caja.querySelector<HTMLElement>('.fotos-remotas-acciones')!;
     const fotos = s.fotos;
     const texto = textoEstadoRemotas(s.estado, fotos.length, nombreDe(destino));
@@ -987,7 +1105,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     }
     const botones: HTMLElement[] = [];
     const e = s.estado;
-    if (e.tipo === 'lista' && e.hayMas) botones.push(boton('Ver más compartidas', 'mini', { 'remotas-mas': '' }));
+    if ((e.tipo === 'lista' && e.hayMas) || (e.tipo === 'consultando' && e.mas)) botones.push(boton('Cargar más fotos', 'mini', { 'remotas-mas': '' }));
     else if (e.tipo === 'sin-conexion' || (e.tipo === 'fallo' && e.motivo !== 'sin-sesion')) {
       botones.push(boton('Reintentar', 'mini', { 'remotas-reintentar': '' }));
     } else if (e.tipo === 'fallo' && e.motivo === 'sin-sesion' && enLinea()) {
@@ -998,7 +1116,45 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     }
     const firma = botones.map((b) => b.outerHTML).join('');
     if (acciones.dataset.firma !== firma) { acciones.dataset.firma = firma; acciones.replaceChildren(...botones); }
+    const mas = acciones.querySelector('[data-remotas-mas]');
+    if (mas) paginasObservador?.observe(mas);
   }
+  let albumObservador: IntersectionObserver | null = null;
+  const paginando = new Set<string>();
+  const paginasVisibles = new WeakSet<Element>();
+  async function cargarPaginas(d: DestinoFoto, explicito = false) {
+    const clave = claveDestino(d);
+    if (!redPermitida() || visorFoto || paginando.has(clave)) return;
+    const sesion = remotas?.sesion(d);
+    const bloque = abiertos.get(clave);
+    const mas = bloque?.querySelector<HTMLElement>('[data-remotas-mas]');
+    if (!sesion || !mas || sesion.estado.tipo !== 'lista' || !sesion.estado.hayMas) return;
+    const seguir = () => redPermitida() && !visorFoto && abiertos.get(clave) === bloque
+      && remotas?.sesion(d) === sesion && mas.isConnected && !mas.closest('[hidden], [inert]')
+      && (paginasVisibles.has(mas) || (explicito && mas.getBoundingClientRect().bottom > 0
+        && mas.getBoundingClientRect().top < innerHeight));
+    if (!seguir()) return;
+    paginando.add(clave);
+    try { await sesion.cargarSiguientes(seguir); }
+    finally {
+      paginando.delete(clave);
+      paginasObservador?.unobserve(mas);
+      paginasVisibles.delete(mas);
+      // Cada tramo cede al navegador y vuelve a comprobar la intersección. Avanzar el cursor también es progreso
+      // cuando todas las páginas eran copias locales; no exige otro toque ni eleva el límite del tramo.
+      requestAnimationFrame(() => {
+        const siguiente = abiertos.get(clave)?.querySelector('[data-remotas-mas]');
+        if (redPermitida() && abiertos.get(clave) === bloque && siguiente) paginasObservador?.observe(siguiente);
+      });
+    }
+  }
+  const paginasObservador = typeof IntersectionObserver === 'function' ? new IntersectionObserver((entradas) => {
+    for (const e of entradas) {
+      if (e.isIntersecting) paginasVisibles.add(e.target); else paginasVisibles.delete(e.target);
+      const d = destinoDeClave(plan, (e.target as HTMLElement).closest<HTMLElement>('[data-fotos-destino]')?.dataset.fotosDestino ?? '');
+      if (e.isIntersecting && d && politica.permitida) void cargarPaginas(d);
+    }
+  }) : null;
   const enLinea = () => typeof navigator === 'undefined' || navigator.onLine !== false;
 
   async function alternar(bloque: HTMLElement) {
@@ -1019,7 +1175,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     if (controlador.fase === 'cerrada' || controlador.fase === 'abriendo') await controlador.abrir();
     if (abiertos.get(clave) !== bloque) return;
     // Compartidas de ESTE destino, una vez abiertas las de este móvil (así no se repite lo que ya está aquí).
-    remotas?.abrir(destino);
+    if (politica.permitida) remotas?.abrir(destino);
     pintarPanel(clave, bloque);
   }
 
@@ -1061,6 +1217,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     return input;
   }
   async function guardarDesdeUi(destino: DestinoFoto, clave: ClaveDestino, archivo: File) {
+    if (controlador.fase !== 'lista') await controlador.abrir();
     mensajes.set(clave, 'Guardando…');
     alCambiar(clave);
     let r: ResultadoGuardar;
@@ -1072,17 +1229,14 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     // Con el panel abierto ya lo dice su línea de estado (región viva); si se cerró, un aviso.
     if (!abiertos.has(clave)) anunciar(texto);
     alCambiar(clave);
+    if (r.tipo === 'guardada') void subirAutomaticamente();
   }
   function elegir(bloque: HTMLElement, origen: 'camara' | 'galeria') {
     const clave = bloque.dataset.fotosDestino ?? '';
     const destino = destinoDeClave(plan, clave);
     // Fotos nuevas solo en destinos del plan actual: uno retirado no tiene «Tomar foto» ni galería.
     if (!destino || !esDestinoActivo(plan, destino)) return;
-    if (controlador.fase !== 'lista') {
-      mensajes.set(clave, controlador.fase === 'fallo' ? 'Primero hay que abrir las fotos de este móvil (Reintentar).' : 'Aún se están abriendo las fotos de este móvil.');
-      alCambiar(clave);
-      return;
-    }
+    if (controlador.fase === 'cerrada') void controlador.abrir();
     const input = selector();
     intento = { destino, clave, usado: false };
     input.value = '';
@@ -1109,6 +1263,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
   let genVisor = 0;
   let urlsVisor: string[] = [];
   let historial = false;
+  const inertesAntes = new Map<HTMLElement, boolean>();
   function datosFoto(id: string): { entrada: EntradaFoto; destino: DestinoFoto; bloque: HTMLElement | undefined } | null {
     for (const [clave, bloque] of abiertos) {
       const destino = destinoDeClave(plan, clave);
@@ -1125,6 +1280,21 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     v.setAttribute('aria-labelledby', 'visor-foto-titulo');
     v.hidden = true;
     v.addEventListener('click', (e) => { void clicVisor(e.target as Element); });
+    v.addEventListener('keydown', (e) => {
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') { e.preventDefault(); moverVisor(e.key === 'ArrowLeft' ? -1 : 1); }
+    });
+    let inicio: { x: number; y: number } | null = null;
+    v.addEventListener('touchstart', (e) => {
+      const t = e.touches[0]; inicio = e.touches.length === 1 && t ? { x: t.clientX, y: t.clientY } : null;
+    }, { passive: true });
+    v.addEventListener('touchend', (e) => {
+      const t = e.changedTouches[0];
+      if (inicio && t) {
+        const dx = t.clientX - inicio.x; const dy = t.clientY - inicio.y;
+        if (Math.abs(dx) > 64 && Math.abs(dx) > Math.abs(dy) * 2) moverVisor(dx < 0 ? 1 : -1);
+      }
+      inicio = null;
+    }, { passive: true });
     document.body.append(v);
     return v;
   }
@@ -1242,9 +1412,13 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
   function mostrarVisor() {
     if (!visor) return;
     visor.hidden = false;
-    for (const n of document.body.children) if (n !== visor && n.tagName !== 'SCRIPT') (n as HTMLElement).inert = true;
-    history.pushState({ visorFoto: true }, '');
+    for (const n of document.body.children) if (n !== visor && n.tagName !== 'SCRIPT') {
+      if (!historial) inertesAntes.set(n as HTMLElement, (n as HTMLElement).inert);
+      (n as HTMLElement).inert = true;
+    }
+    if (!historial) history.pushState({ visorFoto: true }, '');
     historial = true;
+    pintarNavegacionVisor();
     visor.querySelector<HTMLElement>('[data-visor-cerrar]')?.focus();
   }
   async function abrirVisor(id: string, origen: HTMLElement) {
@@ -1267,6 +1441,33 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
   }
   /** Si ya no existe lo que abrió el visor ni su foto (se borró la última de un sitio retirado y con ella su fila o
    * la sección entera): el título visible de la sección de sitios retirados o, si tampoco está, el de quien compone. */
+  function fotosVisor(): HTMLElement[] {
+    const destino = visorRemoto ?? (visorFoto ? datosFoto(visorFoto)?.destino : null);
+    const bloque = destino ? abiertos.get(claveDestino(destino)) : abridor?.closest('[data-fotos-destino]');
+    return bloque ? [...bloque.querySelectorAll<HTMLElement>('[data-foto-id], [data-foto-remota]')] : [];
+  }
+  function pintarNavegacionVisor() {
+    if (!visor) return;
+    visor.querySelector('.visor-navegacion')?.remove();
+    const fotos = fotosVisor();
+    const i = fotos.findIndex((b) => (b.dataset.fotoId ?? b.dataset.fotoRemota) === visorFoto);
+    const n = elemento('nav', 'visor-navegacion'); n.setAttribute('aria-label', 'Recorrer fotos');
+    const anterior = boton('Anterior', 'boton', { 'visor-paso': '-1' }); anterior.disabled = i <= 0;
+    const siguiente = boton('Siguiente', 'boton', { 'visor-paso': '1' }); siguiente.disabled = i < 0 || i >= fotos.length - 1;
+    n.append(anterior, elemento('span', '', `${i + 1} de ${fotos.length} cargadas`), siguiente);
+    visor.querySelector('.visor-cabecera')?.append(n);
+  }
+  function moverVisor(paso: number) {
+    const fotos = fotosVisor();
+    const i = fotos.findIndex((b) => (b.dataset.fotoId ?? b.dataset.fotoRemota) === visorFoto);
+    const siguiente = fotos[i + paso];
+    if (!siguiente) return;
+    const d = destinoDeClave(plan, siguiente.closest<HTMLElement>('[data-fotos-destino]')?.dataset.fotosDestino ?? '');
+    if (siguiente.dataset.fotoId) void abrirVisor(siguiente.dataset.fotoId, siguiente);
+    else if (d && siguiente.dataset.fotoRemota && politica.permitida) {
+      const sesion = remotas?.sesion(d); if (sesion) abrirVisorRemoto(sesion, siguiente.dataset.fotoRemota, siguiente);
+    }
+  }
   function refugioFoco(): HTMLElement | null {
     const c = retiradas?.contenedor;
     const titulo = c && c.isConnected && !c.hidden ? c.querySelector<HTMLElement>('h3') : null;
@@ -1282,7 +1483,8 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     const guardada = guardadaRemota !== null && guardadaRemota === id ? visorRemoto : null;
     soltarRemotaDelVisor();
     visorFoto = null;
-    for (const n of document.body.children) (n as HTMLElement).inert = false;
+    for (const [n, antes] of inertesAntes) n.inert = antes;
+    inertesAntes.clear();
     if (historial && !desdeHistorial && history.state?.visorFoto) history.back();
     historial = false;
     // Si la miniatura se repintó mientras tanto, el foco vuelve a la misma foto. Una compartida recién guardada
@@ -1290,8 +1492,12 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     const local = [...contenido.querySelectorAll<HTMLElement>('[data-foto-id]')].find((b) => b.dataset.fotoId === id) ?? null;
     const destino = guardada && local ? local : abridor?.isConnected ? abridor : local ?? refugioFoco();
     abridor = null;
-    destino?.focus();
+    destino?.focus({ preventScroll: true });
     if (guardada && id) void remotas?.sesion(guardada)?.reclasificar(id);
+    for (const bloque of abiertos.values()) {
+      const mas = bloque.querySelector('[data-remotas-mas]');
+      if (mas) { paginasObservador?.unobserve(mas); paginasObservador?.observe(mas); }
+    }
     return true;
   }
 
@@ -1432,6 +1638,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     if (foco) (acciones.querySelector<HTMLElement>(`[${foco}]`) ?? botones[0] ?? visor.querySelector<HTMLElement>('[data-visor-cerrar]'))?.focus();
   }
   async function guardarRemota() {
+    if (!politica.permitida) return;
     const datos = remotaDelVisor();
     if (!datos || !respaldo || guardandoRemota) return;
     if (!enLinea()) { avisoVisor('Sin conexión: no se puede guardar ahora.'); return; }
@@ -1491,6 +1698,8 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     const vigenteVisor = () => gen === genVisor && visorFoto === id;
     // Si la foto ya no está (la borró un visor anterior), se dice en vez de afirmar que sigue guardada.
     const siSigue = (texto: string) => datosFoto(id) ? texto : 'Esta foto ya no está en este móvil.';
+    const paso = objetivo.closest<HTMLElement>('[data-visor-paso]');
+    if (paso) { moverVisor(Number(paso.dataset.visorPaso)); return; }
     if (objetivo.closest('[data-visor-cerrar]')) { cerrarVisor(); return; }
     if (visorRemoto) {
       // Compartida: ver no guarda nada; guardar sin conexión es su propia acción.
@@ -1541,6 +1750,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     }
     const enviar = objetivo.closest<HTMLElement>('[data-visor-respaldar], [data-visor-reanudar]');
     if (enviar && respaldo) {
+      if (!politica.permitida) { avisoVisor('Activa las transferencias de fotos en Ajustes antes de subir. Puede consumir datos móviles.'); return; }
       // Un toque, una acción: con la carga en curso la línea de estado ya ofrece «Pausar».
       if (enviar.getAttribute('aria-disabled') === 'true') return;
       enviar.setAttribute('aria-disabled', 'true');
@@ -1650,9 +1860,38 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       // Solo metadata local (0 red): saber si hay fotos de sitios retirados no lee originales ni vistas previas.
       if (controlador.fase === 'cerrada') void controlador.abrir();
     },
+    montarDatos(contenedor) {
+      datosContenedor = contenedor; pintarDatos();
+      contenedor.addEventListener('change', (e) => {
+        const input = e.target as HTMLInputElement;
+        if (input.name === 'datos-fotos') politica.elegir(input.value === 'ilimitados' ? MODOS_FOTOS.ilimitados : MODOS_FOTOS.ahorro);
+      });
+    },
+    permitirDatos() { politica.permitirTemporal(); },
+    tomar(destino) {
+      const bloque = elemento('div'); bloque.dataset.fotosDestino = claveDestino(destino);
+      elegir(bloque, 'camara');
+    },
+    abrirAlbum(contenedor) {
+      albumObservador?.disconnect();
+      if (typeof IntersectionObserver !== 'function') return;
+      albumObservador = new IntersectionObserver((entradas) => {
+        for (const e of entradas) if (e.isIntersecting && e.target.isConnected) {
+          albumObservador?.unobserve(e.target);
+          const bloque = e.target as HTMLElement;
+          if (bloque.querySelector('[aria-expanded="false"]')) void alternar(bloque);
+        }
+      });
+      for (const bloque of contenedor.querySelectorAll<HTMLElement>('[data-fotos-destino]')) albumObservador.observe(bloque);
+    },
     html,
     manejarClic(objetivo) {
-      if (seccion && objetivo.closest('[data-fotos-viaje]')) return seccion.manejarClic(objetivo);
+      if (objetivo.closest('[data-datos-permitir]')) { politica.permitirTemporal(); return true; }
+      if (seccion && objetivo.closest('[data-fotos-viaje]')) {
+        if (!politica.permitida && objetivo.closest('[data-lote-confirmar], [data-lote-continuar]')) politica.permitirTemporal();
+        if (!politica.permitida && objetivo.closest('[data-lote-confirmar], [data-lote-continuar], [data-catalogo-ver], [data-catalogo-siguientes], [data-catalogo-principio], [data-catalogo-reintentar], [data-catalogo-guardar], [data-viaje-reintentar]')) { anunciar('Permite las transferencias de fotos en Ajustes. Pueden consumir datos móviles.'); return true; }
+        return seccion.manejarClic(objetivo);
+      }
       const bloque = objetivo.closest<HTMLElement>('[data-fotos-destino]');
       if (!bloque || !contenido.contains(bloque)) return false;
       if (objetivo.closest('[data-fotos-alternar]')) { void alternar(bloque); return true; }
@@ -1672,7 +1911,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       if (descartar) { controlador.descartar(descartar.dataset.fotoDescartar ?? ''); return true; }
       const destinoBloque = destinoDeClave(plan, bloque.dataset.fotosDestino ?? '');
       const sesionBloque = destinoBloque ? remotas?.sesion(destinoBloque) ?? null : null;
-      if (objetivo.closest('[data-remotas-mas]')) { sesionBloque?.verMas(); return true; }
+      if (objetivo.closest('[data-remotas-mas]')) { if (destinoBloque) void cargarPaginas(destinoBloque, true); return true; }
       if (objetivo.closest('[data-remotas-reintentar]')) { sesionBloque?.reintentar(); return true; }
       const remota = objetivo.closest<HTMLElement>('[data-foto-remota]');
       if (remota && sesionBloque) { abrirVisorRemoto(sesionBloque, remota.dataset.fotoRemota ?? '', remota); return true; }

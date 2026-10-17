@@ -69,6 +69,7 @@ interface Servidor {
   readonly llamadas: string[];
   readonly senales: Map<string, AbortSignal>;
   sinSesion: boolean;
+  repetirPagina: boolean;
   /** Retiene la respuesta de esa petición hasta soltarla (ignora el abort, como un puerto que no lo atiende). */
   readonly retener: Map<string, Promise<void>>;
   /** Originales cuyo cuerpo manda un byte y no termina nunca; al cancelarlo, se anota aquí. */
@@ -88,7 +89,7 @@ function puertoHttp(s: Servidor, maxFilas: number): typeof fetch {
       if (s.sinSesion) return noAutorizado();
       const todas = s.fotos.filter((f) => serializarDestinoListadoFotos(itinerario, f.original.destino) === clave)
         .sort((a, b) => (a.original.fotoId < b.original.fotoId ? -1 : 1));
-      const desde = continuacion === null ? 0
+      const desde = continuacion === null || s.repetirPagina ? 0
         : todas.findIndex((f) => f.original.fotoId > deserializarCursorListadoFotosDestino(itinerario, continuacion).despuesDe);
       const pagina = todas.slice(desde, desde + maxFilas);
       const ultima = todas.at(-1)?.original.fotoId;
@@ -140,7 +141,7 @@ async function montar(fotos: Compartida[], o: { maxFilas?: number; limites?: Par
   relleno?: (ancho: number, alto: number) => number } = {}): Promise<Montaje> {
   const fabrica = new IDBFactory();
   const local = await abrirFotosLocal(itinerario, { fabrica });
-  const servidor: Servidor = { fotos, llamadas: [], senales: new Map(), sinSesion: false, retener: new Map(),
+  const servidor: Servidor = { fotos, llamadas: [], senales: new Map(), sinSesion: false, repetirPagina: false, retener: new Map(),
     lentos: new Set(), cancelados: [] };
   const compuertas = new Map((o.retenerClasificacion ?? []).map((id) => [id, diferido()]));
   const clasificando = new Set<string>();
@@ -383,21 +384,69 @@ describe('ciclo de vida, sesión y formatos (FR5–FR8)', () => {
 });
 
 describe('cotas, conexión y segundo plano (FR9–FR11)', () => {
-  it('FR9 · «Ver más» acotado: con el tope de fotos deja de ofrecerse, se olvida la continuación y lo dice', async () => {
-    const m = await montar([compartida(R1), compartida(R2), compartida(R3)], { limites: { maxFotos: 2 } });
+  it('FR9 · paginar conserva acceso más allá de 24 fotos y no descarga originales', async () => {
+    const fotos = Array.from({ length: 27 }, (_, i) => compartida(`${(i + 1).toString(16).padStart(8, '0')}-1234-4123-8123-123456789abc`));
+    const m = await montar(fotos);
     const s = m.remotas.abrir(D);
-    await esperar(() => s.fotos.length === 1);
-    expect(s.estado).toEqual({ tipo: 'lista', hayMas: true, yaAqui: 0, completa: false });
-    s.verMas();
-    expect(s.estado).toEqual({ tipo: 'consultando', mas: true });
-    await esperar(() => s.fotos.length === 2);
-    expect(s.estado).toEqual({ tipo: 'lista', hayMas: false, yaAqui: 0, completa: true });
-    expect(textoEstadoRemotas(s.estado, 2, 'X', 2)).toBe(`${VISTA_TEMPORAL} Se enseñan 2 como mucho.`);
-    s.verMas();
-    await new Promise((ok) => setTimeout(ok, 10));
+    await esperar(() => s.estado.tipo === 'lista');
+    await s.cargarSiguientes();
+    await s.cargarSiguientes();
+    await s.cargarSiguientes();
+    expect(s.fotos).toHaveLength(27);
+    expect(s.estado).toMatchObject({ hayMas: false });
+    expect(originales(m)).toEqual([]);
+    expect(LIMITES_REMOTAS.maxVistas).toBe(12);
+  });
+
+  it('FR9b · avanza páginas solo locales sin blobs y limita cada tramo automático a 24 páginas', async () => {
+    const fotos = Array.from({ length: 28 }, (_, i) => compartida(`${(i + 1).toString(16).padStart(8, '0')}-1234-4123-8123-123456789abc`));
+    const m = await montar(fotos);
+    for (const f of fotos.slice(0, 26)) await m.fotos.guardarOriginal(crearCapturaFoto(itinerario, D,
+      new File([f.bytes], f.original.nombre, { type: 'image/png', lastModified: f.original.ultimaModificacion }),
+      f.original.incorporada, { uuid: () => f.original.fotoId }));
+    const s = m.remotas.abrir(D);
+    await esperar(() => s.estado.tipo === 'lista');
+    await s.cargarSiguientes();
+    expect(listados(m)).toHaveLength(25);
+    expect(s.fotos).toHaveLength(0);
+    expect(s.estado).toMatchObject({ hayMas: true });
+    await s.cargarSiguientes();
+    expect(s.fotos.map((f) => f.original.fotoId)).toEqual(fotos.slice(26).map((f) => f.original.fotoId));
+    expect(s.estado).toMatchObject({ hayMas: false });
+    expect(originales(m)).toEqual([]);
+  });
+
+  it('FR9c · entre páginas respeta que la galería deje de estar visible, sin perder la continuación', async () => {
+    const m = await montar([compartida(R1), compartida(R2), compartida(R3)]);
+    const s = m.remotas.abrir(D);
+    await esperar(() => s.estado.tipo === 'lista');
+    const retenida = diferido();
+    m.servidor.retener.set(`listado ${clave(D)} cont`, retenida.promesa);
+    let visible = true;
+    const tramo = s.cargarSiguientes(() => visible);
+    await esperar(() => listados(m).length === 2);
+    visible = false;
+    retenida.soltar();
+    await tramo;
     expect(listados(m)).toHaveLength(2);
-    expect(LIMITES_REMOTAS).toEqual({ maxFotos: 24, maxVistas: 12, maxBytesVistas: 24 * 1024 * 1024, ladoVista: 1024,
-      plazoMs: 60_000 });
+    expect(s.fotos).toHaveLength(2);
+    expect(s.estado).toMatchObject({ hayMas: true });
+    visible = true;
+    await s.cargarSiguientes(() => visible);
+    expect(s.fotos).toHaveLength(3);
+    expect(originales(m)).toEqual([]);
+  });
+
+  it('FR9d · un cursor repetido detiene la paginación automática sin bucle ni originales', async () => {
+    const m = await montar([compartida(R1), compartida(R2), compartida(R3)]);
+    const s = m.remotas.abrir(D);
+    await esperar(() => s.estado.tipo === 'lista');
+    m.servidor.repetirPagina = true;
+    await s.cargarSiguientes();
+    await s.cargarSiguientes();
+    expect(s.estado).toMatchObject({ tipo: 'fallo' });
+    expect(listados(m)).toHaveLength(2);
+    expect(originales(m)).toEqual([]);
   });
 
   it('FR10 · vistas retenidas acotadas: se suelta la menos reciente fuera de la vista y, sin hueco, la celda espera sin pedir nada', async () => {

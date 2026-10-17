@@ -3048,3 +3048,57 @@ body.reproduciendo li.hecha .marca {
     bottom: calc(8px + var(--abajo));
   }
 }
+
+/* Herramientas del viaje: accesibles sin mezclar preferencias con el resumen. */
+#herramientas-viaje {
+  display: flex; flex: none; gap: 2px; align-self: stretch; align-items: center;
+  padding: 0 calc(6px + var(--der)) 0 4px; border-left: 1px solid var(--borde-fuerte);
+}
+#herramientas-viaje button { min-width: 48px; min-height: 44px; padding: 0 6px; color: var(--tinta); background: var(--papel); border: 1px solid var(--borde-fuerte); border-radius: 6px; font: inherit; font-size: 13px; font-weight: 700; }
+#utilidades { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; color: var(--tinta); }
+#utilidades[hidden] { display: none; }
+.utilidades-cabecera { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; padding: calc(12px + var(--arriba)) calc(16px + var(--der)) 12px calc(16px + var(--izq)); border-bottom: 1px solid var(--borde-fuerte); }
+.utilidades-cabecera h2 { margin: 0; font-size: 24px; }
+.utilidades-contenido { flex: 1; overflow-y: auto; overscroll-behavior: contain; padding: 16px max(16px, calc((100vw - 860px) / 2)) calc(24px + var(--abajo)); }
+.utilidades-contenido > p { max-width: 60ch; }
+.utilidades-contenido .seccion:first-child { margin-top: 0; }
+.opcion-datos { min-height: 48px; display: flex; align-items: center; gap: 12px; font-weight: 700; }
+.opcion-datos input { width: 22px; height: 22px; accent-color: var(--tinta); }
+.album-dia { border-bottom: 1px solid var(--borde-fuerte); }
+.album-dia > summary { min-height: 52px; padding: 14px 0; font-size: 18px; font-weight: 750; cursor: pointer; }
+.album-parada { padding: 14px 0 22px; border-top: 1px solid var(--borde); }
+.album-parada h3 { margin: 0 0 8px; font-size: 18px; }
+.album-sitio { margin: 12px 0 0 12px; border-left: 1px solid var(--borde); padding-left: 12px; }
+.album-sitio h4 { margin-bottom: 6px; }
+#utilidades .fotos-lista { max-width: none; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+.captura-parada { margin: 4px 0 12px; }
+.foto-abrir { position: relative; }
+.foto-situacion { position: absolute; bottom: 0; left: 0; right: 0; padding: 3px; background: var(--papel); color: var(--tinta); font-size: 11px; }
+.visor-navegacion { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; }
+.visor-navegacion button { min-width: 70px; min-height: 44px; }
+.visor-navegacion span { font-size: 13px; }
+.visor-navegacion button:disabled { opacity: .5; }
+.utilidades-contenido button, .utilidades-cabecera button, .camara-directa { min-height: 44px; }
+@media (min-width: 560px) {
+  #utilidades .fotos-lista { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); }
+}
+@media (min-width: 760px), (min-width: 560px) and (orientation: landscape) {
+  body.leyendo-ficha #cabecera { padding-top: 10px; padding-bottom: 8px; }
+  body.leyendo-ficha #pista, body.leyendo-ficha #controles, body.leyendo-ficha #btn-repasar,
+  body.leyendo-ficha #ahora .siguiente, body.leyendo-ficha #ahora hr, body.leyendo-ficha #ahora .acciones-bloque,
+  body.leyendo-ficha #ahora .subs-ahora, body.leyendo-ficha #ahora .detalle-ahora, body.leyendo-ficha #ahora .hasta { display: none; }
+  body.leyendo-ficha #hora { font-size: 34px; }
+  body.leyendo-ficha #cabecera { grid-template-columns: minmax(0, 1fr); }
+  body.leyendo-ficha #reloj { display: flex; align-items: center; gap: 12px; padding: 0; }
+  body.leyendo-ficha #cuenta { flex: 1; min-width: 0; }
+  body.leyendo-ficha #ahora { padding: 8px 0 0; }
+  body.leyendo-ficha #ahora::before { display: none; }
+}
+/* Una sola rejilla visual: los dos almacenes no se convierten en dos álbumes. */
+.fotos-rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(72px, 1fr)); gap: 8px; max-width: 420px; }
+.fotos-rejilla > .fotos-lista { display: contents; }
+#utilidades .fotos-rejilla { max-width: none; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
+.fotos-rejilla:empty { display: none; }
+@media (min-width: 560px) { #utilidades .fotos-rejilla { grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); } }
+
+.fotos-avanzadas > summary { min-height: 44px; padding: 12px 0; cursor: pointer; font-weight: 700; }

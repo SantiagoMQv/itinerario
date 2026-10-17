@@ -220,12 +220,15 @@ test.describe('montaje privado local', () => {
       await page.goto(origen + '/');
       // «Todo» pintado y el progreso asentado (cualquier composición) y, después, los controles PRIVADOS del perfil.
       await expect(page.locator('#compartido .estado-compartido')).toHaveText(INCIERTO);
+      await page.getByRole('button', { name: 'Abrir ajustes' }).click();
+      await expect(page.getByRole('radio', { name: 'Datos limitados' })).toBeChecked();
       await expect(page.locator('#fotos-viaje')).toHaveCount(1);
       await expect(page.locator('#copia-movil')).toHaveCount(1);
       await expect(page.locator('#fotos-viaje .estado-fotos-viaje')).toHaveText(SIN_RESPALDOS);
       await expect(page.locator('#fotos-viaje .estado-catalogo')).toHaveText(CATALOGO);
       await expect(page.locator('#copia-movil .estado-copia')).toHaveText(INTRO_COPIA);
       expect([...new Set(api)]).toEqual(['GET /api/progreso']);
+      if (process.env.CAPTURA_AJUSTES) await page.screenshot({ path: process.env.CAPTURA_AJUSTES });
       expect(errores).toEqual([]);
       expect(await llevaMarca(salida)).toBe(true);
     });

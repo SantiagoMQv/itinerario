@@ -1323,7 +1323,7 @@ describe('lote «Respaldar pendientes»: recuento, consentimiento y envío de un
 
   it('L8 · el copy dice qué queda fuera y no promete que pausar evite lo que ya salió', () => {
     expect(textoLote({ tipo: 'propuesta', fotos: 2, bytes: 14, confirmadas: 1, revision: 2, sinOrigen: 3 }).detalle)
-      .toBe('Se envían de una en una al servidor del viaje; los datos móviles pueden tener coste. Quedan fuera: 1 ya confirmada'
+      .toBe('Se envían de una en una al servidor del viaje; los datos móviles pueden tener coste. Confirmar permite transferencias durante esta visita, hasta ocultar la app. No detectamos wifi. Quedan fuera: 1 ya confirmada'
         + ' · 2 para revisar · 3 sin origen comprobado aquí (anteriores, descargadas o importadas: se respaldan desde su visor).');
     expect(textoLote({ tipo: 'propuesta', fotos: 0, bytes: 0, confirmadas: 0, revision: 0, sinOrigen: 1 })).toEqual({
       estado: 'No hay fotos añadidas aquí con la cámara o la galería pendientes de respaldo.',

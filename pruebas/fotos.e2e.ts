@@ -441,7 +441,7 @@ test.describe('fotos locales en la interfaz del viaje', () => {
     const fallida = b.locator('.foto-sesion');
     await expect(fallida).toContainText('No se ha guardado');
     await expect(b.locator('.fotos-estado')).toContainText('No se ha guardado');
-    await expect(b.locator('.fotos-cuenta')).toHaveText(' · 1');
+    await expect(b.locator('.fotos-cuenta')).toHaveText(' · 1 en este móvil');
     await expect(b.locator('[data-foto-id]')).toHaveCount(1);
     const comprobarBase = async () => {
       const base = await enBase(page);
@@ -456,7 +456,7 @@ test.describe('fotos locales en la interfaz del viaje', () => {
     await fallida.locator('[data-foto-reintentar]').click();
     await expect(fallida.locator('[data-foto-reintentar]')).not.toHaveAttribute('aria-disabled', 'true');
     await expect(fallida).toContainText('No se ha guardado');
-    await expect(b.locator('.fotos-cuenta')).toHaveText(' · 1');
+    await expect(b.locator('.fotos-cuenta')).toHaveText(' · 1 en este móvil');
     await comprobarBase();
     expect(await llamadas()).toBe(2);
     await fallida.locator('[data-foto-descartar]').click();
@@ -469,7 +469,7 @@ test.describe('fotos locales en la interfaz del viaje', () => {
     await abrirFicha(page);
     const otra = await abrirFotos(page, `p:${PARADA}`);
     await expect(otra.locator('[data-foto-id] img')).toHaveCount(1);
-    await expect(otra.locator('.fotos-cuenta')).toHaveText(' · 1');
+    await expect(otra.locator('.fotos-cuenta')).toHaveText(' · 1 en este móvil');
     await comprobarBase();
     expect(errores).toEqual([]);
   });

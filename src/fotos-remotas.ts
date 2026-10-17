@@ -11,8 +11,8 @@ import type { OriginalRespaldo } from './fotos-respaldo';
  * Fotos compartidas de UNA ficha, vistas con conexión y sin guardarlas en este móvil.
  *
  * Controlador sin DOM (pruebas en Node). Por cada destino abierto, una sesión con su PROPIA instancia de listado
- * (nunca la del catálogo global): al abrirse pide la primera página de ESE destino y «Ver más» pide la siguiente,
- * una por toque, sin autopaginar. De cada referencia solo se pide el original cuando su celda está a la vista (o
+ * (nunca la del catálogo global): al abrirse pide la primera página de ESE destino y avanza en tramos acotados
+ * cuando la interfaz lo solicita con permiso de datos. De cada referencia solo se pide el original cuando su celda está a la vista (o
  * en el visor), con UNA tubería para todo: recepción protegida a memoria → decodificador seguro de siempre
  * (PNG/JPEG/WebP identificados por cabecera) → PNG nuevo de 1024 px como mucho. Nada pasa por PhotoDB, el ledger,
  * CacheStorage ni storage: la vista temporal vive en un Blob con una URL propia que se revoca al soltarla.
@@ -69,6 +69,10 @@ export interface SesionRemota {
   reintentar(): void;
   /** Siguiente página del MISMO destino; la continuación vive solo en memoria y nunca se sigue sola. */
   verMas(): void;
+  /** Hasta doce fotos nuevas o 24 páginas; comprueba la continuidad entre páginas, sin descargar originales. */
+  cargarSiguientes(seguir?: () => boolean): Promise<void>;
+  /** Actualiza metadatos sin retirar las imágenes ni la selección que se está leyendo. */
+  refrescar(): Promise<void>;
   /** Su celda está (o deja de estar) a la vista: solo entonces se pide su original; oculta, se corta. */
   visible(fotoId: string, si: boolean): void;
   /** Foto del visor: su vista se pide aunque la celda no se vea y no se suelta mientras siga abierta. */
@@ -164,6 +168,9 @@ interface Sesion {
   ultima: 'principio' | 'mas';
   yaAqui: number;
   consultando: boolean;
+  avanzando: boolean;
+  revision: number;
+  cursores: Set<string>;
   cerrada: boolean;
   api?: SesionRemota;
 }
@@ -338,7 +345,7 @@ export function crearFotosRemotas(d: DependenciasRemotas): FotosRemotas {
     }
   }
   async function consultar(s: Sesion, mas: boolean) {
-    if (cerrado || s.cerrada || s.consultando) return;
+    if (cerrado || suspendida || s.cerrada || s.consultando) return;
     if (mas && s.continuacion === null) return;
     if (!enLinea()) { s.estado = { tipo: 'sin-conexion' }; avisar(s.destino); return; }
     if (s.listado === undefined) {
@@ -347,8 +354,13 @@ export function crearFotosRemotas(d: DependenciasRemotas): FotosRemotas {
     const listado = s.listado;
     if (!listado) { s.estado = { tipo: 'no-disponible' }; avisar(s.destino); return; }
     const cursor = mas ? s.continuacion : null;
+    if (!mas) s.cursores.clear();
+    if (cursor !== null && s.cursores.has(cursor)) {
+      s.estado = { tipo: 'fallo', motivo: 'respuesta' }; avisar(s.destino); return;
+    }
     const gen = autorizacion;
-    const vale = () => !cerrado && !s.cerrada && sesiones.get(s.clave) === s && gen === autorizacion;
+    const revision = s.revision;
+    const vale = () => !cerrado && !s.cerrada && sesiones.get(s.clave) === s && gen === autorizacion && revision === s.revision;
     s.consultando = true;
     s.ultima = mas ? 'mas' : 'principio';
     s.estado = { tipo: 'consultando', mas };
@@ -377,13 +389,15 @@ export function crearFotosRemotas(d: DependenciasRemotas): FotosRemotas {
           nuevos.push({ original, local, vista: vistaInicial(original), visible: false, fijada: false, uso: 0 });
         }
         if (!vale()) return;
-        const caben = Math.max(0, limites.maxFotos - s.items.length);
-        s.items.push(...nuevos.slice(0, caben));
+        s.items.push(...nuevos);
         s.yaAqui += yaAqui;
-        const completa = s.items.length >= limites.maxFotos && (nuevos.length > caben || r.pagina.continuacion !== null);
-        // Al llegar al tope ya no se ofrece más: la continuación se olvida.
-        s.continuacion = completa ? null : r.pagina.continuacion;
-        s.estado = { tipo: 'lista', hayMas: s.continuacion !== null, yaAqui: s.yaAqui, completa };
+        if (cursor !== null) s.cursores.add(cursor);
+        if (r.pagina.continuacion !== null && (r.pagina.continuacion === cursor || s.cursores.has(r.pagina.continuacion))) {
+          s.continuacion = null;
+          throw new Error('La continuación no avanza');
+        }
+        s.continuacion = r.pagina.continuacion;
+        s.estado = { tipo: 'lista', hayMas: s.continuacion !== null, yaAqui: s.yaAqui, completa: false };
       } catch {
         s.estado = { tipo: 'fallo', motivo: 'respuesta' };
       }
@@ -406,6 +420,18 @@ export function crearFotosRemotas(d: DependenciasRemotas): FotosRemotas {
         void consultar(s, s.ultima === 'mas' && s.continuacion !== null);
       },
       verMas() { void consultar(s, true); },
+      async cargarSiguientes(seguir = () => true) {
+        if (s.avanzando || s.consultando || suspendida) return;
+        s.avanzando = true;
+        const hasta = s.items.length + 12;
+        try {
+          for (let paginas = 0; paginas < 24 && s.items.length < hasta && s.continuacion !== null; paginas++) {
+            if (s.cerrada || suspendida || s.estado.tipo !== 'lista' || !seguir()) break;
+            await consultar(s, true);
+          }
+        } finally { s.avanzando = false; }
+      },
+      async refrescar() { if (!s.avanzando) await consultar(s, false); },
       visible(fotoId, si) {
         const item = itemDe(s, fotoId);
         if (!item || s.cerrada || item.visible === si) return;
@@ -467,7 +493,7 @@ export function crearFotosRemotas(d: DependenciasRemotas): FotosRemotas {
       const anterior = sesiones.get(clave);
       if (anterior) cerrarSesion(anterior);
       const s: Sesion = { destino, clave, listado: undefined, estado: { tipo: 'consultando', mas: false }, items: [],
-        continuacion: null, ultima: 'principio', yaAqui: 0, consultando: false, cerrada: false };
+        continuacion: null, ultima: 'principio', yaAqui: 0, consultando: false, avanzando: false, revision: 0, cursores: new Set(), cerrada: false };
       s.api = api(s);
       sesiones.set(clave, s);
       void consultar(s, false);
@@ -488,6 +514,10 @@ export function crearFotosRemotas(d: DependenciasRemotas): FotosRemotas {
     },
     suspender() {
       suspendida = true;
+      for (const s of sesiones.values()) {
+        s.revision++;
+        if (s.consultando) { s.listado?.cerrar(); s.listado = undefined; }
+      }
       if (carga) carga.control.abort();
     },
     invalidarSesion() { if (!cerrado) invalidarSesion(false); },

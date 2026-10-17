@@ -14,19 +14,18 @@ import type { MotorMiniatura } from './fotos-imagen';
 import { crearFotosRemotas, type FotosRemotas, type LimitesRemotas } from './fotos-remotas';
 
 /**
- * Respaldo manual y catálogo de fotos privadas en la interfaz del viaje.
+ * Envío acotado y catálogo de fotos privadas en la interfaz del viaje.
  *
  * Controlador sin DOM (pruebas en Node) que compone, sobre el MISMO PhotoDB del controlador de fotos, el ledger
- * local, el transporte, el listado y la descarga de las bibliotecas existentes. Solo acciones explícitas: una
- * acción es UN POST o UN GET; nada se envía, consulta, reintenta ni descarga al abrir el visor, «Todo» ni una
- * página. Listar, guardar o comprobar nunca son acuse (ACK), marca de envío (SENT) ni entradas del ledger.
- * La única acción que autoriza VARIOS POST es la confirmación explícita del lote «Respaldar pendientes»: solo las
+ * local, el transporte, el listado y la descarga de las bibliotecas existentes. Cada operación individual
+ * es UN POST o UN GET; la política de datos de fotos-interfaz decide cuándo puede invocarla. Listar, guardar o comprobar nunca son acuse (ACK), marca de envío (SENT) ni entradas del ledger.
+ * El lote «Respaldar pendientes» permite VARIOS POST tras confirmación o permiso automático de datos: solo las
  * fotos de su recuento finito (añadidas aquí con cámara o galería y sin respaldo), de una en una, con el mismo
- * ledger y el mismo transporte; no es sincronización ni nada que siga solo.
+ * ledger y el mismo transporte; no reintenta incertidumbres automáticamente.
  * La web publicada lo compone con null: ni red, ni ledger, ni texto nuevo (ver componerRespaldoFotos).
  * Con la misma composición, las fotos compartidas de cada ficha (componerFotosRemotas): se consultan por destino al
  * abrir «Fotos», se ven con conexión sin guardarse y «Guardar sin conexión» es la descarga duradera de siempre.
- * Al final, la sección «Fotos del viaje» de «Todo» (DOM), que solo existe con la composición activada.
+ * Al final, la sección de envíos y revisión de «Ajustes» (DOM), que solo existe con la composición activada.
  */
 
 /** Activación EXPLÍCITA. Publicado (Pages): null → 0 red, 0 ledger, 0 texto nuevo. T7 decidirá cómo se activa. */
@@ -1033,7 +1032,7 @@ export function textoLote(l: EstadoLote): { readonly estado: string; readonly de
       if (l.fotos === 0) return { estado: 'No hay fotos añadidas aquí con la cámara o la galería pendientes de respaldo.', detalle: fuera(l) };
       return { estado: `¿Respaldar ${fotos(l.fotos)} ${l.fotos === 1 ? 'añadida' : 'añadidas'} aquí con la cámara o la galería `
         + `(≈ ${pesoLegible(l.bytes)} de originales)?`,
-      detalle: ['Se envían de una en una al servidor del viaje; los datos móviles pueden tener coste.', fuera(l)].filter(Boolean).join(' ') };
+      detalle: ['Se envían de una en una al servidor del viaje; los datos móviles pueden tener coste. Confirmar permite transferencias durante esta visita, hasta ocultar la app. No detectamos wifi.', fuera(l)].filter(Boolean).join(' ') };
     case 'enviando':
       return { estado: l.pausando ? `Pausando: ${cuenta(l.progreso)}.` : `Respaldando: ${cuenta(l.progreso)} por el servidor.`, detalle: '' };
     case 'terminado': return { estado: `Lote terminado: ${cuenta(l.progreso)} por el servidor.`, detalle: balance(l.progreso) };
@@ -1074,7 +1073,7 @@ export interface SeccionFotosViaje {
   desmontar(): void;
 }
 
-const NOTA_VIAJE = 'Nada se envía ni se consulta solo: cada respaldo y cada consulta empiezan con un toque. Los datos móviles pueden tener coste.';
+const NOTA_VIAJE = 'Las transferencias siguen tu elección de datos en Ajustes. Ver o compartir fotos puede consumir datos móviles.';
 
 function elemento<K extends keyof HTMLElementTagNameMap>(tag: K, clase?: string, texto?: string): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -1323,11 +1322,13 @@ export function crearSeccionFotosViaje(o: OpcionesSeccionFotosViaje): SeccionFot
       lineaLote.setAttribute('role', 'status');
       loteFotos.append(lineaLote, elemento('p', 'detalle-lote'), elemento('div', 'acciones-bloque acciones-lote'));
       document.addEventListener('visibilitychange', alOcultar);
+      const avanzadas = elemento('details', 'fotos-avanzadas');
+      avanzadas.append(elemento('summary', '', 'Revisar copias del servidor'), lineaCatalogo,
+        elemento('div', 'acciones-bloque acciones-catalogo'), elemento('ul', 'filas-fotos-viaje filas-catalogo'));
       c.replaceChildren(titulo,
         elemento('h4', 'subs-titulo', 'En este móvil'), elemento('p', 'estado-fotos-viaje'), loteFotos,
         elemento('ul', 'filas-fotos-viaje filas-resumen'),
-        elemento('h4', 'subs-titulo', 'En el servidor'), lineaCatalogo,
-        elemento('div', 'acciones-bloque acciones-catalogo'), elemento('ul', 'filas-fotos-viaje filas-catalogo'),
+        avanzadas,
         elemento('p', 'cifras', NOTA_VIAJE));
       pintar();
       refrescarResumen();
@@ -1358,12 +1359,10 @@ export function crearSeccionFotosViaje(o: OpcionesSeccionFotosViaje): SeccionFot
       return true;
     },
     desmontar() {
-      const g = ++gen;
+      gen++;
       contenedor = null;
       document.removeEventListener('visibilitychange', alOcultar);
-      // Salir de «Todo» termina la continuidad del lote: nada sigue ni se reanuda solo. Repintar «Todo» (desmontar y
-      // montar en el MISMO turno, como al cargar el mapa) no es salir: si se volvió a montar, el lote sigue.
-      queueMicrotask(() => { if (gen === g && !contenedor) respaldo.abandonarLote(); });
+            // Cambiar de pantalla no interrumpe la subida; ocultar la app sí revoca el permiso.
     },
   };
 }

@@ -148,7 +148,7 @@ function nombreFotos(d: DestinoFoto): string {
 }
 const fotosUi = crearFotosUi({
   plan: itinerario,
-  contenido: el.contenido,
+  contenido: document.body,
   nombreDe: nombreFotos,
   // El panel abierto ya lo dice en su línea de estado; el aviso cubre el caso de haberlo cerrado.
   anunciar: (texto) => aviso(texto),
@@ -244,6 +244,87 @@ const portabilidadUi = componerPortabilidad(portabilidad, {
   nombreDe: nombreFotos,
   anunciar: (texto) => aviso(texto, 9000),
 });
+// Fotos y ajustes son herramientas del viaje: al cerrarlas queda exactamente el mismo día y hora.
+const utilidades = document.createElement('section');
+utilidades.id = 'utilidades'; utilidades.className = 'papel'; utilidades.hidden = true;
+utilidades.setAttribute('role', 'dialog'); utilidades.setAttribute('aria-modal', 'true');
+utilidades.setAttribute('aria-labelledby', 'utilidades-titulo');
+utilidades.innerHTML = '<header class="utilidades-cabecera"><h2 id="utilidades-titulo"></h2><button type="button" class="boton" data-utilidades-cerrar>Volver al itinerario</button></header><div class="utilidades-contenido"></div>';
+document.body.append(utilidades);
+let abridorUtilidades: HTMLElement | null = null;
+function cerrarUtilidades(desdeHistorial = false) {
+  if (utilidades.hidden) return;
+  fotosUi.cerrarEn(utilidades);
+  utilidades.hidden = true;
+  for (const n of document.body.children) (n as HTMLElement).inert = false;
+  if (!desdeHistorial && history.state?.utilidades) history.back();
+  abridorUtilidades?.focus({ preventScroll: true });
+}
+function abrirUtilidades(tipo: 'fotos' | 'ajustes', abridor: HTMLElement) {
+  abridorUtilidades = abridor;
+  fotosUi.cerrarEn(el.contenido);
+  if (!utilidades.hidden) fotosUi.cerrarEn(utilidades);
+  const cuerpo = utilidades.querySelector<HTMLElement>('.utilidades-contenido')!;
+  $('utilidades-titulo').textContent = tipo === 'fotos' ? 'Fotos del viaje' : 'Ajustes';
+  utilidades.hidden = false;
+  if (tipo === 'ajustes') {
+    cuerpo.innerHTML = `${fotosUi.respaldoActivo ? '<section class="seccion" data-datos-fotos></section><section class="seccion fotos-viaje" id="fotos-viaje" data-fotos-viaje></section>' : '<p>Las fotos y las marcas se guardan en este móvil. Esta versión no las comparte.</p>'}
+      ${portabilidadUi ? '<details class="seccion"><summary>Copia e importación de este móvil</summary><section id="copia-movil" data-copia-movil></section></details>' : ''}`;
+    const datos = cuerpo.querySelector<HTMLElement>('[data-datos-fotos]');
+    if (datos) fotosUi.montarDatos(datos);
+    const envios = cuerpo.querySelector<HTMLElement>('[data-fotos-viaje]');
+    if (envios) fotosUi.montarFotosViaje(envios);
+    const copias = cuerpo.querySelector<HTMLElement>('[data-copia-movil]');
+    if (copias) portabilidadUi?.montar(copias);
+  } else {
+    cuerpo.innerHTML = '<p class="cifras">Recuerdos por día y lugar. Tus fotos y las compartidas, juntas en cada parada.</p>' + modelo.dias.map((dia) =>
+      `<details class="album-dia"${dia.idx === estado.dia ? ' open' : ''}><summary>Día ${dia.idx + 1} · ${esc(dia.d.titulo)}</summary>${dia.paradas.map((p) =>
+        `<section class="album-parada"><h3>${esc(p.p.nombre)}</h3><button class="mini suave" type="button" data-album-contexto="${p.id}">Ver parada en el itinerario</button>${fotosUi.html({ tipo: 'parada', viajeId: itinerario.id, paradaId: p.p.id }, 'album-')}${p.subs.map((x) => `<div class="album-sitio"><h4>${esc(x.s.nombre)}</h4>${fotosUi.html({ tipo: 'subparada', viajeId: itinerario.id, paradaId: p.p.id, subparadaId: x.s.id }, 'album-')}</div>`).join('')}</section>`).join('')}</details>`).join('') + '<section class="seccion fotos-retiradas" data-fotos-retiradas hidden></section>';
+    fotosUi.montarRetiradas(cuerpo.querySelector<HTMLElement>('[data-fotos-retiradas]')!);
+    fotosUi.preparar();
+    fotosUi.abrirAlbum(cuerpo);
+  }
+  cuerpo.scrollTop = 0;
+  for (const n of document.body.children) if (n !== utilidades && n.tagName !== 'SCRIPT') (n as HTMLElement).inert = true;
+  history.pushState({ utilidades: true }, '');
+  utilidades.querySelector<HTMLElement>('[data-utilidades-cerrar]')?.focus();
+}
+utilidades.addEventListener('click', (e) => {
+  const objetivo = e.target as HTMLElement;
+  if (objetivo.closest('[data-utilidades-cerrar]')) return cerrarUtilidades();
+  const contexto = objetivo.closest<HTMLElement>('[data-album-contexto]');
+  if (contexto) {
+    const p = modelo.paradas[Number(contexto.dataset.albumContexto)];
+    cerrarUtilidades(); abrirFicha(p); return;
+  }
+  if (fotosUi.manejarClic(objetivo)) return;
+  portabilidadUi?.manejarClic(objetivo);
+});
+utilidades.addEventListener('keydown', (e) => {
+  if (e.key !== 'Tab') return;
+  const pulsables = [...utilidades.querySelectorAll<HTMLElement>('button, summary, input, a')].filter((b) => !b.hidden && b.getClientRects().length && !b.hasAttribute('disabled'));
+  const primero = pulsables[0]; const ultimo = pulsables.at(-1);
+  if (e.shiftKey && document.activeElement === primero) { e.preventDefault(); ultimo?.focus(); }
+  else if (!e.shiftKey && document.activeElement === ultimo) { e.preventDefault(); primero?.focus(); }
+});
+const herramientas = document.createElement('nav');
+herramientas.id = 'herramientas-viaje'; herramientas.setAttribute('aria-label', 'Herramientas del viaje');
+herramientas.innerHTML = '<button type="button" data-utilidad="fotos" aria-label="Abrir fotos del viaje">Fotos</button><button type="button" data-utilidad="ajustes" aria-label="Abrir ajustes">Ajustes</button>';
+$('tapa').append(herramientas);
+herramientas.addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>('[data-utilidad]');
+  if (b) abrirUtilidades(b.dataset.utilidad === 'fotos' ? 'fotos' : 'ajustes', b);
+});
+
+el.contenido.addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>('[data-camara-sub]');
+  if (!b) return;
+  e.stopImmediatePropagation();
+  const [id, i] = b.dataset.camaraSub!.split(':').map(Number);
+  const p = modelo.paradas[id]; const sub = p?.subs.find((x) => x.i === i);
+  if (p && sub) fotosUi.tomar({ tipo: 'subparada', viajeId: itinerario.id, paradaId: p.p.id, subparadaId: sub.s.id });
+}, { capture: true });
+
 const paradaPorId = new Map(modelo.paradas.map((p) => [p.p.id, p]));
 const registroDe = (p: ParadaC) => {
   const paradas = progreso.vista.raiz?.estado.paradas;
@@ -906,7 +987,7 @@ function pintarAhora(m: Momento) {
     // El vuelo de vuelta no se salta.
     const ultimaDelViaje = p.id === modelo.paradas.length - 1;
     const acciones =
-      directo && !esOrigen && !previa ? botonMarca(p, 'hecha') + (ultimaDelViaje ? '' : botonMarca(p, 'saltada')) : '';
+      (directo && !esOrigen && !previa ? botonMarca(p, 'hecha') + (ultimaDelViaje ? '' : botonMarca(p, 'saltada')) : '') + (!esOrigen ? botonCamara(p) : '');
     ahora = bloqueAhora(p, p.p.nombre, '', cuando, acciones, p.p.local);
     // Se va tarde: cuándo se llegaría a lo siguiente saliendo ya y cuánto se podría estar allí. Si
     // el plan va a pie o en transporte público y un taxi gana tiempo, se dice; si solo en taxi da
@@ -1081,9 +1162,20 @@ function botonMarca(p: ParadaC, marca: Marca): string {
     aria-label="${esc(`${t}: ${p.p.nombre}`)}">${principal ? ICONO_HECHO : ''}${esc(t)}</button>`;
 }
 
+function botonCamara(p: ParadaC): string {
+  return `<button type="button" class="mini camara-directa" data-camara-parada="${p.id}" aria-label="Tomar foto para «${esc(p.p.nombre)}»">Tomar foto</button>`;
+}
+function capturarParada(objetivo: HTMLElement): boolean {
+  const b = objetivo.closest<HTMLElement>('[data-camara-parada]');
+  if (!b) return false;
+  const p = modelo.paradas[Number(b.dataset.camaraParada)];
+  fotosUi.tomar({ tipo: 'parada', viajeId: itinerario.id, paradaId: p.p.id });
+  return true;
+}
 let enfriarHasta = 0;
 el.ahora.addEventListener('click', (e) => {
   const objetivo = e.target as HTMLElement;
+  if (capturarParada(objetivo)) return;
   const taxi = objetivo.closest<HTMLElement>('[data-taxi]');
   if (taxi) return mostrarTaxi(modelo.paradas[Number(taxi.dataset.taxi)].p, taxi, !('pie' in taxi.dataset));
   // Tras marcar, «ahora» cambia y otro botón aparece bajo el dedo: un segundo toque rápido no cuenta.
@@ -1107,7 +1199,7 @@ el.ahora.addEventListener('click', (e) => {
 function abrirFicha(p: ParadaC) {
   if (p.dia !== estado.dia && p !== diaActual().origen) {
     if (p.dia === hoyIdx) volverAhora();
-    else seleccionarDia(p.dia, p.inicio, false);
+    else seleccionarDia(p.dia, estado.t, false);
   }
   expandir(true);
   estado.abierta = p.id;
@@ -1191,6 +1283,8 @@ function filaParada(p: ParadaC, esOrigen: boolean): string {
         ${esOrigen ? '' : precioCorto(p)}
       </button>
       <div class="detalle">
+        ${esOrigen ? '' : `<div class="captura-parada">${botonCamara(p)}</div>`}
+        ${esOrigen ? '' : fotosUi.html({ tipo: 'parada', viajeId: itinerario.id, paradaId: q.id })}
         ${q.notas && !esOrigen ? parrafos(q.notas, 'notas') : ''}
         ${esOrigen ? '' : subparadasHtml(p)}
         ${datos.length ? `<dl>${datos.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${k === 'Horario' || k === 'Hotel' ? esc(v) : v}</dd>`).join('')}</dl>` : ''}
@@ -1201,7 +1295,6 @@ function filaParada(p: ParadaC, esOrigen: boolean): string {
           ${q.local ? botonEnsenar(p) : ''}
           ${enlacesMapas(p)}
         </div>
-        ${esOrigen ? '' : fotosUi.html({ tipo: 'parada', viajeId: itinerario.id, paradaId: q.id })}
       </div>
     </li>`;
 }
@@ -1229,6 +1322,7 @@ function subparadasHtml(p: ParadaC): string {
         ${ICONO_PLEGAR}
       </button>
       <div class="sub-detalle" id="${id}" hidden>
+        <button type="button" class="mini" data-camara-sub="${p.id}:${x.i}" aria-label="${esc(`Tomar foto en «${x.s.nombre}»`)}">Tomar foto</button>
         ${x.s.local ? `<p class="local">${chino(x.s.local)}</p>` : ''}
         ${x.s.notas ? `<p class="sub-nota">${esc(x.s.notas)}</p>` : ''}
         <div class="acciones-bloque">
@@ -1334,8 +1428,8 @@ function pintarLista(dia: DiaC) {
     if (tramo) filas.push(filaTramo(tramo));
     filas.push(filaParada(p, false));
   }
-  fotosUi.desmontar();
-  portabilidadUi?.desmontar();
+  if (utilidades.hidden) { fotosUi.desmontar(); portabilidadUi?.desmontar(); }
+  else fotosUi.cerrarEn(el.contenido);
   el.contenido.innerHTML = `
     <h2 class="titulo-lista"><span>Itinerario del día</span><small>${paradas(visitas)} · ${esc(km(dia.km))}</small></h2>
     <ol class="lista">${filas.join('')}</ol>
@@ -1360,6 +1454,7 @@ function marcarLista(m: Momento, desplazar: 'si' | 'no' | 'si-se-veia' = 'si') {
   const seVeia = !previa || filaALaVista(previa);
   const actual = m.parada?.id ?? null;
   const abierta = estado.abierta ?? -1;
+  document.body.classList.toggle('leyendo-ficha', abierta >= 0);
   for (const li of el.contenido.querySelectorAll<HTMLLIElement>('li.parada')) {
     const id = Number(li.dataset.id);
     const p = modelo.paradas[id];
@@ -1442,6 +1537,7 @@ el.contenido.addEventListener(
 );
 
 el.contenido.addEventListener('click', (e) => {
+  if (capturarParada(e.target as HTMLElement)) return;
   const objetivo = e.target as HTMLElement;
   // Las fotos van antes: un toque en su bloque nunca pliega la ficha ni cambia la parada.
   if (fotosUi.manejarClic(objetivo)) return;
@@ -1734,8 +1830,8 @@ function pintarResumen() {
   rollo().scrollTop = 0;
   ultimoCompartido = '';
   const antes = faltanDias() > 0;
-  fotosUi.desmontar();
-  portabilidadUi?.desmontar();
+  if (utilidades.hidden) { fotosUi.desmontar(); portabilidadUi?.desmontar(); }
+  else fotosUi.cerrarEn(el.contenido);
   el.contenido.innerHTML = `
     ${bloqueAntes()}
     ${antes ? COMO_FUNCIONA : ''}
@@ -1772,9 +1868,9 @@ function pintarResumen() {
         : ''
     }
     ${progreso.compartido ? `<section class="seccion compartido" id="compartido">${htmlCompartido()}</section>` : ''}
-    ${fotosUi.respaldoActivo ? '<section class="seccion fotos-viaje" id="fotos-viaje" data-fotos-viaje></section>' : ''}
+
     <section class="seccion fotos-retiradas" id="fotos-retiradas" data-fotos-retiradas hidden></section>
-    ${portabilidadUi ? '<section class="seccion copia-movil" id="copia-movil" data-copia-movil></section>' : ''}
+
     ${modelo.secciones
       .map(
         (sec) => `<section class="seccion">
@@ -2175,6 +2271,7 @@ new ResizeObserver(recolocarHoja).observe(el.panel);
 // Al girar el móvil se pasa de hoja abajo a página a un lado (y vuelta): la ficha corta es de la hoja.
 pantallaAncha.addEventListener('change', () => {
   cerrarFichaCorta(false);
+  if (esMovil() && estado.abierta !== null && estado.abierta >= 0) expandir(true);
   recolocarHoja();
 });
 new ResizeObserver(recolocarHoja).observe(el.cabecera);
@@ -2535,12 +2632,14 @@ function cerrarTaxi(desdeHistorial = false) {
 
 el.taxiCerrar.addEventListener('click', () => cerrarTaxi());
 addEventListener('popstate', () => {
-  fotosUi.cerrarVisor(true);
+  if (fotosUi.cerrarVisor(true)) return;
+  if (!utilidades.hidden && !history.state?.utilidades) { cerrarUtilidades(true); return; }
   cerrarTaxi(true);
 });
 addEventListener('keydown', (e) => {
   if (e.key !== 'Escape') return;
   if (fotosUi.cerrarVisor()) return;
+  if (!utilidades.hidden) return cerrarUtilidades();
   if (!el.taxi.hidden) cerrarTaxi();
   else cerrarFichaCorta();
 });
@@ -2614,9 +2713,16 @@ estado.t = modelo.dias[0].desde;
 arrancar();
 // La lista y la línea de tiempo funcionan desde el principio; la ruta se dibuja cuando carga el mapa.
 vista.listo.then(() => {
-  if (estado.vista === 'todo') verTodo();
-  else if (estado.modo === 'directo') volverAhora();
-  else seleccionarDia(estado.dia, estado.t);
+  // Cargar el mapa no es cambiar de día: conserva ficha, álbum, reloj, foco y desplazamiento.
+  if (estado.vista === 'todo') { vista.mostrarTodo(); vista.encuadrarTodo(); }
+  else {
+    vista.mostrarDia(diaActual());
+    estado.claveMomento = '';
+    pintar(false);
+    if (estado.seguir) vista.seguir(momentoActual(), true, true);
+    else vista.encuadrarDia(diaActual());
+  }
+  ajustarMargenes();
 });
 registrarServiceWorker();
 // Lo marcado se abre en segundo plano: el itinerario, el mapa y el taxi funcionan mientras tanto.

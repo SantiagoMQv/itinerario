@@ -98,6 +98,8 @@ async function voltearTema(page: Page) {
 /** Arranque privado asentado: progreso abierto con su GET cortado, fotos y registro de respaldos leídos, copia pintada. */
 async function esperarPrivada(page: Page) {
   await expect(page.locator('#compartido .estado-compartido')).toHaveText(INCIERTO);
+  await page.getByRole('button', { name: 'Abrir ajustes' }).click();
+  await expect(page.getByRole('radio', { name: 'Datos limitados' })).toBeChecked();
   await expect(page.locator('#fotos-viaje .estado-fotos-viaje')).toHaveText(SIN_RESPALDOS);
   await expect(page.locator('#fotos-viaje .estado-catalogo')).toHaveText(CATALOGO);
   await expect(page.locator('#copia-movil .estado-copia')).toHaveText(INTRO_COPIA);
@@ -394,7 +396,7 @@ window.fixtureArranque = {
       }
       expect(api()).toEqual([]);
 
-      // Corregido en la MISMA página: arranca con los controles privados (manuales) en «Todo».
+      // Corregido en la MISMA página: arranca con los controles privados en «Ajustes».
       expect(await piloto(page, perfil)).toEqual({ ok: true });
       await esperarPrivada(page);
       // Misma identidad y legado; raíz y PhotoDB crudos exactos, tombstone y bytes del original incluidos. Abrir lee
