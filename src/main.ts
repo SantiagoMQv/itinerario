@@ -1060,6 +1060,7 @@ function bloqueAhora(p: ParadaC, titulo: string, detalle: string, cuando: string
       ${detalle ? `<span class="detalle-ahora">${esc(detalle)}</span>` : ''}
       <span class="hasta">${esc(cuando)}</span>
       ${lineaSubs(p)}
+      <span class="pista-detalles">Ver detalles</span>
     </button>
     ${acciones ? `<div class="acciones-bloque">${acciones}</div>` : ''}
   </div>`;
@@ -1283,7 +1284,11 @@ function filaParada(p: ParadaC, esOrigen: boolean): string {
         ${esOrigen ? '' : precioCorto(p)}
       </button>
       <div class="detalle">
-        ${esOrigen ? '' : `<div class="captura-parada">${botonCamara(p)}</div>`}
+        <div class="acciones acciones-ficha">
+          ${esOrigen ? '' : botonCamara(p)}
+          ${q.local ? botonEnsenar(p) : ''}
+          ${enlacesMapas(p)}
+        </div>
         ${esOrigen ? '' : fotosUi.html({ tipo: 'parada', viajeId: itinerario.id, paradaId: q.id })}
         ${q.notas && !esOrigen ? parrafos(q.notas, 'notas') : ''}
         ${esOrigen ? '' : subparadasHtml(p)}
@@ -1291,10 +1296,6 @@ function filaParada(p: ParadaC, esOrigen: boolean): string {
         ${esOrigen ? '' : gastosHtml(q.gastos)}
         ${q.enlaces?.length && !esOrigen ? `<p class="enlaces">${enlacesHtml(q.enlaces)}</p>` : ''}
         ${esOrigen ? '' : selectorMarca(p)}
-        <div class="acciones">
-          ${q.local ? botonEnsenar(p) : ''}
-          ${enlacesMapas(p)}
-        </div>
       </div>
     </li>`;
 }

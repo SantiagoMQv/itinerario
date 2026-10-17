@@ -896,9 +896,9 @@ body.reproduciendo .icono-pausa {
   position: absolute;
   left: 2px;
   right: 2px;
-  top: 0;
+  top: -2px;
   width: calc(100% - 4px);
-  height: 40px;
+  height: 44px;
   margin: 0;
   background: none;
   -webkit-appearance: none;
@@ -911,7 +911,7 @@ body.reproduciendo .icono-pausa {
   cursor: default;
 }
 #deslizador::-webkit-slider-runnable-track {
-  height: 40px;
+  height: 44px;
   background: none;
 }
 #deslizador::-moz-range-track {
@@ -923,7 +923,7 @@ body.reproduciendo .icono-pausa {
   box-sizing: border-box;
   width: 6px;
   height: 26px;
-  margin-top: 7px;
+  margin-top: 9px;
   border: 1.5px solid var(--papel);
   border-radius: 4px;
   background: var(--tinta);
@@ -999,6 +999,15 @@ body.reproduciendo .icono-pausa {
   flex-wrap: wrap;
   align-items: center;
   gap: 6px 8px;
+}
+.bloque .abrir {
+  min-height: 44px;
+}
+.pista-detalles {
+  color: var(--tinta-suave);
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 /* Botones de la calle: hecho, saltar, taxi. 34 px a la vista y 44 px al dedo. */
 .mini {
@@ -1340,7 +1349,7 @@ li.tramo + li.parada > .fila {
   padding-top: 2px;
 }
 li.tramo.actual {
-  color: var(--tinta-fija);
+  color: var(--tinta);
   font-weight: 650;
 }
 li.tramo.actual small {
@@ -3071,7 +3080,7 @@ body.reproduciendo li.hecha .marca {
 .album-sitio { margin: 12px 0 0 12px; border-left: 1px solid var(--borde); padding-left: 12px; }
 .album-sitio h4 { margin-bottom: 6px; }
 #utilidades .fotos-lista { max-width: none; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); }
-.captura-parada { margin: 4px 0 12px; }
+.acciones-ficha { margin: 4px 0 12px; align-items: center; }
 .foto-abrir { position: relative; }
 .foto-situacion { position: absolute; bottom: 0; left: 0; right: 0; padding: 3px; background: var(--papel); color: var(--tinta); font-size: 11px; }
 .visor-navegacion { grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-top: 8px; }
