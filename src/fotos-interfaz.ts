@@ -1,4 +1,6 @@
 import { crearPoliticaFotos, MODOS_FOTOS } from './fotos-datos';
+import { crearClienteListadoFotos, type ListadoFotos } from './fotos-listado';
+import { deserializarSolicitudRespaldo } from './fotos-protocolo';
 import type { Itinerario } from './tipos';
 import { copiarMetadatos, crearCapturaFoto, esDestinoActivo, esDestinoFoto, esFotoBorrada, tamanoBlob, tipoBlob,
   type CapturaFoto, type DestinoFoto, type MetadatosFoto } from './fotos';
@@ -753,6 +755,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
   }
   function aplicarDatos() {
     if (!politica.permitida) {
+      detenerDescubrimiento();
       for (const c of permisosEnCurso) c.abort();
       remotas?.suspender(); respaldo?.abandonarLote(); respaldo?.cancelarGuardado(); respaldo?.cancelarListado();
     } else {
@@ -761,11 +764,12 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
         const d = destinoDeClave(plan, clave);
         if (d && !visorFoto) { const sesion = remotas?.sesion(d); if (sesion) void sesion.refrescar(); else remotas?.abrir(d); }
       }
+      void descubrirAlbum();
       automatismoBloqueado = false;
       void subirAutomaticamente();
     }
     pintarDatos();
-    pintarAlbum();
+    pintarRetiradas(); pintarAlbum();
     for (const [clave, bloque] of abiertos) if (bloque.isConnected) pintarPanel(clave, bloque);
   }
   async function subirAutomaticamente() {
@@ -795,6 +799,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       else if (politica.automatica) void controlador.abrir();
     });
     addEventListener('online', () => { if (document.visibilityState !== 'hidden') politica.reanudar(); });
+    addEventListener('offline', () => { detenerDescubrimiento(); pintarRetiradas(); pintarAlbum(); });
   }
 
   function alCambiar(clave: ClaveDestino | null) {
@@ -833,6 +838,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     }
     if (visorFoto && visorRemoto && (clave === null || claveDestino(visorRemoto) === clave)) actualizarVisorRemoto();
     if (visorFoto) pintarNavegacionVisor();
+    pintarAlbum();
   }
   function cerrarAbierto(clave: ClaveDestino) {
     const bloque = abiertos.get(clave);
@@ -871,7 +877,11 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     if (!retiradas) return;
     const c = retiradas.contenedor;
     if (!c.isConnected) { retiradas = null; return; }
-    const destinos = controlador.fase === 'lista' ? controlador.destinosRetirados?.() ?? [] : [];
+    const destinos = [...(controlador.fase === 'lista' ? controlador.destinosRetirados?.() ?? [] : [])];
+    if (albumContenedor?.contains(c)) for (const clave of destinosCompartidos) {
+      const d = destinoDeClave(plan, clave);
+      if (d && !esDestinoActivo(plan, d) && !destinos.some((x) => claveDestino(x) === clave)) destinos.push(d);
+    }
     const firma = destinos.map(claveDestino).join('|');
     const filtro = c.parentElement?.querySelector<HTMLSelectElement>('[data-album-filtro]');
     // La lectura local puede terminar después de cambiar de día: el filtro vigente sigue mandando.
@@ -882,9 +892,10 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     // Un bloque abierto que desaparece se cierra de verdad (consultas, vistas y URLs) antes de sustituir la sección.
     for (const [clave, bloque] of [...abiertos]) if (c.contains(bloque)) cerrarAbierto(clave);
     c.innerHTML = destinos.length ? `<h3 tabindex="-1">Sitios que ya no están en el plan</h3>
-      <p class="cifras">Fotos de este móvil de paradas o sitios que ya no están en el plan. Siguen guardadas aquí y se ven como siempre; no se pueden añadir nuevas.</p>
-      <ul class="lista-retiradas">${destinos.map((d) => `<li><p class="retirada-nombre">${escapar(nombreDe(d))}</p>${html(d)}</li>`).join('')}</ul>` : '';
-    if (conFoco) c.querySelector<HTMLElement>('h3')?.focus();
+      <p class="cifras">Fotos de lugares que ya no están en el plan. Se pueden ver, pero no añadir nuevas.</p>
+      <ul class="lista-retiradas">${destinos.map((d) => `<li><p class="retirada-nombre">${escapar(nombreDe(d))}</p>${albumContenedor?.contains(c) ? html(d, 'album-retirada-', -1) : html(d)}</li>`).join('')}</ul>` : '';
+    for (const bloque of c.querySelectorAll<HTMLElement>('[data-fotos-destino]')) albumObservador?.observe(bloque);
+    if (conFoco) (c.querySelector<HTMLElement>('h3') ?? albumContenedor?.querySelector<HTMLElement>('[data-album-filtro]'))?.focus();
   }
 
   // ----- Bloque y panel -----
@@ -935,9 +946,11 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       const nota = elemento('p', 'cifras fotos-nota', respaldo ? NOTA_RESPALDO : NOTA);
       if (enAlbum) {
         const opciones = elemento('details', 'album-acciones');
-        const resumen = elemento('summary', '', 'Añadir fotos o ver parada');
+        const resumen = elemento('summary', '', esDestinoActivo(plan, destino) ? 'Añadir fotos o ver parada' : 'Opciones del lugar');
         resumen.append(elemento('span', 'sr', ` de «${nombreDe(destino)}»`));
-        opciones.append(resumen, acciones, boton('Ver parada en el itinerario', 'mini suave', { 'album-contexto': bloque.dataset.albumParada! }));
+        opciones.append(resumen, acciones);
+        if (esDestinoActivo(plan, destino)) opciones.append(boton('Ver parada en el itinerario', 'mini suave', { 'album-contexto': bloque.dataset.albumParada! }));
+        else opciones.hidden = true;
         nota.hidden = true;
         panel.replaceChildren(error, rejilla, estado, sesion, vacio, ...compartidas, opciones, nota);
       } else panel.replaceChildren(acciones, estado, error, rejilla, sesion, vacio, ...compartidas, nota);
@@ -1017,7 +1030,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     }));
     vacio.hidden = fase !== 'lista' || entradas.length > 0;
     vacio.textContent = enAlbum ? 'Sin fotos en este móvil.' : `Aún no hay fotos de «${nombre}» en este móvil.`;
-    if (enAlbum && !remotas) vacio.hidden = true;
+    if (enAlbum) vacio.hidden = true;
 
     const sinAnotar = entradas.some((e) => e.estado === 'vista-sin-anotar');
     const texto = fase === 'abriendo' || fase === 'cerrada' ? 'Abriendo las fotos de este móvil…'
@@ -1093,6 +1106,8 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     const fotos = s.fotos;
     const texto = textoEstadoRemotas(s.estado, fotos.length, nombreDe(destino));
     if (linea.textContent !== texto) linea.textContent = texto;
+    // La rejilla ya distingue las compartidas: no repetir explicaciones por lugar.
+    linea.hidden = panel.closest('[data-album-parada]') !== null && s.estado.tipo === 'lista';
     const previas = new Map([...lista.querySelectorAll<HTMLElement>(':scope > li')].map((li) => [li.dataset.remota ?? '', li]));
     const filas = fotos.map((f) => {
       let li = previas.get(f.original.fotoId);
@@ -1138,52 +1153,111 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
   let focoTrasBorrado: HTMLElement | null = null;
   const gestosAlbum = ['pointerdown', 'wheel', 'keydown'] as const;
   const soltarFocoAlbum = () => { focoTrasBorrado = null; };
-  /** Solo metadata local: cero no permite concluir que un destino remoto esté vacío. */
+  const ESTADOS_ALBUM = { pendiente: 'pendiente', consultando: 'consultando', lista: 'lista', fallo: 'fallo', sinSesion: 'sin-sesion' } as const;
+  let estadoAlbum: typeof ESTADOS_ALBUM[keyof typeof ESTADOS_ALBUM] = ESTADOS_ALBUM.pendiente;
+  let listadoAlbum: ListadoFotos | null = null;
+  let generacionAlbum = 0;
+  // Solo claves: ni otro catálogo de fotos ni originales fuera de pantalla.
+  const destinosCompartidos = new Set<ClaveDestino>();
+  function detenerDescubrimiento() {
+    generacionAlbum++;
+    listadoAlbum?.cerrar(); listadoAlbum = null;
+    destinosCompartidos.clear();
+    estadoAlbum = ESTADOS_ALBUM.pendiente;
+  }
+  async function descubrirAlbum() {
+    if (!composicion || !albumContenedor?.isConnected || !redPermitida()
+      || estadoAlbum !== ESTADOS_ALBUM.pendiente) return;
+    const gen = ++generacionAlbum;
+    estadoAlbum = ESTADOS_ALBUM.consultando;
+    pintarAlbum();
+    try {
+      const cliente = crearClienteListadoFotos({ plan, origen: composicion.origen, presupuesto: composicion.listado, http: { fetch: httpFotos } });
+      listadoAlbum = cliente;
+      let cursor: string | null = null;
+      const vistos = new Set<string>();
+      do {
+        const r = await cliente.listar(cursor);
+        if (gen !== generacionAlbum || !albumContenedor?.isConnected || !redPermitida()) return;
+        if (r.tipo !== 'pagina') {
+          if (r.tipo === 'fallida' && r.motivo === 'sin-sesion') { perderSesionUi('album'); return; }
+          estadoAlbum = ESTADOS_ALBUM.fallo; break;
+        }
+        for (const texto of r.pagina.solicitudesIniciales) {
+          const solicitud = deserializarSolicitudRespaldo(plan, texto);
+          destinosCompartidos.add(claveDestino(solicitud.original.destino));
+        }
+        cursor = r.pagina.continuacion;
+        if (cursor !== null && vistos.has(cursor)) { estadoAlbum = ESTADOS_ALBUM.fallo; break; }
+        if (cursor !== null) vistos.add(cursor);
+        if (cursor === null) estadoAlbum = ESTADOS_ALBUM.lista;
+        pintarRetiradas(); pintarAlbum();
+        // La metadata descubre lugares sin exigir recorrer filas vacías; se cede entre páginas.
+        if (cursor !== null) await new Promise<void>((resolver) => setTimeout(resolver, 0));
+      } while (cursor !== null && gen === generacionAlbum && redPermitida());
+    } catch { if (gen === generacionAlbum) estadoAlbum = ESTADOS_ALBUM.fallo; }
+    finally {
+      if (gen === generacionAlbum) { listadoAlbum?.cerrar(); listadoAlbum = null; pintarAlbum(); }
+    }
+  }
   function pintarAlbum() {
     if (!albumContenedor?.isConnected) return;
     const album = albumContenedor;
     const lista = controlador.fase === 'lista';
-    let total = 0;
+    const filtro = album.querySelector<HTMLSelectElement>('[data-album-filtro]')!.value;
+    let total = 0; let lugaresVisibles = 0;
     for (const dia of album.querySelectorAll<HTMLElement>('[data-album-dia]')) {
-      let cantidad = 0;
-      const lugares = dia.querySelector<HTMLElement>('.album-lugares')!;
-      const vacios = dia.querySelector<HTMLDetailsElement>('.album-vacios')!;
-      const listaVacios = vacios.querySelector<HTMLElement>('.album-vacios-lista')!;
+      let cantidad = 0; let lugares = 0;
       for (const lugar of dia.querySelectorAll<HTMLElement>('[data-album-lugar]')) {
         const bloque = lugar.querySelector<HTMLElement>('[data-fotos-destino]')!;
-        const destino = destinoDeClave(plan, bloque.dataset.fotosDestino ?? '');
+        const clave = bloque.dataset.fotosDestino ?? '';
+        const destino = destinoDeClave(plan, clave);
         if (!destino) continue;
         const n = lista ? controlador.cuenta(destino) : 0;
         cantidad += n;
-        const vacioConocido = lista && !remotas && n === 0 && controlador.entradas(destino).length === 0;
-        const destinoLista = vacioConocido ? listaVacios : lugares;
-        if (lugar.parentElement !== destinoLista) {
-          const foco = document.activeElement instanceof HTMLElement && lugar.contains(document.activeElement) ? document.activeElement : null;
-          if (foco && vacioConocido) vacios.open = true;
-          const siguiente = [...destinoLista.children].find((e) => Number((e as HTMLElement).dataset.albumOrden) > Number(lugar.dataset.albumOrden));
-          destinoLista.insertBefore(lugar, siguiente ?? null);
-          foco?.focus({ preventScroll: true });
-        }
+        const mostrar = n > 0 || controlador.entradas(destino).length > 0 || destinosCompartidos.has(clave);
+        lugar.hidden = !mostrar;
+        if (mostrar) lugares++;
+        if ((!mostrar || (filtro !== 'todos' && filtro !== dia.dataset.albumDia)) && abiertos.has(clave)) plegarBloque(bloque);
       }
-      vacios.hidden = !listaVacios.children.length;
-      vacios.querySelector('[data-album-vacios-cuenta]')!.textContent = `· ${listaVacios.children.length}`;
-      dia.querySelector('[data-album-dia-cuenta]')!.textContent = lista ? ` · ${cantidad} en este móvil` : '';
+      dia.hidden = lugares === 0 || (filtro !== 'todos' && filtro !== dia.dataset.albumDia);
+      if (!dia.hidden) lugaresVisibles += lugares;
+      dia.querySelector('[data-album-dia-cuenta]')!.textContent = cantidad ? ` · ${cantidad} en este móvil` : '';
       total += cantidad;
     }
     for (const d of controlador.destinosRetirados?.() ?? []) total += controlador.cuenta(d);
+    if (retiradas && album.contains(retiradas.contenedor)) {
+      const c = retiradas.contenedor;
+      c.hidden = filtro !== 'todos' || !c.children.length;
+      if (!c.hidden) lugaresVisibles += c.querySelectorAll('[data-fotos-destino]').length;
+      else for (const bloque of [...abiertos.values()]) if (c.contains(bloque)) plegarBloque(bloque);
+    }
     const cuenta = album.querySelector('[data-album-cuenta]')!;
     const textoCuenta = lista
       ? `${total} ${total === 1 ? 'foto' : 'fotos'} en este móvil · todo el viaje`
       : controlador.fase === 'fallo' ? 'No se pudieron abrir las fotos de este móvil.' : 'Abriendo las fotos de este móvil…';
     if (cuenta.textContent !== textoCuenta) cuenta.textContent = textoCuenta;
-    album.querySelector<HTMLElement>('[data-album-inicio]')!.hidden = !lista || total !== 0 || remotas !== null;
+    album.querySelector<HTMLElement>('[data-album-local-error]')!.hidden = controlador.fase !== 'fallo';
+    const inicio = album.querySelector<HTMLElement>('[data-album-inicio]')!;
+    inicio.hidden = !lista || lugaresVisibles > 0 || estadoAlbum === ESTADOS_ALBUM.consultando;
+    inicio.querySelector('p')!.textContent = remotas && estadoAlbum !== ESTADOS_ALBUM.lista
+      ? (filtro === 'todos' ? 'No hay fotos guardadas en este móvil.' : 'No hay fotos de este día guardadas en este móvil.')
+      : filtro === 'todos' ? 'Aún no hay fotos del viaje. Añade la primera desde una parada.' : 'No hay fotos de este día. Prueba otro día o añade una desde su parada.';
     const estado = album.querySelector<HTMLElement>('[data-album-datos-estado]')!;
     estado.hidden = !remotas;
-    estado.querySelector('span')!.textContent = politica.permitida ? 'Compartidas: se cargan al llegar a cada lugar.' : 'Compartidas en pausa.';
+    estado.querySelector('span')!.textContent = !politica.permitida ? 'Compartidas en pausa para ahorrar datos.'
+      : navigator.onLine === false ? 'Sin conexión. Tus fotos guardadas siguen disponibles.'
+      : estadoAlbum === ESTADOS_ALBUM.sinSesion ? 'Entra de nuevo para ver las fotos compartidas.'
+      : estadoAlbum === ESTADOS_ALBUM.fallo ? 'No se pudieron consultar todas las compartidas.'
+      : estadoAlbum === ESTADOS_ALBUM.lista
+        ? (destinosCompartidos.size ? 'Compartidas disponibles.' : 'Todavía no hay fotos compartidas.')
+        : 'Buscando fotos compartidas…';
+    estado.querySelector<HTMLElement>('[data-album-reintentar]')!.hidden = !politica.permitida || estadoAlbum !== ESTADOS_ALBUM.fallo;
+    estado.querySelector<HTMLElement>('[data-album-entrar]')!.hidden = estadoAlbum !== ESTADOS_ALBUM.sinSesion;
     const ayuda = album.querySelector<HTMLElement>('[data-album-ayuda-contenido]')!;
     if (!ayuda.children.length) {
       ayuda.append(elemento('p', 'cifras', respaldo ? NOTA_RESPALDO : NOTA));
-      if (remotas) ayuda.append(elemento('p', 'cifras', 'Permitir las compartidas puede consumir datos móviles, hasta 8 MB por foto. El permiso termina al ocultar o salir de la app. No podemos detectar wifi.'),
+      if (remotas) ayuda.append(elemento('p', 'cifras', 'Solo se cargan las fotos compartidas que ves. Permitirlas puede consumir datos móviles, hasta 8 MB por foto. El permiso termina al ocultar o salir de la app. No podemos detectar wifi.'),
         boton('Permitir fotos durante esta visita', 'boton', { 'datos-permitir': '' }));
     }
     const permitir = ayuda.querySelector<HTMLButtonElement>('[data-datos-permitir]');
@@ -1542,12 +1616,13 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
   function refugioFoco(): HTMLElement | null {
     const c = retiradas?.contenedor;
     const titulo = c && c.isConnected && !c.hidden ? c.querySelector<HTMLElement>('h3') : null;
-    return titulo ?? opciones.focoDeReserva?.() ?? null;
+    return albumContenedor?.querySelector<HTMLElement>('[data-album-filtro]') ?? titulo ?? opciones.focoDeReserva?.() ?? null;
   }
-  /** Solo tras borrar: una fila puede pasar al grupo vacío, fuera de la ventana o bajo el selector fijo. */
+  /** Solo tras borrar: la foto de destino del foco puede quedar fuera de la ventana o bajo el selector fijo. */
   function mostrarFocoAlbum() {
     const foco = focoTrasBorrado;
     if (!foco || foco !== document.activeElement || !albumContenedor?.contains(foco)) { soltarFocoAlbum(); return; }
+    if (foco.matches('[data-album-filtro]')) return;
     const area = albumContenedor.getBoundingClientRect();
     const navegacion = albumContenedor.querySelector('.album-navegacion')?.getBoundingClientRect();
     const arriba = Math.max(area.top, navegacion?.bottom ?? area.top) + 8;
@@ -1597,11 +1672,13 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
   let autorizacionUi = 0;
   /** Sesión perdida: fuera el archivo pendiente del visor y lo temporal del OTRO controlador (sin volver a avisar al
    * que la detectó: no hay eco), y el visor se repinta. Lo guardado en este móvil sigue. */
-  function perderSesionUi(origen: 'respaldo' | 'remotas') {
+  function perderSesionUi(origen: 'respaldo' | 'remotas' | 'album') {
+    detenerDescubrimiento(); estadoAlbum = ESTADOS_ALBUM.sinSesion;
     autorizacionUi++;
     archivoRemoto = null;
-    if (origen === 'respaldo') remotas?.invalidarSesion();
-    else respaldo?.invalidarSesion();
+    if (origen !== 'remotas') remotas?.invalidarSesion();
+    if (origen !== 'respaldo') respaldo?.invalidarSesion();
+    pintarRetiradas(); pintarAlbum();
     actualizarVisorRemoto();
   }
   function soltarRemotaDelVisor() {
@@ -1891,6 +1968,11 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
           : p.tipo === 'respaldada' ? '' : ' No se pudo pausar su respaldo: el servidor puede recibirla igualmente.';
       }
       const r = await controlador.borrar(id);
+      // La deduplicación descartó la referencia remota. Tras borrar su copia local, reconsultar la sesión
+      // abierta del álbum permite verla como compartida, clasificada contra el tombstone (sin resucitarla).
+      if (r === 'borrada' && datos && albumContenedor && redPermitida() && remotas?.sesion(datos.destino)) {
+        remotas.abrir(datos.destino);
+      }
       if (!vigenteVisor()) {
         // El resultado durable se dice en el panel de SU destino; el visor que haya ahora no se toca.
         if (datos && r !== 'ocupada') {
@@ -1909,13 +1991,10 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
         const clave = datos ? claveDestino(datos.destino) : null;
         const bloque = datos?.bloque?.isConnected ? datos.bloque : [...contenido.querySelectorAll<HTMLElement>('[data-fotos-destino]')]
           .find((b) => b.dataset.fotosDestino === clave);
-        if (bloque?.hasAttribute('data-album-parada')) {
-          const acciones = bloque.querySelector<HTMLDetailsElement>('.album-acciones');
-          if (acciones) acciones.open = true;
-          const vacios = bloque.closest<HTMLDetailsElement>('.album-vacios');
-          if (vacios) vacios.open = true;
-        }
-        abridor = (datos && bloque ? bloque.querySelector<HTMLElement>(esDestinoActivo(plan, datos.destino)
+        if (albumContenedor) {
+          abridor = [...albumContenedor.querySelectorAll<HTMLElement>('[data-foto-id], [data-foto-remota]')]
+            .find((b) => !b.closest('[hidden]') && b.dataset.fotoId !== id) ?? refugioFoco();
+        } else abridor = (datos && bloque ? bloque.querySelector<HTMLElement>(esDestinoActivo(plan, datos.destino)
           ? '[data-fotos-anadir]' : '[data-fotos-alternar]') : null) ?? abridor;
         cerrarVisor();
         // Tras cerrar el visor (fuera del modal), para que la línea de estado se anuncie.
@@ -1923,8 +2002,8 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
           const clave = claveDestino(datos.destino);
           mensajes.set(clave, `Foto borrada de este móvil.${pausa}`);
           alCambiar(clave);
-          // La carga progresiva de grupos anteriores aún puede desplazar esta fila recién movida.
-          if (bloque?.closest('.album-vacios')) {
+          // La carga progresiva de grupos anteriores aún puede desplazar la foto enfocada.
+          if (albumContenedor) {
             focoTrasBorrado = document.activeElement instanceof HTMLElement ? document.activeElement : null;
             mostrarFocoAlbum();
           }
@@ -1972,6 +2051,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       albumContenedor = contenedor;
       for (const gesto of gestosAlbum) contenedor.addEventListener(gesto, soltarFocoAlbum, { passive: true });
       pintarAlbum();
+      void descubrirAlbum();
       albumObservador?.disconnect();
       if (typeof IntersectionObserver !== 'function') return;
       albumObservador = new IntersectionObserver((entradas) => {
@@ -1985,7 +2065,18 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     },
     html,
     manejarClic(objetivo) {
-      if (objetivo.closest('[data-datos-permitir]')) { politica.permitirTemporal(); return true; }
+      if (objetivo.closest('[data-album-reabrir]')) { void controlador.abrir(); return true; }
+      if (objetivo.closest('[data-album-reintentar]')) { detenerDescubrimiento(); void descubrirAlbum(); return true; }
+      if (objetivo.closest('[data-datos-permitir]')) {
+        politica.permitirTemporal();
+        if (albumContenedor?.contains(objetivo)) {
+          const ayuda = albumContenedor.querySelector<HTMLDetailsElement>('[data-album-ayuda]');
+          if (ayuda) ayuda.open = false;
+          albumContenedor.scrollTop = 0;
+          albumContenedor.querySelector<HTMLElement>('[data-album-filtro]')?.focus({ preventScroll: true });
+        }
+        return true;
+      }
       if (seccion && objetivo.closest('[data-fotos-viaje]')) {
         if (!politica.permitida && objetivo.closest('[data-lote-confirmar], [data-lote-continuar]')) politica.permitirTemporal();
         if (!politica.permitida && objetivo.closest('[data-lote-confirmar], [data-lote-continuar], [data-catalogo-ver], [data-catalogo-siguientes], [data-catalogo-principio], [data-catalogo-reintentar], [data-catalogo-guardar], [data-viaje-reintentar]')) { anunciar('Permite las transferencias de fotos en Ajustes. Pueden consumir datos móviles.'); return true; }
@@ -2024,6 +2115,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
     },
     desmontar() {
       cerrarVisor();
+      detenerDescubrimiento();
       for (const clave of [...abiertos.keys()]) cerrarAbierto(clave);
       // Solo la vista: el respaldo y el catálogo siguen siendo del controlador (una acción en curso no se corta).
       seccion?.desmontar();
@@ -2034,6 +2126,7 @@ export function crearFotosUi(opciones: OpcionesFotosUi): FotosUi {
       if (albumContenedor && contenedor.contains(albumContenedor)) {
         soltarFocoAlbum();
         for (const gesto of gestosAlbum) albumContenedor.removeEventListener(gesto, soltarFocoAlbum);
+        detenerDescubrimiento();
         albumObservador?.disconnect(); albumContenedor = null;
       }
       for (const bloque of [...abiertos.values()]) if (contenedor.contains(bloque)) plegarBloque(bloque);

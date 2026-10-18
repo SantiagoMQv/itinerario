@@ -3078,7 +3078,8 @@ body.reproduciendo li.hecha .marca {
 .album-navegacion select { width: 100%; min-height: 44px; padding: 8px 36px 8px 12px; border: 1px solid var(--borde-fuerte); border-radius: 8px; background: var(--papel); color: var(--tinta); font: inherit; font-weight: 700; }
 .album-navegacion p { margin: 6px 0 0; font-variant-numeric: tabular-nums; }
 .album-dia { padding: 16px 0 20px; border-top: 1px solid var(--borde-fuerte); }
-.album-dia[hidden], .album-vacios[hidden], .album-inicio[hidden], .album-datos-estado[hidden] { display: none; }
+.album-dia[hidden], .album-lugar[hidden], .album-inicio[hidden], .album-datos-estado[hidden],
+.album-datos-estado [hidden], .album-ayuda [hidden] { display: none; }
 .album-dia-cabecera h3 { margin: 0; font-size: 20px; font-weight: 800; line-height: 1.15; text-wrap: balance; }
 .album-dia-cabecera p { margin: 6px 0 14px; }
 .album-lugares { display: flex; flex-direction: column; gap: 20px; }
@@ -3088,14 +3089,9 @@ body.reproduciendo li.hecha .marca {
 .fotos-album { margin: 0; }
 .fotos-album .fotos-panel { padding: 0; }
 .fotos-album > [data-fotos-alternar][aria-expanded="true"] { display: none; }
-.album-acciones > summary, .album-vacios > summary, .album-ayuda > summary { min-height: 44px; padding: 12px 0; cursor: pointer; font-size: 14px; line-height: 20px; }
+.album-acciones > summary, .album-ayuda > summary { min-height: 44px; padding: 12px 0; cursor: pointer; font-size: 14px; line-height: 20px; }
 .album-acciones > summary { color: var(--tinta-suave); }
 .album-acciones .fotos-acciones { margin-top: 0; }
-.album-vacios { margin-top: 10px; border-top: 1px solid var(--borde); }
-.album-vacios > summary { font-weight: 650; }
-.album-vacios-lista { padding-top: 8px; }
-.album-vacios-lista .album-lugar { border-bottom: 1px solid var(--borde); }
-.album-vacios-lista .album-lugar h4 { margin-bottom: 0; }
 .album-ayuda { border-top: 1px solid var(--borde-fuerte); }
 .album-datos-estado { display: flex; align-items: center; flex-wrap: wrap; gap: 4px 12px; margin: 0 0 10px; }
 .album-inicio { margin: 8px 0 20px; max-width: 45ch; }

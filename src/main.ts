@@ -280,21 +280,19 @@ function abrirUtilidades(tipo: 'fotos' | 'ajustes', abridor: HTMLElement) {
     const copias = cuerpo.querySelector<HTMLElement>('[data-copia-movil]');
     if (copias) portabilidadUi?.montar(copias);
   } else {
-    let ordenAlbum = 0;
     cuerpo.innerHTML = `<div class="album-navegacion">
       <label class="sr" for="album-dia">Día de las fotos</label>
       <select id="album-dia" data-album-filtro><option value="todos">Todo el viaje</option>${modelo.dias.map((dia) =>
         `<option value="${dia.idx}">Día ${dia.idx + 1} · ${esc(dia.d.titulo)}</option>`).join('')}</select>
       <p class="cifras" data-album-cuenta role="status">Abriendo las fotos de este móvil…</p>
-    </div><p class="album-inicio" data-album-inicio hidden>Aún no has añadido fotos. Abre los lugares de un día para guardar tu primer recuerdo.</p>
-    <div class="album-datos-estado" data-album-datos-estado hidden><span class="cifras"></span><button type="button" class="mini suave" data-album-ver-datos>Opciones de datos</button></div>` + modelo.dias.map((dia) =>
+    </div><div class="album-inicio" data-album-inicio hidden><p></p><button type="button" class="boton" data-utilidades-cerrar>Ir al itinerario y añadir fotos</button></div><div data-album-local-error hidden><button type="button" class="mini" data-album-reabrir>Reintentar fotos de este móvil</button></div>
+    <div class="album-datos-estado" data-album-datos-estado hidden><span class="cifras" role="status"></span><button type="button" class="mini suave" data-album-ver-datos>Opciones de datos</button><button type="button" class="mini" data-album-reintentar hidden>Reintentar compartidas</button><a class="mini" href="/entrar" data-album-entrar hidden>Entrar</a></div>` + modelo.dias.map((dia) =>
       `<section class="album-dia" data-album-dia="${dia.idx}" aria-labelledby="album-titulo-${dia.idx}">
         <header class="album-dia-cabecera"><h3 id="album-titulo-${dia.idx}">Día ${dia.idx + 1} · ${esc(dia.d.titulo)}</h3>
         <p class="cifras">${esc(fechaCorta(dia.d.fecha))}<span data-album-dia-cuenta></span></p></header>
         <div class="album-lugares">${dia.paradas.map((p) =>
-          `<section class="album-lugar" data-album-lugar data-album-orden="${ordenAlbum++}"><h4>${esc(p.p.nombre)}</h4>${fotosUi.html({ tipo: 'parada', viajeId: itinerario.id, paradaId: p.p.id }, 'album-', p.id)}</section>${p.subs.map((x) =>
-            `<section class="album-lugar" data-album-lugar data-album-orden="${ordenAlbum++}"><h4>${esc(x.s.nombre)}</h4><p class="album-contexto cifras">En ${esc(p.p.nombre)}</p>${fotosUi.html({ tipo: 'subparada', viajeId: itinerario.id, paradaId: p.p.id, subparadaId: x.s.id }, 'album-', p.id)}</section>`).join('')}`).join('')}</div>
-        <details class="album-vacios" hidden><summary>Lugares sin fotos <span data-album-vacios-cuenta></span></summary><div class="album-lugares album-vacios-lista"></div></details>
+          `<section class="album-lugar" data-album-lugar><h4>${esc(p.p.nombre)}</h4>${fotosUi.html({ tipo: 'parada', viajeId: itinerario.id, paradaId: p.p.id }, 'album-', p.id)}</section>${p.subs.map((x) =>
+            `<section class="album-lugar" data-album-lugar><h4>${esc(x.s.nombre)}</h4><p class="album-contexto cifras">En ${esc(p.p.nombre)}</p>${fotosUi.html({ tipo: 'subparada', viajeId: itinerario.id, paradaId: p.p.id, subparadaId: x.s.id }, 'album-', p.id)}</section>`).join('')}`).join('')}</div>
       </section>`).join('') + '<section class="seccion fotos-retiradas" data-fotos-retiradas hidden></section><details class="album-ayuda" data-album-ayuda><summary>Almacenamiento y datos</summary><div data-album-ayuda-contenido></div></details>';
     fotosUi.montarRetiradas(cuerpo.querySelector<HTMLElement>('[data-fotos-retiradas]')!);
     fotosUi.preparar();
@@ -326,13 +324,6 @@ utilidades.addEventListener('change', (e) => {
   const filtro = (e.target as HTMLElement).closest<HTMLSelectElement>('[data-album-filtro]');
   if (!filtro) return;
   const cuerpo = utilidades.querySelector<HTMLElement>('.utilidades-contenido')!;
-  for (const dia of cuerpo.querySelectorAll<HTMLElement>('[data-album-dia]')) {
-    const oculto = filtro.value !== 'todos' && filtro.value !== dia.dataset.albumDia;
-    if (oculto) fotosUi.cerrarEn(dia);
-    dia.hidden = oculto;
-  }
-  const retiradas = cuerpo.querySelector<HTMLElement>('[data-fotos-retiradas]');
-  if (retiradas) retiradas.hidden = filtro.value !== 'todos' || !retiradas.children.length;
   cuerpo.scrollTop = 0;
   fotosUi.abrirAlbum(cuerpo);
 });

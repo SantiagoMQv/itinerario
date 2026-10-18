@@ -11,7 +11,7 @@ import { createServer, type Server } from 'node:https';
 import type { IncomingMessage } from 'node:http';
 import { TLSSocket } from 'node:tls';
 import { execFileSync } from 'node:child_process';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { deflateSync } from 'node:zlib';
 import { join } from 'node:path';
@@ -533,6 +533,59 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
     return { sql, objetos };
   }
 
+  test('UX · álbum piloto disperso: solo destinos con fotos', async ({ page }) => {
+    await instrumentar(page);
+    const posterior: DestinoFoto = { tipo: 'parada', viajeId: itinerario.id, paradaId: itinerario.dias[2].paradas[0].id };
+    await sembrarServidor(page, [D_OTRA, D_SUB, posterior].map((destino, i) => ({
+      s: remota(`${i + 1}bcdef12-1234-4123-8123-123456789abd`, `recuerdo-${i + 1}.png`, destino, 'image/png', pngVista), bytes: pngVista,
+    })));
+    await abrirFixture(page, '?album');
+    await page.getByRole('button', { name: 'Abrir fotos del viaje' }).click();
+    const album = page.getByRole('dialog', { name: 'Fotos del viaje' });
+    await expect(album.locator('[data-album-cuenta]')).toContainText('0 fotos en este móvil');
+    await expect(album.locator('[data-album-reintentar]')).toBeHidden();
+    await expect(album.locator('[data-album-entrar]')).toBeHidden();
+    async function capturar(estado: string) {
+      if (!process.env.CAPTURAS_ALBUM) return;
+      await mkdir(process.env.CAPTURAS_ALBUM, { recursive: true });
+      for (const [ancho, alto, noche] of [[390, 844, false], [390, 844, true], [360, 640, false], [690, 829, false], [829, 690, false]] as const) {
+        await page.setViewportSize({ width: ancho, height: alto });
+        await page.evaluate((oscuro) => { document.documentElement.dataset.tema = oscuro ? 'oscuro' : 'claro';
+          const ayuda = document.querySelector<HTMLDetailsElement>('[data-album-ayuda]'); if (ayuda) ayuda.open = false;
+          document.querySelector('.utilidades-contenido')!.scrollTop = 0; }, noche);
+        await page.screenshot({ path: `${process.env.CAPTURAS_ALBUM}/${estado}-${ancho}-${alto}${noche ? '-noche' : ''}.png` });
+      }
+      await page.setViewportSize({ width: 390, height: 844 });
+    }
+    await capturar('ahorro');
+    const visiblesSinPermiso = await album.locator('[data-album-lugar]:visible').count();
+    expect(llamadas.filter((l) => l.includes('/api/fotos/'))).toEqual([]);
+    await page.getByRole('button', { name: 'Opciones de datos' }).click();
+    await page.getByRole('button', { name: 'Permitir fotos durante esta visita' }).click();
+    await expect(album.locator('[data-foto-remota]').first()).toBeVisible();
+    await expect(album.getByRole('combobox', { name: 'Día de las fotos' })).toBeFocused();
+    await expect(album.locator('[data-datos-permitir]')).toBeHidden();
+    // Las capturas de referencia preceden a RED: se conserva el fallo del piloto, no se reconstruye después.
+    await capturar('permitido');
+    await page.setViewportSize({ width: 360, height: 640 });
+    const estadoCompartidas = album.locator('[data-album-datos-estado]');
+    await expect(estadoCompartidas.locator('[role="status"]')).toHaveText('Compartidas disponibles.');
+    expect((await estadoCompartidas.boundingBox())!.height).toBeLessThanOrEqual(48);
+    expect((await album.getByRole('button', { name: 'Opciones de datos' }).boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    expect(visiblesSinPermiso).toBe(0);
+    await expect(album.locator('[data-album-lugar]:visible')).toHaveCount(3);
+    await expect(album.locator(`[data-fotos-destino="${claveDe(D_PARADA)}"]`)).toBeHidden();
+    await expect(album.locator('.album-vacios')).toHaveCount(0);
+    await expect(album.locator('[data-album-dia="1"]')).toBeHidden();
+    expect(llamadas.filter((l) => l.startsWith('GET /api/fotos/listado') && !l.includes('destino='))).toHaveLength(3);
+    await album.getByRole('combobox', { name: 'Día de las fotos' }).selectOption('1');
+    await expect(album.locator('[data-album-dia]:visible')).toHaveCount(0);
+    await expect(album.locator('[data-album-inicio]')).toContainText('No hay fotos de este día');
+    await page.getByRole('button', { name: 'Volver al itinerario' }).click();
+    await expect.poll(() => urlsVivas(page)).toBe(0);
+    expect((await escrituras(page)).filter((x) => x.startsWith(`idb:${BASE_FOTOS}`) || x.startsWith(`idb:${BASE_LEDGER}`))).toEqual([]);
+  });
+
   test('UX · álbum real: cero locales no oculta compartidas ni concede permiso, y filtrar suelta las vistas', async ({ page }) => {
     await instrumentar(page);
     await sembrarServidor(page, [{ s: remota(fotoUno, 'muestra-compartida.png', DESTINO_FIXTURE, 'image/png', pngVista), bytes: pngVista }]);
@@ -540,7 +593,7 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
     await page.getByRole('button', { name: 'Abrir fotos del viaje' }).click();
     const album = page.getByRole('dialog', { name: 'Fotos del viaje' });
     const destino = album.locator(`[data-fotos-destino="${claveDe(DESTINO_FIXTURE)}"]`);
-    await expect(destino.locator('.album-acciones')).toBeVisible();
+    await expect(destino).toBeHidden();
     await expect(album.locator('[data-album-cuenta]')).toHaveText('0 fotos en este móvil · todo el viaje');
     await expect(album.locator('.album-vacios:visible')).toHaveCount(0);
     expect(consultados(llamadas)).toEqual([]); expect(originales(llamadas)).toEqual([]);
@@ -558,6 +611,133 @@ window.fixtureUi = { listo: true, cerrarEn: (selector) => ui.cerrarEn(document.q
     await expect.poll(() => urlsVivas(page)).toBe(urlsAntes);
     await page.getByRole('button', { name: 'Volver al itinerario' }).click();
     expect(await fotoNavegador(page, fotoUno)).toEqual({ metadatos: null, original: null });
+  });
+
+  test('UX · álbum: borrar la última local deduplicada recupera su compartida sin resucitarla', async ({ page }) => {
+    await sembrarServidor(page, [{ s: remota(fotoUno, 'recuerdo-guardado.png', D_OTRA, 'image/png', pngVista), bytes: pngVista }]);
+    await abrirFixture(page, '?album');
+    await page.getByRole('button', { name: 'Abrir fotos del viaje' }).click();
+    const album = page.getByRole('dialog', { name: 'Fotos del viaje' });
+    const grupo = album.locator(`[data-fotos-destino="${claveDe(D_OTRA)}"]`);
+    await page.getByRole('button', { name: 'Opciones de datos' }).click();
+    await page.getByRole('button', { name: 'Permitir fotos durante esta visita' }).click();
+    await grupo.locator(`[data-foto-remota="${fotoUno}"]`).click();
+    const visor = page.locator('#visor-foto');
+    await visor.locator('[data-visor-guardar-remota]').click();
+    await expect(visor.locator('.visor-aviso')).toHaveText(GUARDADA_REMOTA);
+    await page.getByRole('button', { name: 'Cerrar la foto' }).click();
+    const propia = grupo.locator(`[data-foto-id="${fotoUno}"]`);
+    await expect(propia).toBeVisible();
+    await expect(grupo.locator('[data-foto-remota]')).toHaveCount(0);
+    await propia.click();
+    await page.getByRole('button', { name: 'Borrar de este móvil', exact: true }).click();
+    await page.getByRole('button', { name: 'Borrar', exact: true }).click();
+    await expect(propia).toHaveCount(0);
+    const compartida = grupo.locator(`[data-foto-remota="${fotoUno}"]`);
+    await expect(compartida).toBeVisible();
+    await expect(compartida.locator('img')).toBeVisible();
+    expect(await fotoNavegador(page, fotoUno)).toEqual({ metadatos: { formato: 1, tipo: 'borrada', fotoId: fotoUno }, original: null });
+    await compartida.click();
+    await expect(visor).toContainText('La borraste de este móvil');
+    await expect(visor.locator('[data-visor-guardar-remota]')).toHaveCount(0);
+    expect(await fotoNavegador(page, fotoUno)).toEqual({ metadatos: { formato: 1, tipo: 'borrada', fotoId: fotoUno }, original: null });
+    expect(llamadas.some((l) => l.startsWith('POST'))).toBe(false);
+  });
+
+  test('UX · álbum: catálogo vacío distingue ausencia de compartidas', async ({ page }) => {
+    await login(page, 'editor-uno');
+    await abrirFixture(page, '?album');
+    await page.getByRole('button', { name: 'Abrir fotos del viaje' }).click();
+    const album = page.getByRole('dialog', { name: 'Fotos del viaje' });
+    await page.getByRole('button', { name: 'Opciones de datos' }).click();
+    await page.getByRole('button', { name: 'Permitir fotos durante esta visita' }).click();
+    await expect(album.locator('[data-album-datos-estado] [role="status"]')).toHaveText('Todavía no hay fotos compartidas.');
+    await expect(album.locator('[data-album-inicio]')).toContainText('Aún no hay fotos del viaje');
+    await expect(album.locator('[data-album-lugar]:visible')).toHaveCount(0);
+    await expect(album.locator('[data-album-reintentar]')).toBeHidden();
+  });
+
+  test('UX · álbum: un fallo del catálogo ofrece reintento global sin inventar lugares vacíos', async ({ page }) => {
+    await sembrarServidor(page, [{ s: remota(fotoUno, 'recuerdo.png', D_SUB, 'image/png', pngVista), bytes: pngVista }]);
+    await abrirFixture(page, '?album');
+    await page.getByRole('button', { name: 'Abrir fotos del viaje' }).click();
+    const album = page.getByRole('dialog', { name: 'Fotos del viaje' });
+    modoListado = 'invalido';
+    await page.getByRole('button', { name: 'Opciones de datos' }).click();
+    await page.getByRole('button', { name: 'Permitir fotos durante esta visita' }).click();
+    await expect(album.locator('[data-album-datos-estado]')).toContainText('No se pudieron consultar todas');
+    await expect(album.locator('[data-album-lugar]:visible')).toHaveCount(0);
+    modoListado = 'normal';
+    await page.getByRole('button', { name: 'Reintentar compartidas' }).click();
+    await expect(album.locator('[data-album-lugar]:visible')).toHaveCount(1);
+    await expect(album.locator('[data-foto-remota]')).toHaveCount(1);
+  });
+
+  for (const salida of ['cerrar', 'ocultar'] as const) test(`UX · álbum: ${salida} invalida el descubrimiento pendiente y sus llegadas tardías`, async ({ page }) => {
+    await instrumentar(page);
+    await sembrarServidor(page, [{ s: remota(fotoUno, 'recuerdo.png', D_SUB, 'image/png', pngVista), bytes: pngVista }]);
+    await abrirFixture(page, '?album');
+    let soltar = () => {}; let retenida = false;
+    const espera = new Promise<void>((ok) => { soltar = ok; });
+    await page.route((u) => u.pathname === '/api/fotos/listado' && !u.searchParams.has('destino'), async (ruta) => {
+      const respuesta = await ruta.fetch(); retenida = true; await espera;
+      await ruta.fulfill({ response: respuesta }).catch(() => {});
+    });
+    await page.getByRole('button', { name: 'Abrir fotos del viaje' }).click();
+    const album = page.getByRole('dialog', { name: 'Fotos del viaje' });
+    await page.getByRole('button', { name: 'Opciones de datos' }).click();
+    await page.getByRole('button', { name: 'Permitir fotos durante esta visita' }).click();
+    try {
+      await expect.poll(() => retenida).toBe(true);
+      await expect(album.locator('[data-album-datos-estado]')).toContainText('Buscando fotos compartidas');
+      if (salida === 'cerrar') await page.getByRole('button', { name: 'Volver al itinerario' }).click();
+      else await page.evaluate(() => dispatchEvent(new Event('pagehide')));
+    } finally { soltar(); }
+    await page.waitForTimeout(100);
+    expect(consultados(llamadas)).toEqual([]); expect(originales(llamadas)).toEqual([]);
+    expect(await urlsVivas(page)).toBe(0);
+    if (salida === 'ocultar') {
+      await expect(album.locator('[data-album-lugar]:visible')).toHaveCount(0);
+      await expect(album.locator('[data-album-datos-estado]')).toContainText('Compartidas en pausa');
+    } else await expect(album).toBeHidden();
+  });
+
+  test('UX · álbum: una retirada remota aparece sin crear captura y un 401 limpia el descubrimiento', async ({ page }) => {
+    const retirada: DestinoFoto = { tipo: 'parada', viajeId: itinerario.id, paradaId: itinerario.retiradas!.paradas![0].id };
+    await sembrarServidor(page, [{ s: remota(fotoUno, 'recuerdo-antiguo.png', retirada, 'image/png', pngVista), bytes: pngVista }]);
+    await abrirFixture(page, '?album');
+    await page.getByRole('button', { name: 'Abrir fotos del viaje' }).click();
+    const album = page.getByRole('dialog', { name: 'Fotos del viaje' });
+    await page.getByRole('button', { name: 'Opciones de datos' }).click();
+    await page.getByRole('button', { name: 'Permitir fotos durante esta visita' }).click();
+    const retiradas = album.locator('[data-fotos-retiradas]');
+    await expect(retiradas).toBeVisible();
+    await expect(retiradas.locator('[data-foto-remota]')).toHaveCount(1);
+    await expect(retiradas.locator('[data-fotos-camara]:visible, [data-album-contexto]:visible')).toHaveCount(0);
+    await page.getByRole('button', { name: 'Volver al itinerario' }).click();
+    await page.context().clearCookies();
+    await page.getByRole('button', { name: 'Abrir fotos del viaje' }).click();
+    await expect(album.locator('[data-album-entrar]')).toBeVisible();
+    await expect(retiradas).toBeHidden();
+    await expect(album.locator('[data-foto-remota]')).toHaveCount(0);
+  });
+
+  test('UX · álbum: IndexedDB fallido conserva un reintento visible aunque no haya grupos', async ({ page }) => {
+    await login(page, 'editor-uno');
+    await page.addInitScript((base) => {
+      const abrir = indexedDB.open.bind(indexedDB); let fallar = true;
+      indexedDB.open = (nombre, version) => {
+        if (nombre === base && fallar) { fallar = false; throw new Error('Fallo sintético de apertura'); }
+        return abrir(nombre, version);
+      };
+    }, BASE_FOTOS);
+    await abrirFixture(page, '?album');
+    await page.getByRole('button', { name: 'Abrir fotos del viaje' }).click();
+    const album = page.getByRole('dialog', { name: 'Fotos del viaje' });
+    await expect(album.locator('[data-album-cuenta]')).toContainText('No se pudieron abrir');
+    await page.getByRole('button', { name: 'Reintentar fotos de este móvil' }).click();
+    await expect(album.locator('[data-album-cuenta]')).toContainText('0 fotos en este móvil');
+    expect(llamadas.filter((l) => l.includes('/api/fotos/'))).toEqual([]);
   });
 
   test('UX · el teclado conserva el foco al cambiar ambos modos de datos', async ({ page }) => {

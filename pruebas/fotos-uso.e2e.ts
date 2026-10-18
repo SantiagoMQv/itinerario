@@ -95,7 +95,8 @@ test('borrar la última foto devuelve el foco dentro del álbum, sin taparlo con
   await bloque.locator('[data-foto-id]').click();
   await page.getByRole('button', { name: 'Borrar de este móvil', exact: true }).click();
   await page.getByRole('button', { name: 'Borrar', exact: true }).click();
-  const foco = bloque.locator('[data-fotos-anadir]');
+  await expect(bloque).toBeHidden();
+  const foco = album.locator('[data-foto-id]:visible').first();
   await expect(foco).toBeFocused();
   await expect(foco).toBeInViewport({ ratio: 1 });
   const navegacion = await album.locator('.album-navegacion').boundingBox();
@@ -104,7 +105,7 @@ test('borrar la última foto devuelve el foco dentro del álbum, sin taparlo con
   expect(limites!.y + limites!.height).toBeLessThanOrEqual(640);
 });
 
-test('el álbum prioriza fotos, filtra días y recoge los lugares sin fotos', async ({ page }) => {
+test('el álbum prioriza fotos, filtra días y oculta los lugares sin fotos', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 640 });
   await page.clock.setFixedTime(new Date('2026-10-21T16:10:00+08:00'));
   await page.goto('/');
@@ -117,12 +118,14 @@ test('el álbum prioriza fotos, filtra días y recoge los lugares sin fotos', as
   const foto = album.locator('[data-foto-id]').first();
   await expect(foto).toBeVisible();
   await expect.poll(async () => (await foto.boundingBox())?.y ?? Infinity).toBeLessThan(300);
-  await expect(album.locator('.album-vacios').first()).not.toHaveAttribute('open');
+  await expect(album.locator('.album-vacios')).toHaveCount(0);
+  await expect(album.locator('[data-album-lugar]:visible')).toHaveCount(1);
   await expect(album.locator('[data-fotos-anadir]:visible')).toHaveCount(0);
   await dia.focus();
   await dia.selectOption('1');
   await expect(album.locator('[data-album-dia="0"]')).toBeHidden();
-  await expect(album.locator('[data-album-dia="1"]')).toBeVisible();
+  await expect(album.locator('[data-album-dia="1"]')).toBeHidden();
+  await expect(album.locator('[data-album-inicio]')).toContainText('No hay fotos de este día');
   await expect(dia).toBeFocused();
   await expect(album.locator('[data-album-cuenta]')).toHaveText('3 fotos en este móvil · todo el viaje');
   await dia.selectOption('todos');
@@ -141,19 +144,19 @@ test('el álbum vacío permite añadir y borrar sin perder una salida de foco vi
   const album = page.getByRole('dialog', { name: 'Fotos del viaje' });
   await expect(album.locator('[data-album-cuenta]')).toHaveText('0 fotos en este móvil · todo el viaje');
   await expect(album.locator('[data-album-inicio]')).toBeVisible();
-  await album.locator('.album-vacios').first().locator('summary').first().click();
-  const clave = await album.locator('[data-fotos-destino]').first().getAttribute('data-fotos-destino');
-  const bloque = album.locator(`[data-fotos-destino="${clave}"]`);
-  await bloque.locator('.album-acciones > summary').click();
-  await anadirMuestras(page, 1, bloque.getByRole('button', { name: /Tomar foto/ }));
+  await expect(album.locator('[data-album-lugar]:visible')).toHaveCount(0);
+  await album.getByRole('button', { name: 'Ir al itinerario y añadir fotos' }).click();
+  await anadirMuestras(page, 1);
+  await page.getByRole('button', { name: 'Abrir fotos del viaje' }).click();
+  const bloque = album.locator('[data-album-lugar]:visible [data-fotos-destino]');
   await expect(album.locator('[data-album-cuenta]')).toHaveText('1 foto en este móvil · todo el viaje');
-  await expect(album.locator('.album-vacios [data-foto-id]')).toHaveCount(0);
   await bloque.locator('[data-foto-id]').click();
   await page.getByRole('button', { name: 'Borrar de este móvil', exact: true }).click();
   await page.getByRole('button', { name: 'Borrar', exact: true }).click();
   await expect(album.locator('[data-album-cuenta]')).toHaveText('0 fotos en este móvil · todo el viaje');
-  await expect(bloque.locator('[data-fotos-anadir]')).toBeVisible();
-  await expect(bloque.locator('[data-fotos-anadir]')).toBeFocused();
+  await expect(album.locator('[data-album-lugar]:visible')).toHaveCount(0);
+  await expect(album.getByRole('combobox', { name: 'Día de las fotos' })).toBeFocused();
+  await expect(album.getByRole('combobox', { name: 'Día de las fotos' })).toBeInViewport({ ratio: 1 });
 });
 
 test('fotos y ajustes tienen acceso propio sin abandonar el contexto del itinerario', async ({ page }) => {
